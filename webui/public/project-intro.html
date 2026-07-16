@@ -63,6 +63,10 @@
     .section-head { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(360px, 1.2fr); gap: 70px; margin-bottom: 48px; }
     .section-head h2 { margin: 10px 0 0; font-size: 38px; line-height: 1.18; }
     .section-head p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.8; }
+    .system-overview { background: #f8fafc; }
+    .system-overview figure { margin: 0; overflow: hidden; border: 1px solid #ccd8e8; border-radius: 8px; background: #fff; }
+    .system-overview img { display: block; width: 100%; height: auto; }
+    .system-overview figcaption { border-top: 1px solid var(--line); padding: 14px 18px; color: var(--muted); font-size: 13px; line-height: 1.65; }
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
     .stats div { min-height: 130px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 25px; background: #fff; }
     .stats strong { display: block; color: var(--navy); font-size: 34px; }
@@ -145,6 +149,7 @@
   <header class="site-header">
     <a class="brand" href="#top"><img src="./whale-cli-logo.png" alt="" /><span>Whale CLI</span></a>
     <nav aria-label="项目导航">
+      <a href="#overview">系统全览</a>
       <a href="#runtime">运行时</a>
       <a href="#learning">学习闭环</a>
       <a href="#tutorial">教程</a>
@@ -164,6 +169,17 @@
         </div>
         <p class="hero-meta"><span><strong>174</strong> 项离线测试</span><span><strong>28</strong> 章渐进教程</span><span><strong>CLI + WebUI</strong> 双入口</span></p>
       </div>
+    </section>
+
+    <section class="band system-overview" id="overview" aria-labelledby="overview-title">
+      <div class="section-head">
+        <div><span class="eyebrow">SYSTEM OVERVIEW</span><h2 id="overview-title">从一次对话，走到可回顾的学习成果。</h2></div>
+        <p>Whale CLI 将 Agent Runtime、安全执行、多模态文件、扩展能力、学习陪伴与知识沉淀连接为一条可观察的路径。图中的每一块都能在源码、WebUI 和教程中找到对应入口。</p>
+      </div>
+      <figure>
+        <img src="./whale-cli-system-overview.png" alt="Whale CLI 系统功能总览，展示 Agent Runtime、安全执行、多模态文件、扩展生态、学习陪伴、知识沉淀及从用户目标到项目成果的流程。" />
+        <figcaption>用户目标进入对话与附件后，经过 Agent Loop、工具与审批，最终沉淀为学习路线、知识图谱、复习记录和项目成果。</figcaption>
+      </figure>
     </section>
 
     <section class="band soft" aria-labelledby="positioning-title">
