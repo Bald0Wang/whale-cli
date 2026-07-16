@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Whale CLI：从 Agent Loop 到 Datawhale 学习陪伴的可运行 CLI 与 WebUI。" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" type="image/png" href="./whale-cli-logo.png" />
+  <title>Whale CLI · 项目介绍</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #14213d;
+      --muted: #627086;
+      --line: #dce3ec;
+      --paper: #ffffff;
+      --soft: #f4f7fa;
+      --blue: #287db7;
+      --navy: #173568;
+      --coral: #e56f80;
+      --yellow: #f5b931;
+      --green: #397a68;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    a { color: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    .site-header {
+      position: sticky; z-index: 20; top: 0; display: flex; height: 64px; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid var(--line); padding: 0 max(24px, calc((100% - 1180px) / 2));
+      background: rgba(255,255,255,.95); backdrop-filter: blur(14px);
+    }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 750; text-decoration: none; }
+    .brand img { width: 38px; height: 38px; border: 1px solid #e2e8f0; border-radius: 50%; object-fit: cover; }
+    .site-header nav { display: flex; align-items: center; gap: 22px; }
+    .site-header nav a { color: #4b5870; font-size: 13px; font-weight: 650; text-decoration: none; }
+    .site-header nav a:hover { color: var(--blue); }
+    .hero {
+      min-height: calc(100vh - 118px); border-bottom: 1px solid var(--line); padding: 82px max(24px, calc((100% - 1180px) / 2)) 76px;
+      background-color: #fff; background-image: url('./whale-cli-logo.png'); background-repeat: no-repeat;
+      background-position: calc(50% + 310px) center; background-size: min(55vw, 700px);
+    }
+    .hero-copy { width: min(610px, 53%); }
+    .eyebrow { display: inline-block; color: var(--blue); font: 750 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    h1 { max-width: 8ch; margin: 17px 0 22px; font-size: 68px; line-height: 1.02; letter-spacing: 0; }
+    .hero-lead { max-width: 590px; margin: 0; color: #435169; font-size: 20px; line-height: 1.72; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 34px; }
+    .button {
+      display: inline-flex; min-height: 42px; align-items: center; justify-content: center; border: 1px solid var(--navy);
+      border-radius: 6px; padding: 0 17px; background: var(--navy); color: #fff; font-size: 13px; font-weight: 700; text-decoration: none;
+    }
+    .button.secondary { border-color: #cdd6e2; background: #fff; color: #2c405f; }
+    .button:hover { background: #204982; }
+    .button.secondary:hover { border-color: #8aa8c7; background: #f5f8fb; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 34px 0 0; color: #65738a; font-size: 12px; }
+    .hero-meta strong { color: var(--green); }
+    .band { padding: 86px max(24px, calc((100% - 1180px) / 2)); }
+    .band.soft { background: var(--soft); }
+    .band.warm { background: #fff9ed; }
+    .section-head { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(360px, 1.2fr); gap: 70px; margin-bottom: 48px; }
+    .section-head h2 { margin: 10px 0 0; font-size: 38px; line-height: 1.18; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.8; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .stats div { min-height: 130px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 25px; background: #fff; }
+    .stats strong { display: block; color: var(--navy); font-size: 34px; }
+    .stats span { display: block; margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .value-grid { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .value-grid article { min-height: 235px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 29px; background: #fff; }
+    .value-grid article:nth-child(2) { background: #f1f7fb; }
+    .value-grid article:nth-child(3) { background: #fff8ec; }
+    .value-grid article:nth-child(4) { background: #f2f7f4; }
+    .value-grid small { color: var(--coral); font: 750 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .value-grid h3 { margin: 20px 0 10px; font-size: 23px; }
+    .value-grid p { max-width: 48ch; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+    .runtime {
+      display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch; border: 1px solid #cfd9e5;
+      border-radius: 6px; overflow: hidden; background: #fff;
+    }
+    .runtime article { position: relative; min-height: 190px; border-right: 1px solid #dce3ec; padding: 22px 20px; }
+    .runtime article:last-child { border-right: 0; }
+    .runtime article::after { content: ""; position: absolute; top: 42px; right: -5px; z-index: 2; width: 9px; height: 9px; border: 2px solid #7da2c5; border-radius: 50%; background: #fff; }
+    .runtime article:last-child::after { display: none; }
+    .runtime b { color: var(--blue); font: 750 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .runtime h3 { margin: 16px 0 9px; font-size: 18px; }
+    .runtime p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    .learning-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .learning-flow article { min-height: 210px; border-top: 4px solid var(--blue); padding: 21px 3px 0; }
+    .learning-flow article:nth-child(2) { border-color: var(--coral); }
+    .learning-flow article:nth-child(3) { border-color: var(--yellow); }
+    .learning-flow article:nth-child(4) { border-color: var(--green); }
+    .learning-flow span { color: #78859a; font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .learning-flow h3 { margin: 18px 0 9px; font-size: 19px; }
+    .learning-flow p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.72; }
+    .roadmap { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid #d9dfe8; border-left: 1px solid #d9dfe8; }
+    .roadmap div { min-height: 150px; border-right: 1px solid #d9dfe8; border-bottom: 1px solid #d9dfe8; padding: 22px; background: rgba(255,255,255,.72); }
+    .roadmap strong { display: block; color: var(--navy); font-size: 17px; }
+    .roadmap span { display: block; margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .quickstart { background: #152744; color: #f5f8fc; }
+    .quickstart .section-head p { color: #aebbd0; }
+    .quickstart .eyebrow { color: #7fc3eb; }
+    .quickstart-panel { overflow: hidden; border: 1px solid #40516d; border-radius: 6px; background: #0d1a30; }
+    .tabs { display: flex; border-bottom: 1px solid #40516d; padding: 7px; }
+    .tabs button { border: 0; border-radius: 5px; padding: 9px 15px; background: transparent; color: #9eabc0; font-weight: 700; cursor: pointer; }
+    .tabs button[aria-selected="true"] { background: #29425f; color: #fff; }
+    .command-pane { position: relative; min-height: 210px; padding: 28px; }
+    pre { margin: 0; overflow-x: auto; color: #dce8f5; font: 13px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+    .copy-button { position: absolute; top: 18px; right: 18px; border: 1px solid #526681; border-radius: 5px; padding: 7px 10px; background: #1f3451; color: #dce8f5; font-size: 11px; cursor: pointer; }
+    .release-note { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+    .release-note h3 { margin: 0 0 12px; font-size: 24px; }
+    .release-note p { margin: 0; color: var(--muted); line-height: 1.75; }
+    .release-list { margin: 0; border-top: 1px solid var(--line); padding: 0; list-style: none; }
+    .release-list li { display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); padding: 13px 0; color: #4d5b70; font-size: 13px; }
+    .release-list strong { color: var(--green); }
+    footer { display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); padding: 28px max(24px, calc((100% - 1180px) / 2)); color: #718097; font-size: 12px; }
+    footer a { color: var(--navy); text-decoration: none; }
+    @media (max-width: 900px) {
+      .site-header nav a:not(:last-child) { display: none; }
+      .hero { min-height: calc(100vh - 96px); padding-top: 54px; padding-bottom: 310px; background-position: center bottom 24px; background-size: 300px; }
+      .hero-copy { width: 100%; }
+      h1 { font-size: 50px; }
+      .hero-lead { max-width: 36ch; font-size: 17px; }
+      .section-head { grid-template-columns: 1fr; gap: 20px; }
+      .stats, .roadmap { grid-template-columns: repeat(2, 1fr); }
+      .runtime { grid-template-columns: 1fr; }
+      .runtime article { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+      .runtime article:last-child { border-bottom: 0; }
+      .runtime article::after { top: auto; right: 26px; bottom: -6px; }
+      .learning-flow { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .band { padding-top: 62px; padding-bottom: 62px; }
+      .section-head h2 { font-size: 30px; }
+      .value-grid, .stats, .roadmap, .learning-flow, .release-note { grid-template-columns: 1fr; }
+      .hero-actions .button { flex: 1 1 150px; }
+      .stats div, .roadmap div { min-height: 110px; }
+      .learning-flow article { min-height: 0; }
+      footer { display: grid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top"><img src="./whale-cli-logo.png" alt="" /><span>Whale CLI</span></a>
+    <nav aria-label="项目导航">
+      <a href="#runtime">运行时</a>
+      <a href="#learning">学习闭环</a>
+      <a href="#tutorial">教程</a>
+      <a class="button secondary" data-app href="/">打开 WebUI</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">LEARNING AGENT RUNTIME · 0.3.0</span>
+        <h1>Whale CLI</h1>
+        <p class="hero-lead">一套能读、能跑、能改、能验证的学习型 Agent 系统。先理解 Agent Loop，再让它陪你规划路线、连接知识、复习和完成真实项目。</p>
+        <div class="hero-actions">
+          <a class="button" href="#quickstart">开始运行</a>
+          <a class="button secondary" data-source="docs/新手入门/README.md" href="#">阅读 28 章教程</a>
+        </div>
+        <p class="hero-meta"><span><strong>174</strong> 项离线测试</span><span><strong>28</strong> 章渐进教程</span><span><strong>CLI + WebUI</strong> 双入口</span></p>
+      </div>
+    </section>
+
+    <section class="band soft" aria-labelledby="positioning-title">
+      <div class="section-head">
+        <div><span class="eyebrow">WHY WHALE</span><h2 id="positioning-title">不只展示答案，也展示系统如何工作。</h2></div>
+        <p>Whale CLI 把模型调用、工具注册、运行循环、审批、会话、MCP 和学习模块放在一个小而完整的工程里。学习者既能使用它完成任务，也能沿教程逐层读懂每个模块为什么存在。</p>
+      </div>
+      <div class="stats">
+        <div><strong>4</strong><span>turn / goal / time / proactive 四种 Loop 模式</span></div>
+        <div><strong>3</strong><span>stdio / HTTP / SSE 三类 MCP transport</span></div>
+        <div><strong>24 MB</strong><span>单附件上限，支持图片、PDF 与 Office 文件</span></div>
+        <div><strong>0.3.0</strong><span>wheel、Docker、健康检查和发布门禁齐备</span></div>
+      </div>
+    </section>
+
+    <section class="band" aria-labelledby="value-title">
+      <div class="section-head">
+        <div><span class="eyebrow">TWO LAYERS</span><h2 id="value-title">同一套系统，两种学习价值。</h2></div>
+        <p>底层是可观察、可测试的 Agent Runtime；上层是面向 Datawhale 学习者的陪学闭环。两者共享同一个工具池、会话和安全边界。</p>
+      </div>
+      <div class="value-grid">
+        <article><small>RUNTIME 01</small><h3>读懂 Agent Loop</h3><p>从 messages、模型决策、tool call、结果回填到结束条件，直接对应源码和测试，不把关键逻辑藏进框架黑箱。</p></article>
+        <article><small>RUNTIME 02</small><h3>扩展真实能力</h3><p>通过 Toolset、Skills、Hooks、Subagents、Background Tasks、MCP 和项目上下文逐步扩展，不破坏核心循环。</p></article>
+        <article><small>LEARNING 01</small><h3>把目标变成路线</h3><p>Datawhale BM25 检索提供项目证据，学习者档案和知识关系决定路线粒度，每一步都有可手动完成的 checklist。</p></article>
+        <article><small>LEARNING 02</small><h3>把学习变成资产</h3><p>对话可以沉淀为 Obsidian Wiki、间隔复习表、项目证据和学习档案，帮助学习者回看、展示并继续贡献。</p></article>
+      </div>
+    </section>
+
+    <section class="band soft" id="runtime" aria-labelledby="runtime-title">
+      <div class="section-head">
+        <div><span class="eyebrow">AGENT RUNTIME</span><h2 id="runtime-title">每一轮都能观察、审批和恢复。</h2></div>
+        <p>模型不会直接操作系统。请求必须经过 Soul、Toolset、Approval 与 workspace policy；运行轨迹会回到会话，长上下文还能压缩和恢复。</p>
+      </div>
+      <div class="runtime" aria-label="Whale CLI 运行时流程">
+        <article><b>01 INPUT</b><h3>Session</h3><p>保存对话、附件和项目上下文，恢复时继续使用同一条消息链。</p></article>
+        <article><b>02 DECIDE</b><h3>Soul</h3><p>驱动模型回合，判断回答、调用工具、继续循环或结束任务。</p></article>
+        <article><b>03 DISPATCH</b><h3>Toolset</h3><p>统一暴露 schema、分发调用，并接入内置工具、MCP 与学习工具。</p></article>
+        <article><b>04 GUARD</b><h3>Approval</h3><p>写文件和命令默认询问，同时执行工作区与危险命令策略。</p></article>
+        <article><b>05 OBSERVE</b><h3>Trace</h3><p>工具结果、失败和完成状态回填到下一轮，也呈现在 WebUI 轨迹中。</p></article>
+      </div>
+    </section>
+
+    <section class="band" id="learning" aria-labelledby="learning-title">
+      <div class="section-head">
+        <div><span class="eyebrow">LEARNING LOOP</span><h2 id="learning-title">不是给一张路线，而是陪你持续调整。</h2></div>
+        <p>学习目标会被拆成可以完成的子任务。用户确认路线、手动标记完成、触发复习，再把真实产出写回知识图谱和学习档案。</p>
+      </div>
+      <div class="learning-flow">
+        <article><span>01 · PROFILE</span><h3>了解学习者</h3><p>记录基础、目标、每周时间和偏好，避免用同一套答案对待不同阶段的人。</p></article>
+        <article><span>02 · EVIDENCE</span><h3>检索真实资料</h3><p>BM25 同时利用项目元数据与 GitHub README，为推荐提供可追溯证据。</p></article>
+        <article><span>03 · ACTION</span><h3>生成细粒度任务</h3><p>路线拆到周、任务和 checklist，完成状态由学习者明确确认。</p></article>
+        <article><span>04 · RETAIN</span><h3>复习与沉淀</h3><p>间隔复习、Obsidian 双链、项目档案和贡献草稿共同形成长期资产。</p></article>
+      </div>
+    </section>
+
+    <section class="band warm" id="tutorial" aria-labelledby="tutorial-title">
+      <div class="section-head">
+        <div><span class="eyebrow">00—27</span><h2 id="tutorial-title">从五分钟体验，走到垂直学习智能体。</h2></div>
+        <p>教程不只描述概念。每章都对应项目里的模块、最小案例、运行命令和测试，让学习者可以边读边改。</p>
+      </div>
+      <div class="roadmap">
+        <div><strong>00—10 · 核心闭环</strong><span>REPL、LLM Client、Agent Loop、工具、Todo、Skills、Session 与压缩。</span></div>
+        <div><strong>11—20 · Harness</strong><span>Agents、Hooks、Subagents、Background、MCP、AGENTS、Loop 模式与附件。</span></div>
+        <div><strong>21—25 · 学习系统</strong><span>BM25 子代理、学习者档案、知识图谱、动态路线和间隔复习。</span></div>
+        <div><strong>26—27 · 项目与档案</strong><span>项目陪学、可验证产出、能力证据和社区反馈草稿。</span></div>
+      </div>
+    </section>
+
+    <section class="band quickstart" id="quickstart" aria-labelledby="quickstart-title">
+      <div class="section-head">
+        <div><span class="eyebrow">QUICK START</span><h2 id="quickstart-title">选择你的运行方式。</h2></div>
+        <p>源码模式适合学习和开发；Docker 模式适合固定环境部署。两者默认只监听本机，运行数据与工作区分开保存。</p>
+      </div>
+      <div class="quickstart-panel">
+        <div class="tabs" role="tablist" aria-label="启动方式">
+          <button role="tab" aria-selected="true" data-tab="source">源码启动</button>
+          <button role="tab" aria-selected="false" data-tab="docker">Docker Compose</button>
+        </div>
+        <div class="command-pane">
+          <button class="copy-button" type="button">复制命令</button>
+          <pre id="command"><code>python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+make web
+whale-doctor --web
+whale-web</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" aria-labelledby="release-title">
+      <div class="section-head">
+        <div><span class="eyebrow">RELEASE READY</span><h2 id="release-title">为单用户本地发布准备完整。</h2></div>
+        <p>0.3.0 已通过 Python、React、wheel、Docker 和 HTTP 健康检查。当前边界是本地或可信内网工具，公网部署前仍需增加身份认证、HTTPS 与多用户隔离。</p>
+      </div>
+      <div class="release-note">
+        <div><h3>发布入口</h3><p>使用 `make release` 运行统一门禁，使用 `whale-doctor --web` 检查目标环境，服务通过 `/health` 与 `/ready` 提供进程和就绪状态。</p></div>
+        <ul class="release-list">
+          <li><span>Python tests</span><strong>174 passed</strong></li>
+          <li><span>React production build</span><strong>passed</strong></li>
+          <li><span>wheel install smoke</span><strong>passed</strong></li>
+          <li><span>Docker health</span><strong>healthy</strong></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Whale CLI · Learning Agent Runtime · MIT License</span>
+    <span><a data-source="README.md" href="#">README</a> · <a data-source="docs/部署与发布.md" href="#">部署文档</a> · <a data-source="CHANGELOG.md" href="#">Changelog</a></span>
+  </footer>
+
+  <script>
+    const commands = {
+      source: 'python3 -m venv .venv\nsource .venv/bin/activate\npython -m pip install -e ".[dev]"\nmake web\nwhale-doctor --web\nwhale-web',
+      docker: 'export STEP_API_KEY="your-key"\nexport WHALE_WORKSPACE_PATH="$PWD"\ndocker compose up -d --build\ncurl http://127.0.0.1:8765/ready'
+    };
+    const command = document.querySelector('#command code');
+    document.querySelectorAll('[data-tab]').forEach((tab) => tab.addEventListener('click', () => {
+      document.querySelectorAll('[data-tab]').forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
+      command.textContent = commands[tab.dataset.tab];
+    }));
+    document.querySelector('.copy-button').addEventListener('click', async (event) => {
+      try {
+        await navigator.clipboard.writeText(command.textContent);
+        event.currentTarget.textContent = '已复制';
+        setTimeout(() => { event.currentTarget.textContent = '复制命令'; }, 1400);
+      } catch (_) {
+        event.currentTarget.textContent = '请手动复制';
+      }
+    });
+    const sourceBase = location.protocol === 'file:' ? '../../' : '/project-assets/';
+    document.querySelectorAll('[data-source]').forEach((link) => { link.href = sourceBase + encodeURI(link.dataset.source); });
+    const appLink = document.querySelector('[data-app]');
+    appLink.href = location.protocol === 'file:' ? '../dist/index.html' : '/';
+  </script>
+</body>
+</html>

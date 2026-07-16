@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 690" role="img" aria-labelledby="title desc">
+  <title id="title">ReAct Agent Loop 闭环</title>
+  <desc id="desc">思考、行动、观察交替推进，直到任务完成或需要停下</desc>
+  <defs>
+    <filter id="cardShadow" x="-8%" y="-18%" width="116%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.09"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#D97706"/>
+    </marker>
+    <style><![CDATA[
+      .title { font: 700 27px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .subtitle { font: 400 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#526174; }
+      .card-title { font: 700 15px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+      .card-text { font: 400 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#40516A; }
+      .small { font: 400 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#5B6B80; }
+      .label { font: 700 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#334155; }
+      .arrow { fill:none; stroke:#2563EB; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowBlue); }
+      .arrow-green { fill:none; stroke:#059669; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowGreen); }
+      .arrow-amber { fill:none; stroke:#D97706; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowAmber); }
+      .muted-line { fill:none; stroke:#CBD5E1; stroke-width:1.4; stroke-dasharray:5 5; }
+    ]]></style>
+  </defs>
+  <rect width="1000" height="690" rx="24" fill="#F7FAFC"/>
+  <rect x="24" y="22" width="952" height="646" rx="22" fill="#FFFFFF" stroke="#D9E4F2" filter="url(#cardShadow)"/>
+  <text class="title" x="500" y="54" text-anchor="middle">ReAct Agent Loop 闭环</text>
+  <text class="subtitle" x="500" y="78" text-anchor="middle">思考、行动、观察交替推进，直到任务完成或需要停下</text>
+  <rect x="405" y="104" width="190" height="72" rx="16" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.6"/>
+  <rect x="405" y="104" width="6" height="72" rx="3" fill="#2563EB" opacity="0.9"/>
+  <text class="card-title" x="500.0" y="129" text-anchor="middle" fill="#2563EB">
+    <tspan x="500.0">目标</tspan>
+  </text>
+  <text class="card-text" x="500.0" y="152" text-anchor="middle">
+    <tspan x="500.0">用户给出任务边界</tspan>
+  </text>
+  <rect x="695" y="214" width="210" height="76" rx="16" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.6"/>
+  <rect x="695" y="214" width="6" height="76" rx="3" fill="#7C3AED" opacity="0.9"/>
+  <text class="card-title" x="800.0" y="239" text-anchor="middle" fill="#7C3AED">
+    <tspan x="800.0">计划</tspan>
+  </text>
+  <text class="card-text" x="800.0" y="262" text-anchor="middle">
+    <tspan x="800.0">拆出下一步动作</tspan>
+  </text>
+  <rect x="695" y="394" width="210" height="76" rx="16" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1.6"/>
+  <rect x="695" y="394" width="6" height="76" rx="3" fill="#D97706" opacity="0.9"/>
+  <text class="card-title" x="800.0" y="419" text-anchor="middle" fill="#D97706">
+    <tspan x="800.0">行动</tspan>
+  </text>
+  <text class="card-text" x="800.0" y="442" text-anchor="middle">
+    <tspan x="800.0">调用工具或输出答案</tspan>
+  </text>
+  <rect x="405" y="500" width="190" height="72" rx="16" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1.6"/>
+  <rect x="405" y="500" width="6" height="72" rx="3" fill="#059669" opacity="0.9"/>
+  <text class="card-title" x="500.0" y="525" text-anchor="middle" fill="#059669">
+    <tspan x="500.0">观察</tspan>
+  </text>
+  <text class="card-text" x="500.0" y="548" text-anchor="middle">
+    <tspan x="500.0">工具结果进入上下文</tspan>
+  </text>
+  <rect x="95" y="394" width="210" height="76" rx="16" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="1.6"/>
+  <rect x="95" y="394" width="6" height="76" rx="3" fill="#0891B2" opacity="0.9"/>
+  <text class="card-title" x="200.0" y="419" text-anchor="middle" fill="#0891B2">
+    <tspan x="200.0">调整</tspan>
+  </text>
+  <text class="card-text" x="200.0" y="442" text-anchor="middle">
+    <tspan x="200.0">根据新事实修正路线</tspan>
+  </text>
+  <rect x="95" y="214" width="210" height="76" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.6"/>
+  <rect x="95" y="214" width="6" height="76" rx="3" fill="#475569" opacity="0.9"/>
+  <text class="card-title" x="200.0" y="239" text-anchor="middle" fill="#475569">
+    <tspan x="200.0">完成</tspan>
+  </text>
+  <text class="card-text" x="200.0" y="262" text-anchor="middle">
+    <tspan x="200.0">答案、文件或测试结果</tspan>
+  </text>
+  <path class="arrow" d="M595 140 C650 145 690 170 725 214"/>
+  <path class="arrow-amber" d="M800 290 C815 330 815 360 800 394"/>
+  <path class="arrow-green" d="M695 450 C650 505 620 530 595 536"/>
+  <path class="arrow" d="M405 536 C350 525 325 505 305 450"/>
+  <path class="arrow" d="M200 394 C185 360 185 325 200 290"/>
+  <path class="arrow" d="M305 250 C350 190 375 160 405 140"/>
+  <rect x="370" y="292" width="260" height="92" rx="16" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.6"/>
+  <rect x="370" y="292" width="6" height="92" rx="3" fill="#2563EB" opacity="0.9"/>
+  <text class="card-title" x="500.0" y="317" text-anchor="middle" fill="#2563EB">
+    <tspan x="500.0">ReAct 核心</tspan>
+  </text>
+  <text class="card-text" x="500.0" y="340" text-anchor="middle">
+    <tspan x="500.0">Reasoning 定下一步；Acting 获取事实</tspan>
+    <tspan x="500.0" dy="15">Observation 更新下一轮上下文</tspan>
+  </text>
+  <rect x="70" y="600" width="860" height="58" rx="14" fill="#F8FAFC" stroke="#D8E1EE"/>
+  <text class="card-title" x="88" y="624" text-anchor="start" fill="#334155">
+    <tspan x="88">读图提示</tspan>
+  </text>
+  <text class="small" x="88" y="648" text-anchor="start">
+    <tspan x="88">这不是一次性回答，而是一轮轮推进。Whale CLI 的 Soul.run() 就是在执行这条闭环。</tspan>
+  </text>
+</svg>

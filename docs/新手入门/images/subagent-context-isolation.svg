@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 570" role="img" aria-labelledby="title desc">
+  <title id="title">Subagent 上下文隔离</title>
+  <desc id="desc">用干净上下文处理复杂子任务，父会话只接收摘要</desc>
+  <defs>
+    <filter id="cardShadow" x="-8%" y="-18%" width="116%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.09"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#D97706"/>
+    </marker>
+    <style><![CDATA[
+      .title { font: 700 27px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .subtitle { font: 400 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#526174; }
+      .card-title { font: 700 15px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+      .card-text { font: 400 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#40516A; }
+      .small { font: 400 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#5B6B80; }
+      .label { font: 700 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#334155; }
+      .arrow { fill:none; stroke:#2563EB; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowBlue); }
+      .arrow-green { fill:none; stroke:#059669; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowGreen); }
+      .arrow-amber { fill:none; stroke:#D97706; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowAmber); }
+      .muted-line { fill:none; stroke:#CBD5E1; stroke-width:1.4; stroke-dasharray:5 5; }
+    ]]></style>
+  </defs>
+  <rect width="1000" height="570" rx="24" fill="#F7FAFC"/>
+  <rect x="24" y="22" width="952" height="526" rx="22" fill="#FFFFFF" stroke="#D9E4F2" filter="url(#cardShadow)"/>
+  <text class="title" x="500" y="54" text-anchor="middle">Subagent 上下文隔离</text>
+  <text class="subtitle" x="500" y="78" text-anchor="middle">用干净上下文处理复杂子任务，父会话只接收摘要</text>
+  <rect x="48" y="104" width="412" height="330" rx="22" fill="#F8FAFC" stroke="#CBD5E1" stroke-dasharray="8 6"/>
+  <text class="label" x="70" y="130">父会话 Parent Soul</text>
+  <rect x="90" y="158" width="300" height="76" rx="16" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.6"/>
+  <rect x="90" y="158" width="6" height="76" rx="3" fill="#2563EB" opacity="0.9"/>
+  <text class="card-title" x="240.0" y="183" text-anchor="middle" fill="#2563EB">
+    <tspan x="240.0">复杂任务</tspan>
+  </text>
+  <text class="card-text" x="240.0" y="206" text-anchor="middle">
+    <tspan x="240.0">父 agent 不想塞满上下文</tspan>
+  </text>
+  <line class="arrow" x1="390" y1="196" x2="520" y2="196"/>
+  <text class="label" x="455.0" y="189.0" text-anchor="middle">调用 Agent 工具</text>
+  <rect x="520" y="158" width="220" height="76" rx="16" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.6"/>
+  <rect x="520" y="158" width="6" height="76" rx="3" fill="#7C3AED" opacity="0.9"/>
+  <text class="card-title" x="630.0" y="183" text-anchor="middle" fill="#7C3AED">
+    <tspan x="630.0">Agent Tool</tspan>
+  </text>
+  <text class="card-text" x="630.0" y="206" text-anchor="middle">
+    <tspan x="630.0">description + prompt + agent_type</tspan>
+  </text>
+  <line class="arrow" x1="630" y1="234" x2="630" y2="292"/>
+  <rect x="500" y="276" width="452" height="250" rx="22" fill="#F0FDF4" stroke="#A7F3D0" stroke-dasharray="8 6"/>
+  <text class="label" x="522" y="304">子会话 Child Soul（干净上下文）</text>
+  <rect x="545" y="326" width="165" height="70" rx="16" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1.6"/>
+  <rect x="545" y="326" width="6" height="70" rx="3" fill="#059669" opacity="0.9"/>
+  <text class="card-title" x="627.5" y="351" text-anchor="middle" fill="#059669">
+    <tspan x="627.5">explore</tspan>
+  </text>
+  <text class="card-text" x="627.5" y="374" text-anchor="middle">
+    <tspan x="627.5">只读工具</tspan>
+  </text>
+  <rect x="742" y="326" width="165" height="70" rx="16" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1.6"/>
+  <rect x="742" y="326" width="6" height="70" rx="3" fill="#D97706" opacity="0.9"/>
+  <text class="card-title" x="824.5" y="351" text-anchor="middle" fill="#D97706">
+    <tspan x="824.5">coder</tspan>
+  </text>
+  <text class="card-text" x="824.5" y="374" text-anchor="middle">
+    <tspan x="824.5">写文件和 bash</tspan>
+  </text>
+  <rect x="590" y="424" width="270" height="70" rx="16" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="1.6"/>
+  <rect x="590" y="424" width="6" height="70" rx="3" fill="#0891B2" opacity="0.9"/>
+  <text class="card-title" x="725.0" y="449" text-anchor="middle" fill="#0891B2">
+    <tspan x="725.0">summary only</tspan>
+  </text>
+  <text class="card-text" x="725.0" y="472" text-anchor="middle">
+    <tspan x="725.0">只把摘要带回父会话，不复制完整历史</tspan>
+  </text>
+  <line class="arrow-green" x1="710" y1="396" x2="700" y2="424"/>
+  <path class="arrow" d="M590 459 C420 500 260 430 240 234" stroke-dasharray="6 5"/>
+  <text class="label" x="390" y="492" text-anchor="middle">摘要回传</text>
+  <rect x="70" y="460" width="360" height="58" rx="14" fill="#F8FAFC" stroke="#D8E1EE"/>
+  <text class="card-title" x="88" y="484" text-anchor="start" fill="#334155">
+    <tspan x="88">隔离原则</tspan>
+  </text>
+  <text class="small" x="88" y="508" text-anchor="start">
+    <tspan x="88">父会话负责主线；子会话负责一次性调查或编码；两边只通过摘要交</tspan>
+    <tspan x="88" dy="15">换。</tspan>
+  </text>
+</svg>

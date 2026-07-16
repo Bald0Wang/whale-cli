@@ -1,0 +1,15 @@
+{
+  "_comment": "Copy this file to ~/.whale/config.json and fill in your real API key. NEVER commit config.json.",
+  "_locations": [
+    "Linux/macOS: ~/.whale/config.json",
+    "The llm.api_key is read by Whale CLI's LLM client module"
+  ],
+  "llm": {
+    "api_key": "sk-your-real-key-here",
+    "base_url": "https://api.stepfun.com/step_plan/v1",
+    "model": "step-3.7-flash",
+    "max_context_tokens": 256000,
+    "vision_enabled": true,
+    "vision_detail": "low"
+  }
+}

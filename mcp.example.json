@@ -1,0 +1,12 @@
+{
+  "_comment": "Copy this file to .whale_cli/mcp.json in the project you run Whale CLI from. Replace this trusted stdio example with the MCP servers your project needs.",
+  "mcpServers": {
+    "echo-server": {
+      "transport": "stdio",
+      "command": "python",
+      "args": ["examples/mcp_echo_server.py"],
+      "env": {},
+      "timeout_s": 30
+    }
+  }
+}

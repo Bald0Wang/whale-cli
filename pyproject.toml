@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whale-cli"
+version = "0.3.0"
+description = "An observable AI agent runtime and learning companion for building skills with Datawhale projects."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "whale-cli contributors" }]
+keywords = ["ai-agent", "cli", "learning", "mcp", "datawhale", "obsidian"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Education",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "openai>=1.0.0",
+    "ddgs>=9.0.0",
+    "mcp>=1.27,<2",
+    "fastmcp>=3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+whale-cli = "whale_cli.ui.shell.main:main"
+whale-web = "whale_cli.web.server:main"
+whale-doctor = "whale_cli.doctor:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+whale_cli = [
+    "agents/**/*.yaml",
+    "agents/**/*.md",
+    "prompts/*.md",
+    "skills/**/SKILL.md",
+    "web/static/**/*",
+    "web/tutorials/**/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "e2e: end-to-end tests hitting the real model (deselect with '-m \"not e2e\"')",
+]

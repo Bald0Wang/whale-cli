@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-labelledby="title desc">
+  <title id="title">Todo 状态机</title>
+  <desc id="desc">把模型计划变成可检查、可更新的任务状态</desc>
+  <defs>
+    <filter id="cardShadow" x="-8%" y="-18%" width="116%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.09"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#D97706"/>
+    </marker>
+    <style><![CDATA[
+      .title { font: 700 27px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .subtitle { font: 400 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#526174; }
+      .card-title { font: 700 15px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+      .card-text { font: 400 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#40516A; }
+      .small { font: 400 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#5B6B80; }
+      .label { font: 700 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#334155; }
+      .arrow { fill:none; stroke:#2563EB; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowBlue); }
+      .arrow-green { fill:none; stroke:#059669; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowGreen); }
+      .arrow-amber { fill:none; stroke:#D97706; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowAmber); }
+      .muted-line { fill:none; stroke:#CBD5E1; stroke-width:1.4; stroke-dasharray:5 5; }
+    ]]></style>
+  </defs>
+  <rect width="1000" height="560" rx="24" fill="#F7FAFC"/>
+  <rect x="24" y="22" width="952" height="516" rx="22" fill="#FFFFFF" stroke="#D9E4F2" filter="url(#cardShadow)"/>
+  <text class="title" x="500" y="54" text-anchor="middle">Todo 状态机</text>
+  <text class="subtitle" x="500" y="78" text-anchor="middle">把模型计划变成可检查、可更新的任务状态</text>
+  <rect x="85" y="136" width="200" height="82" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.6"/>
+  <rect x="85" y="136" width="6" height="82" rx="3" fill="#475569" opacity="0.9"/>
+  <text class="card-title" x="185.0" y="161" text-anchor="middle" fill="#475569">
+    <tspan x="185.0">pending</tspan>
+  </text>
+  <text class="card-text" x="185.0" y="184" text-anchor="middle">
+    <tspan x="185.0">想做但还没开始</tspan>
+  </text>
+  <line class="arrow" x1="285" y1="177" x2="385" y2="177"/>
+  <text class="label" x="335.0" y="170.0" text-anchor="middle">开始处理</text>
+  <rect x="385" y="136" width="230" height="82" rx="16" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1.6"/>
+  <rect x="385" y="136" width="6" height="82" rx="3" fill="#D97706" opacity="0.9"/>
+  <text class="card-title" x="500.0" y="161" text-anchor="middle" fill="#D97706">
+    <tspan x="500.0">in_progress</tspan>
+  </text>
+  <text class="card-text" x="500.0" y="184" text-anchor="middle">
+    <tspan x="500.0">当前正在推进的一项</tspan>
+  </text>
+  <line class="arrow" x1="615" y1="177" x2="715" y2="177"/>
+  <text class="label" x="665.0" y="170.0" text-anchor="middle">完成</text>
+  <rect x="715" y="136" width="200" height="82" rx="16" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1.6"/>
+  <rect x="715" y="136" width="6" height="82" rx="3" fill="#059669" opacity="0.9"/>
+  <text class="card-title" x="815.0" y="161" text-anchor="middle" fill="#059669">
+    <tspan x="815.0">done</tspan>
+  </text>
+  <text class="card-text" x="815.0" y="184" text-anchor="middle">
+    <tspan x="815.0">已经交付或验证</tspan>
+  </text>
+  <path class="arrow-amber" d="M500 218 C500 288 245 288 185 218" stroke-dasharray="6 5"/>
+  <text class="label" x="350" y="286" text-anchor="middle">拆分或重排</text>
+  <rect x="85" y="330" width="250" height="86" rx="16" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.6"/>
+  <rect x="85" y="330" width="6" height="86" rx="3" fill="#2563EB" opacity="0.9"/>
+  <text class="card-title" x="210.0" y="355" text-anchor="middle" fill="#2563EB">
+    <tspan x="210.0">TodoWrite 工具</tspan>
+  </text>
+  <text class="card-text" x="210.0" y="378" text-anchor="middle">
+    <tspan x="210.0">模型提交完整 todos 列表</tspan>
+  </text>
+  <line class="arrow" x1="335" y1="373" x2="405" y2="373"/>
+  <rect x="405" y="330" width="220" height="86" rx="16" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.6"/>
+  <rect x="405" y="330" width="6" height="86" rx="3" fill="#7C3AED" opacity="0.9"/>
+  <text class="card-title" x="515.0" y="355" text-anchor="middle" fill="#7C3AED">
+    <tspan x="515.0">TodoStore.replace_all()</tspan>
+  </text>
+  <text class="card-text" x="515.0" y="378" text-anchor="middle">
+    <tspan x="515.0">整体替换，避免旧任务残留</tspan>
+  </text>
+  <line class="arrow" x1="625" y1="373" x2="695" y2="373"/>
+  <rect x="695" y="330" width="220" height="86" rx="16" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="1.6"/>
+  <rect x="695" y="330" width="6" height="86" rx="3" fill="#0891B2" opacity="0.9"/>
+  <text class="card-title" x="805.0" y="355" text-anchor="middle" fill="#0891B2">
+    <tspan x="805.0">render()</tspan>
+  </text>
+  <text class="card-text" x="805.0" y="378" text-anchor="middle">
+    <tspan x="805.0">用户和模型都能看到进度</tspan>
+  </text>
+  <rect x="85" y="470" width="830" height="58" rx="14" fill="#F8FAFC" stroke="#D8E1EE"/>
+  <text class="card-title" x="103" y="494" text-anchor="start" fill="#334155">
+    <tspan x="103">为什么只允许一个 in_progress</tspan>
+  </text>
+  <text class="small" x="103" y="518" text-anchor="start">
+    <tspan x="103">多步任务最怕“看起来全在做”。限制当前任务能让下一步更清楚，用户也更容易监督。</tspan>
+  </text>
+</svg>

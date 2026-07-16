@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" role="img" aria-labelledby="title desc">
+  <title id="title">REPL 与会话存储结构</title>
+  <desc id="desc">把一次性聊天框变成可恢复、可审计的会话系统</desc>
+  <defs>
+    <filter id="cardShadow" x="-8%" y="-18%" width="116%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.09"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#D97706"/>
+    </marker>
+    <style><![CDATA[
+      .title { font: 700 27px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .subtitle { font: 400 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#526174; }
+      .card-title { font: 700 15px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+      .card-text { font: 400 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#40516A; }
+      .small { font: 400 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#5B6B80; }
+      .label { font: 700 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#334155; }
+      .arrow { fill:none; stroke:#2563EB; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowBlue); }
+      .arrow-green { fill:none; stroke:#059669; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowGreen); }
+      .arrow-amber { fill:none; stroke:#D97706; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowAmber); }
+      .muted-line { fill:none; stroke:#CBD5E1; stroke-width:1.4; stroke-dasharray:5 5; }
+    ]]></style>
+  </defs>
+  <rect width="1000" height="520" rx="24" fill="#F7FAFC"/>
+  <rect x="24" y="22" width="952" height="476" rx="22" fill="#FFFFFF" stroke="#D9E4F2" filter="url(#cardShadow)"/>
+  <text class="title" x="500" y="54" text-anchor="middle">REPL 与会话存储结构</text>
+  <text class="subtitle" x="500" y="78" text-anchor="middle">把一次性聊天框变成可恢复、可审计的会话系统</text>
+  <rect x="65" y="116" width="220" height="78" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.6"/>
+  <rect x="65" y="116" width="6" height="78" rx="3" fill="#475569" opacity="0.9"/>
+  <text class="card-title" x="175.0" y="141" text-anchor="middle" fill="#475569">
+    <tspan x="175.0">REPL</tspan>
+  </text>
+  <text class="card-text" x="175.0" y="164" text-anchor="middle">
+    <tspan x="175.0">读用户输入；识别命令；显示输出</tspan>
+  </text>
+  <line class="arrow" x1="285" y1="155" x2="350" y2="155"/>
+  <rect x="350" y="116" width="240" height="78" rx="16" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.6"/>
+  <rect x="350" y="116" width="6" height="78" rx="3" fill="#2563EB" opacity="0.9"/>
+  <text class="card-title" x="470.0" y="141" text-anchor="middle" fill="#2563EB">
+    <tspan x="470.0">Soul messages</tspan>
+  </text>
+  <text class="card-text" x="470.0" y="164" text-anchor="middle">
+    <tspan x="470.0">system / user / assistant / tool</tspan>
+  </text>
+  <line class="arrow" x1="590" y1="155" x2="660" y2="155"/>
+  <rect x="660" y="116" width="245" height="78" rx="16" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1.6"/>
+  <rect x="660" y="116" width="6" height="78" rx="3" fill="#059669" opacity="0.9"/>
+  <text class="card-title" x="782.5" y="141" text-anchor="middle" fill="#059669">
+    <tspan x="782.5">SessionStore</tspan>
+  </text>
+  <text class="card-text" x="782.5" y="164" text-anchor="middle">
+    <tspan x="782.5">统一创建、追加、读取会话</tspan>
+  </text>
+  <line class="arrow-green" x1="782" y1="194" x2="782" y2="236"/>
+  <rect x="610" y="240" width="150" height="78" rx="16" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="1.6"/>
+  <rect x="610" y="240" width="6" height="78" rx="3" fill="#0891B2" opacity="0.9"/>
+  <text class="card-title" x="685.0" y="265" text-anchor="middle" fill="#0891B2">
+    <tspan x="685.0">index.jsonl</tspan>
+  </text>
+  <text class="card-text" x="685.0" y="288" text-anchor="middle">
+    <tspan x="685.0">session_id、title、时间</tspan>
+  </text>
+  <rect x="785" y="240" width="150" height="78" rx="16" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="1.6"/>
+  <rect x="785" y="240" width="6" height="78" rx="3" fill="#0891B2" opacity="0.9"/>
+  <text class="card-title" x="860.0" y="265" text-anchor="middle" fill="#0891B2">
+    <tspan x="860.0">{id}.jsonl</tspan>
+  </text>
+  <text class="card-text" x="860.0" y="288" text-anchor="middle">
+    <tspan x="860.0">每行一条消息</tspan>
+  </text>
+  <line class="arrow-green" x1="735" y1="278" x2="785" y2="278"/>
+  <rect x="65" y="272" width="245" height="88" rx="16" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.6"/>
+  <rect x="65" y="272" width="6" height="88" rx="3" fill="#7C3AED" opacity="0.9"/>
+  <text class="card-title" x="187.5" y="297" text-anchor="middle" fill="#7C3AED">
+    <tspan x="187.5">启动恢复</tspan>
+  </text>
+  <text class="card-text" x="187.5" y="320" text-anchor="middle">
+    <tspan x="187.5">读取最近会话；加载 messages</tspan>
+    <tspan x="187.5" dy="15">重新构造 Soul</tspan>
+  </text>
+  <path class="arrow" d="M610 278 C470 340 360 340 310 316"/>
+  <rect x="350" y="292" width="205" height="70" rx="16" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1.6"/>
+  <rect x="350" y="292" width="6" height="70" rx="3" fill="#D97706" opacity="0.9"/>
+  <text class="card-title" x="452.5" y="317" text-anchor="middle" fill="#D97706">
+    <tspan x="452.5">append_message()</tspan>
+  </text>
+  <text class="card-text" x="452.5" y="340" text-anchor="middle">
+    <tspan x="452.5">内存追加；写入 JSONL</tspan>
+    <tspan x="452.5" dy="15">补 timestamp / metadata</tspan>
+  </text>
+  <line class="arrow-amber" x1="455" y1="194" x2="455" y2="292"/>
+  <rect x="65" y="414" width="870" height="68" rx="14" fill="#F8FAFC" stroke="#D8E1EE"/>
+  <text class="card-title" x="83" y="438" text-anchor="start" fill="#334155">
+    <tspan x="83">为什么用 jsonl</tspan>
+  </text>
+  <text class="small" x="83" y="462" text-anchor="start">
+    <tspan x="83">先追求容易验证：追加写入简单、可人工查看、崩溃后容易恢复。等数据量真的变大，再换 sqlite 也不迟。</tspan>
+  </text>
+</svg>

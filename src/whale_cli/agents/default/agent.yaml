@@ -1,0 +1,28 @@
+name: default
+system_prompt: system.md
+tools:
+  - ReadFile
+  - Glob
+  - Grep
+  - WriteFile
+  - Edit
+  - Bash
+  - SearchWeb
+  - FetchURL
+  - TodoWrite
+  - GetDate
+  - Agent
+  - LearnerProfile
+  - KnowledgeMap
+  - LearningRoadmap
+  - LearningReview
+  - LearningProjectPlan
+  - CloneLearningProject
+  - LearningPortfolio
+  - LearningWikiStatus
+  - LearningWiki
+  - OpenLearningWiki
+  - SyncToObsidianVault
+  - BackgroundStart
+  - BackgroundList
+  - BackgroundOutput

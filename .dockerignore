@@ -1,0 +1,15 @@
+.git
+.venv
+.whale
+.whale_cli
+learning-wiki
+webui/node_modules
+webui/dist
+src/whale_cli/web/static
+src/whale_cli/web/tutorials
+__pycache__
+*.pyc
+.pytest_cache
+dist
+build
+.env

@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local runtime data (whale_cli sessions)
+.whale_cli/
+learning-wiki/
+
+# Local secrets / configs — NEVER commit real keys
+.env
+.env.local
+.whale/
+config.json
+!config.example.json
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+todo.txt
+
+# Generated release assets (created by scripts/build_web.sh)
+src/whale_cli/web/static/
+src/whale_cli/web/tutorials/

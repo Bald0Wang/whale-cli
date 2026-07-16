@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 730" role="img" aria-labelledby="title desc">
+  <title id="title">Whale CLI 整体架构总览</title>
+  <desc id="desc">从终端入口到 Agent Loop、模型、工具和持久化的主路径</desc>
+  <defs>
+    <filter id="cardShadow" x="-8%" y="-18%" width="116%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.09"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#D97706"/>
+    </marker>
+    <style><![CDATA[
+      .title { font: 700 27px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .subtitle { font: 400 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#526174; }
+      .card-title { font: 700 15px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+      .card-text { font: 400 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#40516A; }
+      .small { font: 400 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#5B6B80; }
+      .label { font: 700 11px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#334155; }
+      .arrow { fill:none; stroke:#2563EB; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowBlue); }
+      .arrow-green { fill:none; stroke:#059669; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowGreen); }
+      .arrow-amber { fill:none; stroke:#D97706; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrowAmber); }
+      .muted-line { fill:none; stroke:#CBD5E1; stroke-width:1.4; stroke-dasharray:5 5; }
+    ]]></style>
+  </defs>
+  <rect width="1000" height="730" rx="24" fill="#F7FAFC"/>
+  <rect x="24" y="22" width="952" height="686" rx="22" fill="#FFFFFF" stroke="#D9E4F2" filter="url(#cardShadow)"/>
+  <text class="title" x="500" y="54" text-anchor="middle">Whale CLI 整体架构总览</text>
+  <text class="subtitle" x="500" y="78" text-anchor="middle">从终端入口到 Agent Loop、模型、工具和持久化的主路径</text>
+  <rect x="70" y="102" width="860" height="58" rx="16" fill="#172033" stroke="#172033"/>
+  <text class="card-title" x="500.0" y="130" text-anchor="middle" fill="#FFFFFF">
+    <tspan x="500.0">用户终端 Terminal</tspan>
+  </text>
+  <text class="small" x="500.0" y="154" text-anchor="middle" fill="#CBD5E1">
+    <tspan x="500.0">自然语言目标、斜杠命令、审批输入</tspan>
+  </text>
+  <line class="arrow" x1="500" y1="160" x2="500" y2="184"/>
+  <rect x="70" y="188" width="860" height="72" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.6"/>
+  <rect x="70" y="188" width="6" height="72" rx="3" fill="#475569" opacity="0.9"/>
+  <text class="card-title" x="500.0" y="213" text-anchor="middle" fill="#475569">
+    <tspan x="500.0">REPL 命令层</tspan>
+  </text>
+  <text class="card-text" x="500.0" y="236" text-anchor="middle">
+    <tspan x="500.0">识别 /help /session /todo；普通输入交给 Soul；启动时恢复最近会话</tspan>
+  </text>
+  <line class="arrow" x1="500" y1="260" x2="500" y2="286"/>
+  <rect x="70" y="290" width="860" height="118" rx="16" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.6"/>
+  <rect x="70" y="290" width="6" height="118" rx="3" fill="#2563EB" opacity="0.9"/>
+  <text class="card-title" x="500.0" y="315" text-anchor="middle" fill="#2563EB">
+    <tspan x="500.0">Agent Loop / Soul</tspan>
+  </text>
+  <text class="card-text" x="500.0" y="338" text-anchor="middle">
+    <tspan x="500.0">模型决策、工具调用、结果回填、上下文压缩都在这一层收束</tspan>
+  </text>
+  <rect x="112" y="358" width="118" height="28" rx="14" fill="#ECFDF5" stroke="#A7F3D0"/>
+  <text class="small" x="171.0" y="376" text-anchor="middle" fill="#059669">TodoStore</text>
+  <rect x="250" y="358" width="118" height="28" rx="14" fill="#ECFEFF" stroke="#A5F3FC"/>
+  <text class="small" x="309.0" y="376" text-anchor="middle" fill="#0891B2">SessionStore</text>
+  <rect x="400" y="358" width="118" height="28" rx="14" fill="#F5F3FF" stroke="#DDD6FE"/>
+  <text class="small" x="459.0" y="376" text-anchor="middle" fill="#7C3AED">Compaction</text>
+  <rect x="548" y="358" width="118" height="28" rx="14" fill="#FFFBEB" stroke="#FDE68A"/>
+  <text class="small" x="607.0" y="376" text-anchor="middle" fill="#D97706">Hooks</text>
+  <rect x="682" y="358" width="118" height="28" rx="14" fill="#FFF1F2" stroke="#FECDD3"/>
+  <text class="small" x="741.0" y="376" text-anchor="middle" fill="#E11D48">AgentSpec</text>
+  <line class="arrow" x1="385" y1="408" x2="300" y2="438"/>
+  <line class="arrow-amber" x1="615" y1="408" x2="700" y2="438"/>
+  <rect x="70" y="440" width="420" height="90" rx="16" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.6"/>
+  <rect x="70" y="440" width="6" height="90" rx="3" fill="#7C3AED" opacity="0.9"/>
+  <text class="card-title" x="280.0" y="465" text-anchor="middle" fill="#7C3AED">
+    <tspan x="280.0">LLM Client</tspan>
+  </text>
+  <text class="card-text" x="280.0" y="488" text-anchor="middle">
+    <tspan x="280.0">OpenAI 兼容 chat()；Step Plan 或其他 provider；配置优先级统一处理</tspan>
+  </text>
+  <rect x="510" y="440" width="420" height="90" rx="16" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1.6"/>
+  <rect x="510" y="440" width="6" height="90" rx="3" fill="#D97706" opacity="0.9"/>
+  <text class="card-title" x="720.0" y="465" text-anchor="middle" fill="#D97706">
+    <tspan x="720.0">Toolset</tspan>
+  </text>
+  <text class="card-text" x="720.0" y="488" text-anchor="middle">
+    <tspan x="720.0">内置、plugin、MCP 工具；按 name 分发，并对危险工具审批</tspan>
+  </text>
+  <line class="arrow-green" x1="300" y1="530" x2="230" y2="558"/>
+  <line class="arrow-amber" x1="700" y1="530" x2="770" y2="558"/>
+  <rect x="60" y="560" width="260" height="70" rx="16" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1.6"/>
+  <rect x="60" y="560" width="6" height="70" rx="3" fill="#059669" opacity="0.9"/>
+  <text class="card-title" x="190.0" y="585" text-anchor="middle" fill="#059669">
+    <tspan x="190.0">外部 API</tspan>
+  </text>
+  <text class="card-text" x="190.0" y="608" text-anchor="middle">
+    <tspan x="190.0">模型、搜索、网页抓取</tspan>
+  </text>
+  <rect x="370" y="560" width="260" height="70" rx="16" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="1.6"/>
+  <rect x="370" y="560" width="6" height="70" rx="3" fill="#0891B2" opacity="0.9"/>
+  <text class="card-title" x="500.0" y="585" text-anchor="middle" fill="#0891B2">
+    <tspan x="500.0">只读工具</tspan>
+  </text>
+  <text class="card-text" x="500.0" y="608" text-anchor="middle">
+    <tspan x="500.0">ReadFile / Glob / Grep</tspan>
+  </text>
+  <rect x="680" y="560" width="260" height="70" rx="16" fill="#FFF1F2" stroke="#FECDD3" stroke-width="1.6"/>
+  <rect x="680" y="560" width="6" height="70" rx="3" fill="#E11D48" opacity="0.9"/>
+  <text class="card-title" x="810.0" y="585" text-anchor="middle" fill="#E11D48">
+    <tspan x="810.0">读写工具</tspan>
+  </text>
+  <text class="card-text" x="810.0" y="608" text-anchor="middle">
+    <tspan x="810.0">WriteFile / Edit / Bash</tspan>
+  </text>
+  <rect x="70" y="650" width="860" height="54" rx="14" fill="#F8FAFC" stroke="#D8E1EE"/>
+  <text class="card-title" x="88" y="674" text-anchor="start" fill="#334155">
+    <tspan x="88">持久化与项目上下文</tspan>
+  </text>
+  <text class="small" x="88" y="698" text-anchor="start">
+    <tspan x="88">Session Store 使用 jsonl 追加消息；.whale_cli 保存运行状态；AGENTS.md 自动注入项目规则。</tspan>
+  </text>
+</svg>

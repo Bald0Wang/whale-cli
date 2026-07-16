@@ -1,0 +1,1 @@
+"""Installable Whale WebUI backend."""
