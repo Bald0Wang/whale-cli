@@ -321,7 +321,9 @@ Compose 默认只向宿主机 `127.0.0.1` 发布端口。运行数据保存在 `
 
 ### 阿里云 ACR 公网镜像
 
-项目的公网镜像仓库为：
+> 项目名称为 **Whale CLI**。下面的 `while_cli/while_cli` 是已创建的 ACR 历史仓库路径，为了不让现有拉取命令失效而保留；它不代表项目名称。
+
+Whale CLI 的公网镜像仓库为：
 
 ```text
 crpi-l4ex9om7pwr2is5u.cn-shanghai.personal.cr.aliyuncs.com/while_cli/while_cli
