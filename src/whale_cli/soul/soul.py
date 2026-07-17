@@ -192,6 +192,16 @@ class Soul:
             desc = fn.get("description", tool.description)
             tool_lines.append(f"- {tool.name}: {desc}")
 
+        provider_constraints = ""
+        if not getattr(self.llm, "supports_tools", True):
+            provider_constraints = (
+                "\nProvider constraint (highest priority): the selected step-explore "
+                "model uses a text-only Messages API in Whale CLI. Do not claim to call "
+                "tools, read files, execute commands, create plans, or modify state. "
+                "Give a direct text answer, or tell the user to switch to a tool-capable "
+                "model such as step-3.7-flash for agent actions.\n"
+            )
+
         todo_hint = ""
         if "TodoWrite" in self.toolset:
             todo_hint = (
@@ -216,6 +226,7 @@ class Soul:
                     "skills": skills,
                     "now": now_iso,
                     "shell_hint": _shell_hint(),
+                    "provider_constraints": provider_constraints,
                 },
             )
         except Exception:
@@ -240,6 +251,7 @@ Date and time:
 - The current date and time (at session start) is `{now_iso}` (ISO 8601, local timezone).
 
 Shell: commands run via Bash in {_shell_hint()}. Prefer non-destructive commands.
+{provider_constraints}
 """
 
     # -- message helpers (unchanged contract) ------------------------------

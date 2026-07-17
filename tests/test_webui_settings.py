@@ -58,6 +58,34 @@ def test_web_settings_masks_key_and_persists_model(tmp_path, monkeypatch):
     assert "test-secret-key-1234" in (tmp_path / "config.json").read_text(encoding="utf-8")
 
 
+def test_web_settings_selects_step_explore_defaults_and_disables_vision(tmp_path, monkeypatch):
+    monkeypatch.setenv("STEPFUN_API_KEY", "explore-key-1234")
+    server = _load_webui_server()
+    settings = server.WebSettings(tmp_path / "config.json")
+
+    snapshot = settings.update({"model": "step-explore", "base_url": "https://api.stepfun.com/v1"})
+
+    assert snapshot["api_key_source"] == "STEPFUN_API_KEY"
+    assert snapshot["base_url"] == "https://api.stepfun.com/v1"
+    assert snapshot["vision_enabled"] is False
+    with pytest.raises(ValueError, match="does not support"):
+        settings.update({"vision_enabled": True})
+
+
+def test_web_settings_switches_legacy_base_url_when_only_model_changes(tmp_path):
+    server = _load_webui_server()
+    config = tmp_path / "config.json"
+    config.write_text(
+        json.dumps({"llm": {"api_key": "key", "model": "step-3.7-flash", "base_url": "https://api.stepfun.com/step_plan/v1"}}),
+        encoding="utf-8",
+    )
+    settings = server.WebSettings(config)
+
+    snapshot = settings.update({"model": "step-explore"})
+
+    assert snapshot["base_url"] == "https://api.stepfun.com/v1"
+
+
 def test_tutorial_catalog_exposes_only_numbered_learning_files():
     server = _load_webui_server()
 

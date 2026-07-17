@@ -5,6 +5,7 @@ persistence without hitting the network.
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 from whale_cli.soul.soul import Soul
 from whale_cli.soul.approval import Approval
@@ -54,6 +55,14 @@ def test_soul_system_prompt_lists_registered_tools(mock_llm, tmp_workspace):
     assert "Bash" in sys_msg["content"]
     # And be cross-platform (no Windows-only wording).
     assert "PowerShell/CMD" not in sys_msg["content"] or "PowerShell/CMD" in sys_msg["content"]
+
+
+def test_soul_text_only_provider_prompt_forbids_tool_claims(tmp_workspace):
+    llm = SimpleNamespace(supports_tools=False, max_context_tokens=0)
+    soul = Soul(llm=llm, tools=[BashTool()])
+
+    assert "Provider constraint (highest priority)" in soul.messages[0]["content"]
+    assert "Do not claim to call tools" in soul.messages[0]["content"]
 
 
 def test_soul_sends_transient_multimodal_content_without_persisting_data_url(mock_llm, tmp_workspace):

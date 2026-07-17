@@ -43,3 +43,5 @@ Web browsing rules:
 - Always summarize what you found for the user.
 
 Shell: commands run via Bash in {{ shell_hint }}. Prefer non-destructive commands.
+
+{{ provider_constraints }}

@@ -33,7 +33,7 @@ from xml.etree import ElementTree
 from whale_cli import __version__
 from whale_cli.hooks import HookEngine  # noqa: E402
 from whale_cli.learning import LearnerProfileService, LearningPortfolio, LearningStore, ObsidianLearningWiki, ReviewScheduler, RoadmapPlanner  # noqa: E402
-from whale_cli.llm.client import LLMClient  # noqa: E402
+from whale_cli.llm.client import LLMClient, default_base_url_for_model, is_step_explore_model  # noqa: E402
 from whale_cli.runtime import resolve_runtime_paths  # noqa: E402
 from whale_cli.soul.approval import Approval  # noqa: E402
 from whale_cli.soul.soul import Soul  # noqa: E402
@@ -646,10 +646,11 @@ class WebSettings:
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             llm = self._load_llm()
-            key, source = self._effective_api_key(llm)
             model = str(llm.get("model") or os.getenv("LLM_MODEL") or "step-3.7-flash")
-            base_url = str(llm.get("base_url") or os.getenv("LLM_BASE_URL") or "https://api.stepfun.com/step_plan/v1")
+            key, source = self._effective_api_key(llm, model)
+            base_url = str(llm.get("base_url") or os.getenv("LLM_BASE_URL") or default_base_url_for_model(model))
             vision_default = model.startswith("step-3.7")
+            vision_enabled = bool(llm.get("vision_enabled", vision_default)) and not is_step_explore_model(model)
             return {
                 "api_key_configured": bool(key),
                 "api_key_hint": self._mask_key(key),
@@ -657,7 +658,7 @@ class WebSettings:
                 "model": model,
                 "base_url": base_url,
                 "max_context_tokens": int(llm.get("max_context_tokens") or 256_000),
-                "vision_enabled": bool(llm.get("vision_enabled", vision_default)),
+                "vision_enabled": vision_enabled,
                 "vision_detail": str(llm.get("vision_detail") or "low"),
             }
 
@@ -668,12 +669,15 @@ class WebSettings:
             if not isinstance(llm, dict):
                 llm = {}
                 data["llm"] = llm
+            model_changed = "model" in payload
             for key in ("model", "base_url"):
                 if key in payload:
                     value = str(payload[key]).strip()
                     if not value:
                         raise ValueError(f"{key} cannot be empty.")
                     llm[key] = value
+            if model_changed and "base_url" not in payload:
+                llm["base_url"] = default_base_url_for_model(str(llm["model"]))
             if "max_context_tokens" in payload:
                 value = int(payload["max_context_tokens"])
                 if value <= 0:
@@ -682,6 +686,9 @@ class WebSettings:
             if "vision_enabled" in payload:
                 if not isinstance(payload["vision_enabled"], bool):
                     raise ValueError("vision_enabled must be a boolean.")
+                selected_model = str(llm.get("model") or os.getenv("LLM_MODEL") or "step-3.7-flash")
+                if payload["vision_enabled"] and is_step_explore_model(selected_model):
+                    raise ValueError("step-explore does not support Whale's OpenAI-compatible vision input.")
                 llm["vision_enabled"] = payload["vision_enabled"]
             if "vision_detail" in payload:
                 detail = str(payload["vision_detail"])
@@ -692,19 +699,22 @@ class WebSettings:
                 value = str(payload["api_key"]).strip()
                 if value:
                     llm["api_key"] = value
+            if is_step_explore_model(str(llm.get("model") or "")):
+                llm["vision_enabled"] = False
             self._write_data(data)
             return self.snapshot()
 
     def build_client(self) -> LLMClient:
         with self._lock:
             llm = self._load_llm()
-            key, _ = self._effective_api_key(llm)
+            model = str(llm.get("model") or os.getenv("LLM_MODEL") or "step-3.7-flash")
+            key, _ = self._effective_api_key(llm, model)
             if not key:
                 raise ValueError("No API key configured. Open settings and add an API key first.")
             return LLMClient(
                 api_key=key,
-                base_url=str(llm.get("base_url") or os.getenv("LLM_BASE_URL") or "https://api.stepfun.com/step_plan/v1"),
-                model=str(llm.get("model") or os.getenv("LLM_MODEL") or "step-3.7-flash"),
+                base_url=str(llm.get("base_url") or os.getenv("LLM_BASE_URL") or default_base_url_for_model(model)),
+                model=model,
                 max_context_tokens=int(llm.get("max_context_tokens") or 256_000),
             )
 
@@ -719,11 +729,16 @@ class WebSettings:
         llm = self._load_data().get("llm", {})
         return llm if isinstance(llm, dict) else {}
 
-    def _effective_api_key(self, llm: dict[str, Any]) -> tuple[str, str]:
+    def _effective_api_key(self, llm: dict[str, Any], model: str | None = None) -> tuple[str, str]:
         config_key = str(llm.get("api_key") or "").strip()
         if config_key:
             return config_key, "config"
-        for name in ("STEP_API_KEY", "OPENAI_API_KEY", "MOONSHOT_API_KEY"):
+        key_names = (
+            ("STEPFUN_API_KEY", "STEP_API_KEY", "OPENAI_API_KEY", "MOONSHOT_API_KEY")
+            if is_step_explore_model(model or str(llm.get("model") or ""))
+            else ("STEP_API_KEY", "STEPFUN_API_KEY", "OPENAI_API_KEY", "MOONSHOT_API_KEY")
+        )
+        for name in key_names:
             value = os.getenv(name)
             if value:
                 return value, name

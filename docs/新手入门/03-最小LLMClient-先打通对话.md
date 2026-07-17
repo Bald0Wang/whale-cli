@@ -21,6 +21,8 @@
 - 输入一句话，模型能稳定回一句（先不调用工具）
 - 只改配置（key / model / base_url），不改 agent loop
 
+> 补充：`step-explore` 不是 OpenAI Chat Completions 兼容模型。Whale 会在 `model=step-explore` 时自动切换到 StepFun 的 Anthropic Messages API（`/v1/messages`、`x-api-key`、`anthropic-version`），并发送必填的 `max_tokens`。它当前不接受本项目的 OpenAI 工具 schema、`thinking` 或 OpenAI 图片输入，因此适合纯文本对话、总结和规划；要运行工具循环请使用 `step-3.7-flash`。
+
 ---
 
 ## 这一章真正要解决的问题

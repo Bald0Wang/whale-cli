@@ -5,8 +5,8 @@
     "The llm.api_key is read by Whale CLI's LLM client module"
   ],
   "llm": {
-    "api_key": "sk-your-real-key-here",
-    "base_url": "https://api.stepfun.com/step_plan/v1",
+    "api_key": "your-real-key-here",
+    "base_url": "",
     "model": "step-3.7-flash",
     "max_context_tokens": 256000,
     "vision_enabled": true,

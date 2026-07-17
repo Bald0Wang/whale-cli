@@ -7,7 +7,8 @@ services:
       - "127.0.0.1:${WHALE_PORT:-8765}:8765"
     environment:
       STEP_API_KEY: ${STEP_API_KEY:-}
-      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.stepfun.com/step_plan/v1}
+      STEPFUN_API_KEY: ${STEPFUN_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_MODEL: ${LLM_MODEL:-step-3.7-flash}
       WHALE_HOME: /data
       WHALE_WORKSPACE: /workspace
