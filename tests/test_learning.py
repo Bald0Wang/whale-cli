@@ -387,6 +387,8 @@ def test_learning_wiki_auto_capture_is_explicit_and_keeps_a_conversation_index(t
     assert "解释 Agent Loop" in page
     assert "它会循环调用模型和工具。" in page
     assert captured["title"] in conversation_index
+    assert captured["relative_path"].startswith("conversations/")
+    assert "\\" not in captured["relative_path"]
     assert wiki.status()["conversation_count"] == 1
 
     wiki.set_auto_capture(enabled=False)

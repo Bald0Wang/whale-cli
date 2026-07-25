@@ -14,6 +14,7 @@ import {
   FileCode2,
   FileText,
   Folder,
+  FolderKanban,
   FolderGit2,
   GitFork,
   History,
@@ -52,7 +53,7 @@ const starterPrompts = [
 const demoMessages = [{ role: 'assistant', content: '我会先观察项目，再决定是否调用工具。需要写入或执行命令时，Safe 模式会停在审批节点。' }]
 
 const tutorialFilenames = [
-  '00-为什么要做这个CLI.md', '01-5分钟体验-能帮你做什么.md', '02-REPL与会话-把聊天框做成系统.md', '03-最小LLMClient-先打通对话.md', '04-AgentLoopv0-从聊天到会做事的循环.md', '05-Toolsv0-最小工具箱.md', '06-Toolsv1-写文件与跑命令.md', '07-TodoList-把计划变成可追踪任务.md', '08-Skills-把套路沉淀成能力包.md', '09-SessionNote与上下文压缩-稳态系统.md', '10-Part1结尾-Demo清单.md', '11-Agents与系统提示词-把配置从代码里拿出来.md', '12-Hooks-把自动化护栏挂在循环外.md', '13-Subagents-把复杂任务交给干净上下文.md', '14-BackgroundTasks-让慢任务后台跑.md', '15-Skills进阶-按来源分层发现.md', '16-MCP与插件-把外部能力接进工具池.md', '17-AGENTS与项目上下文-让仓库规则自动生效.md', '18-进阶收束-WhaleCLI扩展路线.md', '19-四种Loop模式-让Agent按条件持续工作.md', '20-附件与文件输入-让多格式资料进入任务.md', '21-Datawhale学习规划Subagent-用知识库做垂直路线.md', '22-学习者档案-先知道要帮谁.md', '23-双链知识图谱-把学过的东西连起来.md', '24-动态学习路线-下一步只做一件事.md', '25-间隔复习-让学过的内容留下来.md', '26-项目陪学-从推荐到本地练习.md', '27-学习档案与社区反馈-把进步留下来.md',
+  '00-为什么要做这个CLI.md', '01-5分钟体验-能帮你做什么.md', '02-REPL与会话-把聊天框做成系统.md', '03-最小LLMClient-先打通对话.md', '04-AgentLoopv0-从聊天到会做事的循环.md', '05-Toolsv0-最小工具箱.md', '06-Toolsv1-写文件与跑命令.md', '07-TodoList-把计划变成可追踪任务.md', '08-Skills-把套路沉淀成能力包.md', '09-SessionNote与上下文压缩-稳态系统.md', '10-Part1结尾-Demo清单.md', '11-Agents与系统提示词-把配置从代码里拿出来.md', '12-Hooks-把自动化护栏挂在循环外.md', '13-Subagents-把复杂任务交给干净上下文.md', '14-BackgroundTasks-让慢任务后台跑.md', '15-Skills进阶-按来源分层发现.md', '16-MCP与插件-把外部能力接进工具池.md', '17-AGENTS与项目上下文-让仓库规则自动生效.md', '18-进阶收束-WhaleCLI扩展路线.md', '19-四种Loop模式-让Agent按条件持续工作.md', '20-附件与文件输入-让多格式资料进入任务.md', '21-Datawhale学习规划Subagent-用知识库做垂直路线.md', '22-学习者档案-先知道要帮谁.md', '23-双链知识图谱-把学过的东西连起来.md', '24-动态学习路线-下一步只做一件事.md', '25-间隔复习-让学过的内容留下来.md', '26-项目陪学-从推荐到本地练习.md', '27-学习档案与社区反馈-把进步留下来.md', '28-学习项目空间-让数据持续隔离.md',
 ]
 
 const tutorialAssetPath = (filename) => `/project-assets/docs/新手入门/${encodeURI(filename)}`
@@ -134,9 +135,14 @@ function WhaleMark({ size = 21 }) {
   return <span className="whale-mark" style={{ width: size, height: size }} aria-hidden="true"><img src="/whale-cli-logo.png" alt="" /></span>
 }
 
+const normalizeLogicalPath = (value = '') => String(value).replaceAll('\\', '/')
+
 function MarkdownContent({ content, tutorialAssets = false, onTutorialLink, tutorialFilenames = [] }) {
-  const assetUrl = (src) => tutorialAssets && src?.startsWith('images/') ? `/project-assets/docs/新手入门/${encodeURI(src)}` : src
-  const tutorialFilename = (href) => decodeURIComponent(href.split('#')[0]).split('/').pop()
+  const assetUrl = (src) => {
+    const normalized = normalizeLogicalPath(src)
+    return tutorialAssets && normalized.startsWith('images/') ? `/project-assets/docs/新手入门/${encodeURI(normalized)}` : src
+  }
+  const tutorialFilename = (href) => normalizeLogicalPath(decodeURIComponent(href.split('#')[0])).split('/').pop()
   const markdown = typeof content === 'string' ? content : content?.text || ''
   const memory = typeof content === 'object' ? content?.memory : null
   return <div className="markdown-body">{memory && <MemoryCurve memory={memory} />}<ReactMarkdown
@@ -152,13 +158,14 @@ function MarkdownContent({ content, tutorialAssets = false, onTutorialLink, tuto
   </ReactMarkdown></div>
 }
 
-function Sidebar({ open, collapsed, activeView, activeSessionId, sessions, onViewChange, onNewSession, onSelectSession, onClose, onToggle }) {
+function Sidebar({ open, collapsed, activeView, activeSessionId, sessions, project, onProjectsOpen, onViewChange, onNewSession, onSelectSession, onClose, onToggle }) {
   return <>
     <aside className={`sidebar ${open ? 'is-open' : ''} ${collapsed ? 'is-collapsed' : ''}`}>
       <div className="side-head">
         <button className="wordmark" onClick={onNewSession}><WhaleMark size={22} /><span>whale</span></button>
         <IconButton label={collapsed ? '展开侧栏' : '收起侧栏'} className="desktop-only" onClick={onToggle}>{collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}</IconButton>
       </div>
+      <button className="project-switcher" title="切换学习项目" onClick={onProjectsOpen}><FolderKanban size={17} /><span><small>学习项目</small><strong>{project?.name || '默认学习空间'}</strong></span><ChevronDown size={16} /></button>
 
       <nav className="main-nav" aria-label="主导航">
         <button title="我的 whale" className={activeView === 'chat' ? 'is-active' : ''} onClick={() => onViewChange('chat')}><WhaleMark size={21} /><span>我的 whale</span></button>
@@ -179,6 +186,20 @@ function Sidebar({ open, collapsed, activeView, activeSessionId, sessions, onVie
     </aside>
     {open && <button className="sidebar-scrim" aria-label="关闭侧栏" onClick={onClose} />}
   </>
+}
+
+function ProjectDialog({ projects, activeProjectId, onClose, onSelect, onCreate }) {
+  const [name, setName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+  const submit = async (event) => {
+    event.preventDefault()
+    if (!name.trim() || creating) return
+    setCreating(true)
+    setError('')
+    try { await onCreate(name.trim()); setName('') } catch (reason) { setError(reason.message || '无法创建学习项目') } finally { setCreating(false) }
+  }
+  return <div className="modal-layer project-layer" role="dialog" aria-modal="true" aria-label="学习项目" onMouseDown={onClose}><section className="project-dialog" onMouseDown={(event) => event.stopPropagation()}><header><div><span className="panel-kicker">LEARNING PROJECTS</span><h2>学习项目</h2><p>会话、图谱、路线、复习、档案和附件各自保存到独立目录。</p></div><IconButton label="关闭项目列表" onClick={onClose}><X size={18} /></IconButton></header><div className="project-list">{projects.map((project) => <button key={project.id} className={project.id === activeProjectId ? 'is-active' : ''} onClick={() => onSelect(project.id)}><FolderKanban size={18} /><span><strong>{project.name}</strong><small>{project.legacy ? '兼容原有本地数据' : '独立学习数据空间'}</small></span>{project.id === activeProjectId && <span className="project-current">当前</span>}</button>)}</div><form className="project-create" onSubmit={submit}><label htmlFor="project-name">新建学习项目</label><div><input id="project-name" value={name} maxLength="80" placeholder="例如：RAG 入门计划" onChange={(event) => setName(event.target.value)} /><button type="submit" disabled={creating || !name.trim()}><Plus size={16} />{creating ? '创建中' : '创建并进入'}</button></div>{error && <p>{error}</p>}</form></section></div>
 }
 
 function MessageAttachments({ attachments = [] }) {
@@ -536,6 +557,9 @@ function ProjectOverview({ overview, sessions, tutorials, onOpenWorkspace, onOpe
 export default function App() {
   const [overview, setOverview] = useState({ project: 'Whale CLI', workspace: '加载中', model: 'step-3.7-flash', tools: [] })
   const [settings, setSettings] = useState({ model: 'step-3.7-flash', base_url: 'https://api.stepfun.com/step_plan/v1', max_context_tokens: 256000 })
+  const [projects, setProjects] = useState([])
+  const [activeProjectId, setActiveProjectId] = useState('legacy')
+  const [projectsOpen, setProjectsOpen] = useState(false)
   const [sessions, setSessions] = useState([])
   const [tutorials, setTutorials] = useState([])
   const [activeTutorial, setActiveTutorial] = useState(null)
@@ -557,8 +581,10 @@ export default function App() {
   const pollingRef = useRef(null)
   const isRunning = ['queued', 'running'].includes(run?.status)
   const title = useMemo(() => ({ chat: '我的 whale', architecture: '运行架构', learning: '学习地图', wiki: '学习图谱', roadmaps: '学习路线', reviews: '间隔复习', portfolio: '学习档案', workspace: '项目文件', overview: '项目概览' }[activeView]), [activeView])
+  const activeProject = useMemo(() => projects.find((project) => project.id === activeProjectId) || overview.learning_project || null, [activeProjectId, overview.learning_project, projects])
 
   const refreshSessions = async () => { const data = await fetch('/api/sessions').then((response) => response.json()); setSessions(data.sessions || []); return data.sessions || [] }
+  const refreshProjects = async () => { const response = await fetch('/api/projects'); const data = await response.json(); if (!response.ok) throw new Error(data.error || '无法读取学习项目'); setProjects(data.projects || []); setActiveProjectId(data.active_project_id || 'legacy'); return data }
   const refreshTutorials = async () => { try { const response = await fetch('/api/tutorials'); if (!response.ok) throw new Error('Tutorial API unavailable'); const data = await response.json(); setTutorials(data.tutorials || []); return data.tutorials || [] } catch (_) { const fallback = fallbackTutorials(); setTutorials(fallback); return fallback } }
   const loadSession = async (sessionId, options = {}) => { if (options.delete) { if (isRunning && sessionId === activeSessionId) { window.alert('当前会话仍在运行，完成后才能删除。'); return } if (!window.confirm('删除这段会话及其本地历史记录？此操作无法撤销。')) return; const response = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' }); const payload = await response.json(); if (!response.ok) { window.alert(payload.error || '无法删除会话'); return } if (sessionId === activeSessionId) { setActiveSessionId(null); setMessages(demoMessages); setRun(null); setValue(''); setAttachments([]); setActiveView('chat'); setSidebarOpen(false) } await refreshSessions(); return } const data = await fetch(`/api/sessions/${sessionId}`).then((response) => response.json()); setActiveSessionId(data.session_id); setMessages(data.messages?.length ? data.messages : demoMessages); setRun(null); setActiveView('chat'); setSidebarOpen(false) }
   const newSession = () => { setActiveSessionId(null); setMessages(demoMessages); setRun(null); setValue(''); setAttachments([]); setUploadError(''); setActiveView('chat'); setSidebarOpen(false) }
@@ -567,7 +593,12 @@ export default function App() {
   const uploadFiles = async (fileList) => { const files = Array.from(fileList || []); if (!files.length || isUploading) return; if (attachments.length + files.length > 8) { setUploadError('一次最多附加 8 个文件。'); return } setIsUploading(true); setUploadError(''); try { for (const original of files) { const file = await prepareAttachment(original); if (file.size > maxUploadBytes) throw new Error(`${file.name} 超过 24 MB 限制。`); const form = new FormData(); form.append('file', file); const response = await fetch('/api/uploads', { method: 'POST', body: form }); const payload = await response.json(); if (!response.ok) throw new Error(payload.error || `无法上传 ${file.name}`); setAttachments((current) => [...current, payload]) } } catch (reason) { setUploadError(reason.message) } finally { setIsUploading(false) } }
   const removeAttachment = async (attachmentId) => { setAttachments((current) => current.filter((item) => item.id !== attachmentId)); try { await fetch(`/api/uploads/${attachmentId}`, { method: 'DELETE' }) } catch (_) {} }
 
-  useEffect(() => { Promise.all([fetch('/api/overview').then((response) => response.json()), fetch('/api/settings').then((response) => response.json()), refreshSessions(), refreshTutorials()]).then(([nextOverview, nextSettings, nextSessions]) => { setOverview(nextOverview); setSettings(nextSettings); if (nextSessions[0]) loadSession(nextSessions[0].session_id) }).catch(() => {}); return () => window.clearInterval(pollingRef.current) }, [])
+  const resetProjectView = () => { window.clearInterval(pollingRef.current); setActiveSessionId(null); setMessages(demoMessages); setRun(null); setValue(''); setAttachments([]); setUploadError(''); setActiveTutorial(null); setActiveView('chat') }
+  const refreshProjectData = async () => { const [nextOverview, nextSettings, nextSessions] = await Promise.all([fetch('/api/overview').then((response) => response.json()), fetch('/api/settings').then((response) => response.json()), refreshSessions(), refreshTutorials()]); setOverview(nextOverview); setSettings(nextSettings); if (nextSessions[0]) await loadSession(nextSessions[0].session_id); return nextOverview }
+  const selectProject = async (projectId) => { if (isRunning) { window.alert('当前任务仍在运行，完成后再切换学习项目。'); return } const response = await fetch('/api/projects/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project_id: projectId }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.error || '无法切换学习项目'); resetProjectView(); await refreshProjects(); await refreshProjectData(); setProjectsOpen(false) }
+  const createProject = async (name) => { if (isRunning) throw new Error('当前任务仍在运行，完成后再创建学习项目。'); const response = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.error || '无法创建学习项目'); resetProjectView(); await refreshProjects(); await refreshProjectData(); setProjectsOpen(false) }
+
+  useEffect(() => { refreshProjects().then(refreshProjectData).catch(() => {}); return () => window.clearInterval(pollingRef.current) }, [])
   useEffect(() => { const onKeyDown = (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen(true) } if (event.key === 'Escape') { setCommandOpen(false); setSettingsOpen(false) } }; window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown) }, [])
   useEffect(() => { if (!run?.id || !isRunning) return undefined; pollingRef.current = window.setInterval(async () => { try { const next = await fetch(`/api/runs/${run.id}`).then((response) => response.json()); setRun(next); if (!['queued', 'running'].includes(next.status)) { window.clearInterval(pollingRef.current); setMessages(next.messages?.length ? next.messages : messages); setActiveSessionId(next.session_id); refreshSessions() } } catch (_) {} }, 700); return () => window.clearInterval(pollingRef.current) }, [run?.id, isRunning])
 
@@ -578,8 +609,8 @@ export default function App() {
   const planRoadmap = () => { setActiveView('chat'); setValue('请先检查我的 LearnerProfile 和 KnowledgeMap；若信息完整，请调用 LearningRoadmap(action: "preview") 给出四周学习路线草案，并问我是否确认生成。不要在这一轮保存路线。') }
   const startReview = () => { setActiveView('chat'); setValue('请调用 LearningReview，先用 action: sync 检索我的本地聊天记录，再用 action: schedule 生成间隔复习表。列出今天需要复习的概念，但不要根据聊天内容替我猜测回忆评分。') }
   const decomposeWikiTopic = (topicId, title) => { setActiveView('chat'); setValue(`请先读取 KnowledgeMap 中 id 为 ${topicId} 的主题。请按 LLM Wiki 形式拆解“${title}”：用 LearningWiki(action: "outline") 保存学习定位、为什么值得学、学完能做什么、核心定义与运行机制、一个下一步行动、常见误区与待解问题。只能基于当前对话、已读取资料或明确标注的不确定内容；不要把掌握度写入知识图谱。完成后告诉我已保存，并提示我回到学习图谱查看。`) }
-  const openTutorialLink = (href) => { const filename = decodeURIComponent(href.split('#')[0]).split('/').pop(); const tutorial = tutorials.find((item) => item.filename === filename); if (tutorial) loadTutorial(tutorial.id) }
+  const openTutorialLink = (href) => { const filename = normalizeLogicalPath(decodeURIComponent(href.split('#')[0])).split('/').pop(); const tutorial = tutorials.find((item) => item.filename === filename); if (tutorial) loadTutorial(tutorial.id) }
   const changeView = (view) => { setActiveView(view); if (view === 'learning') setActiveTutorial(null); setSidebarOpen(false) }
 
-  return <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><Sidebar open={sidebarOpen} collapsed={sidebarCollapsed} activeView={activeView} activeSessionId={activeSessionId} sessions={sessions} onViewChange={changeView} onNewSession={newSession} onSelectSession={loadSession} onClose={() => setSidebarOpen(false)} onToggle={() => setSidebarCollapsed((current) => !current)} /><main className="workspace"><header className="topbar"><div className="topbar-left"><IconButton label="打开侧栏" className="mobile-menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></IconButton><span className="topbar-label">{title}</span></div><div className="top-actions"><span className="model-pill">{overview.model}</span><IconButton label="指令面板" onClick={() => setCommandOpen(true)}><Command size={19} /></IconButton><IconButton label="API 与模型设置" onClick={() => setSettingsOpen(true)}><Settings2 size={19} /></IconButton><IconButton label="查看工作区" onClick={() => changeView('workspace')}><FolderGit2 size={19} /></IconButton><IconButton label="项目概览" onClick={() => changeView('overview')}><LayoutPanelLeft size={19} /></IconButton></div></header>{activeView === 'chat' && <ChatView mode={mode} setMode={setMode} run={run} messages={messages} value={value} setValue={setValue} onSend={startRun} onDecision={decideApproval} onCommandOpen={() => setCommandOpen(true)} tools={overview.tools} attachments={attachments} onFiles={uploadFiles} onRemoveAttachment={removeAttachment} uploadError={uploadError} isUploading={isUploading} isRunning={isRunning} />}{activeView === 'architecture' && <ArchitectureView />}{activeView === 'learning' && <LearningView tutorials={tutorials} activeTutorial={activeTutorial} loading={tutorialLoading} onOpenTutorial={loadTutorial} onBackToMap={() => setActiveTutorial(null)} onTutorialLink={openTutorialLink} />}{activeView === 'wiki' && <LearningWikiView onDecompose={decomposeWikiTopic} />}{activeView === 'roadmaps' && <LearningRoadmapView onPlan={planRoadmap} />}{activeView === 'reviews' && <LearningReviewView onAsk={startReview} />}{activeView === 'portfolio' && <LearningPortfolioView onAsk={() => { setActiveView('chat'); setValue('请调用 LearningPortfolio(action: "report") 读取我的本地学习档案；然后根据已有项目、关联知识、产出物和下一步，告诉我最值得补充的一条学习证据。不要替我编造完成情况。') }} />}{activeView === 'workspace' && <WorkspaceView />}{activeView === 'overview' && <ProjectOverview overview={overview} sessions={sessions} tutorials={tutorials} onOpenWorkspace={() => changeView('workspace')} onOpenSettings={() => setSettingsOpen(true)} />}</main>{settingsOpen && <SettingsDialog settings={settings} onClose={() => setCommandOpen(false)} onSave={saveSettings} />}{commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} onAction={applyCommand} />}</div>
+  return <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><Sidebar open={sidebarOpen} collapsed={sidebarCollapsed} activeView={activeView} activeSessionId={activeSessionId} sessions={sessions} project={activeProject} onProjectsOpen={() => setProjectsOpen(true)} onViewChange={changeView} onNewSession={newSession} onSelectSession={loadSession} onClose={() => setSidebarOpen(false)} onToggle={() => setSidebarCollapsed((current) => !current)} /><main className="workspace"><header className="topbar"><div className="topbar-left"><IconButton label="打开侧栏" className="mobile-menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></IconButton><span className="topbar-label">{title}</span></div><div className="top-actions"><span className="model-pill">{overview.model}</span><IconButton label="切换学习项目" onClick={() => setProjectsOpen(true)}><FolderKanban size={19} /></IconButton><IconButton label="指令面板" onClick={() => setCommandOpen(true)}><Command size={19} /></IconButton><IconButton label="API 与模型设置" onClick={() => setSettingsOpen(true)}><Settings2 size={19} /></IconButton><IconButton label="查看工作区" onClick={() => changeView('workspace')}><FolderGit2 size={19} /></IconButton><IconButton label="项目概览" onClick={() => changeView('overview')}><LayoutPanelLeft size={19} /></IconButton></div></header>{activeView === 'chat' && <ChatView key={activeProjectId} mode={mode} setMode={setMode} run={run} messages={messages} value={value} setValue={setValue} onSend={startRun} onDecision={decideApproval} onCommandOpen={() => setCommandOpen(true)} tools={overview.tools} attachments={attachments} onFiles={uploadFiles} onRemoveAttachment={removeAttachment} uploadError={uploadError} isUploading={isUploading} isRunning={isRunning} />}{activeView === 'architecture' && <ArchitectureView />}{activeView === 'learning' && <LearningView tutorials={tutorials} activeTutorial={activeTutorial} loading={tutorialLoading} onOpenTutorial={loadTutorial} onBackToMap={() => setActiveTutorial(null)} onTutorialLink={openTutorialLink} />}{activeView === 'wiki' && <LearningWikiView key={activeProjectId} onDecompose={decomposeWikiTopic} />}{activeView === 'roadmaps' && <LearningRoadmapView key={activeProjectId} onPlan={planRoadmap} />}{activeView === 'reviews' && <LearningReviewView key={activeProjectId} onAsk={startReview} />}{activeView === 'portfolio' && <LearningPortfolioView key={activeProjectId} onAsk={() => { setActiveView('chat'); setValue('请调用 LearningPortfolio(action: "report") 读取我的本地学习档案；然后根据已有项目、关联知识、产出物和下一步，告诉我最值得补充的一条学习证据。不要替我编造完成情况。') }} />}{activeView === 'workspace' && <WorkspaceView />}{activeView === 'overview' && <ProjectOverview key={activeProjectId} overview={overview} sessions={sessions} tutorials={tutorials} onOpenWorkspace={() => changeView('workspace')} onOpenSettings={() => setSettingsOpen(true)} />}</main>{projectsOpen && <ProjectDialog projects={projects} activeProjectId={activeProjectId} onClose={() => setProjectsOpen(false)} onSelect={selectProject} onCreate={createProject} />}{settingsOpen && <SettingsDialog settings={settings} onClose={() => setCommandOpen(false)} onSave={saveSettings} />}{commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} onAction={applyCommand} />}</div>
 }

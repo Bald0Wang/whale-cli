@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 
 from whale_cli.learning import KnowledgeMap
+from whale_cli.soul.approval import Approval
+from whale_cli.tools.agent.agent_tool import AgentTool
 
 
 def _load_webui_server():
@@ -92,10 +94,10 @@ def test_tutorial_catalog_exposes_only_numbered_learning_files():
     catalog = server._tutorial_catalog()
     first = server._tutorial_payload("00-为什么要做这个CLI")
 
-    assert len(catalog) >= 28
+    assert len(catalog) >= 29
     assert [item["order"] for item in catalog] == list(range(len(catalog)))
     assert catalog[0]["filename"] == "00-为什么要做这个CLI.md"
-    assert catalog[-1]["filename"] == "27-学习档案与社区反馈-把进步留下来.md"
+    assert catalog[-1]["filename"] == "28-学习项目空间-让数据持续隔离.md"
     assert first is not None
     assert first["content"].startswith("# 00.")
     assert first["previous_id"] is None
@@ -253,6 +255,44 @@ def test_web_session_list_hides_empty_sessions(tmp_path, monkeypatch):
     assert empty_id not in [item["session_id"] for item in payload["sessions"]]
 
 
+def test_web_learning_projects_keep_sessions_and_learning_state_separate(tmp_path, monkeypatch):
+    server = _load_webui_server()
+    registry = server.ProjectRegistry(tmp_path)
+    monkeypatch.setattr(server, "PROJECTS", registry)
+    server._PROJECT_SCOPE_CACHE.clear()
+
+    first = registry.create("RAG 入门")
+    second = registry.create("Agent 实践")
+    first_scope = server._scope_for_project(first.id)
+    second_scope = server._scope_for_project(second.id)
+
+    first_session = first_scope.sessions.create_session(title="RAG 会话")
+    first_scope.sessions.append_message(first_session, {"role": "user", "content": "RAG 的检索流程"})
+    KnowledgeMap(server.LearningStore(first_scope.learning_root)).add_node(title="向量检索")
+
+    token = server._CURRENT_PROJECT_SCOPE.set(first_scope)
+    try:
+        assert [item["title"] for item in server._session_list_payload()["sessions"]] == ["RAG 会话"]
+        assert server._learning_wiki_graph_payload()["nodes"][0]["title"] == "向量检索"
+    finally:
+        server._CURRENT_PROJECT_SCOPE.reset(token)
+
+    token = server._CURRENT_PROJECT_SCOPE.set(second_scope)
+    try:
+        assert server._session_list_payload()["sessions"] == []
+        assert server._learning_wiki_graph_payload()["ready"] is False
+        assert second_scope.learning_root == tmp_path / ".whale_cli" / "projects" / second.id
+    finally:
+        server._CURRENT_PROJECT_SCOPE.reset(token)
+
+
+def test_agent_tool_uses_the_selected_learning_space_bm25_corpus(tmp_path):
+    tool = AgentTool(llm=object(), approval=Approval(yolo=True), learning_workspace=tmp_path)
+
+    assert tool.runner.datawhale_kb.path == tmp_path / "datawhale_bm25_documents.jsonl"
+    assert tool.runner.learning_workspace == str(tmp_path)
+
+
 def test_web_datawhale_kb_reports_and_replaces_the_project_corpus(tmp_path, monkeypatch):
     server = _load_webui_server()
     monkeypatch.setattr(server, "PROJECT_ROOT", tmp_path)
@@ -291,6 +331,24 @@ def test_workspace_browser_is_read_only_and_stays_in_project_root():
         server._workspace_entries("../../")
     with pytest.raises(ValueError):
         server._workspace_file(".git/config")
+
+
+def test_workspace_browser_normalizes_windows_separators_for_web_paths(tmp_path, monkeypatch):
+    server = _load_webui_server()
+    workspace = tmp_path / "workspace"
+    asset = workspace / "docs" / "新手入门" / "images" / "graph.svg"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("<svg></svg>", encoding="utf-8")
+    monkeypatch.setattr(server, "PROJECT_ROOT", workspace)
+
+    preview = server._workspace_file(r"docs\新手入门\images\graph.svg")
+
+    assert preview["path"] == "docs/新手入门/images/graph.svg"
+    assert server._web_relative_path(r"docs\新手入门\images\graph.svg") == "docs/新手入门/images/graph.svg"
+    with pytest.raises(ValueError, match="traversal"):
+        server._workspace_file(r"..\outside.txt")
+    with pytest.raises(ValueError, match="relative"):
+        server._workspace_file(r"C:\\Users\\learner\\graph.svg")
 
 
 def test_attachment_store_validates_files_and_builds_agent_context(tmp_path):

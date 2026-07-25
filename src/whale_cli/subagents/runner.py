@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, List
 
 from ..soul.approval import Approval
@@ -43,12 +44,14 @@ class SubagentRunner:
         tool_factory: Callable[[str], List[Tool]] = default_subagent_tools,
         max_steps: int = 8,
         datawhale_kb: DatawhaleKnowledgeBase | None = None,
+        learning_workspace: str | Path | None = None,
     ):
         self.llm = llm
         self.approval = approval
         self.tool_factory = tool_factory
         self.max_steps = max_steps
         self.datawhale_kb = datawhale_kb or DatawhaleKnowledgeBase()
+        self.learning_workspace = str(learning_workspace) if learning_workspace else None
 
     def run(self, prompt: str, agent_type: str = "explore") -> SubagentResult:
         if agent_type == "datawhale_learning":
@@ -61,6 +64,7 @@ class SubagentRunner:
             tools=tools,
             max_steps=self.max_steps,
             approval=self.approval,
+            learning_workspace=self.learning_workspace,
         )
         # Add a small role hint without sharing parent messages.
         child.messages[0]["content"] += (
@@ -96,6 +100,7 @@ class SubagentRunner:
             tools=self.tool_factory("datawhale_learning"),
             max_steps=self.max_steps,
             approval=self.approval,
+            learning_workspace=self.learning_workspace,
         )
         child.messages[0]["content"] += (
             "\n\nYou are the Datawhale learning-planning subagent. Use only the supplied local "

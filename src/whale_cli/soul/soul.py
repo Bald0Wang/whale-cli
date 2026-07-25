@@ -63,6 +63,7 @@ def _default_tools(
     llm: LLMClient,
     approval: Approval,
     background: BackgroundTaskManager,
+    learning_workspace: str | None = None,
 ) -> tuple[List[Tool], MCPLifecycle]:
     tools: List[Tool] = [
         # read-only
@@ -76,10 +77,11 @@ def _default_tools(
         # utility
         GetDateTool(),
         # focused child context
-        AgentTool(llm=llm, approval=approval),
-        # vertical learning experience (all state stays in .whale_cli/learning)
-        LearnerProfileTool(), KnowledgeMapTool(), LearningRoadmapTool(), LearningReviewTool(),
-        LearningProjectPlanTool(), CloneLearningProjectTool(), LearningPortfolioTool(), LearningWikiStatusTool(), LearningWikiTool(), OpenLearningWikiTool(), SyncToObsidianVaultTool(),
+        AgentTool(llm=llm, approval=approval, learning_workspace=learning_workspace),
+        # Vertical learning experience. Its data root may be separated from the
+        # agent's file workspace so WebUI project spaces remain isolated.
+        LearnerProfileTool(learning_workspace), KnowledgeMapTool(learning_workspace), LearningRoadmapTool(learning_workspace), LearningReviewTool(learning_workspace),
+        LearningProjectPlanTool(learning_workspace), CloneLearningProjectTool(learning_workspace), LearningPortfolioTool(learning_workspace), LearningWikiStatusTool(learning_workspace), LearningWikiTool(learning_workspace), OpenLearningWikiTool(learning_workspace), SyncToObsidianVaultTool(learning_workspace),
         # slow commands
         BackgroundStartTool(background), BackgroundListTool(background), BackgroundOutputTool(background),
     ]
@@ -116,6 +118,7 @@ class Soul:
         approval: Optional[Approval] = None,
         hook_engine: Optional[HookEngine] = None,
         background: Optional[BackgroundTaskManager] = None,
+        learning_workspace: Optional[str] = None,
     ):
         self.llm = llm or LLMClient()
         # TodoStore lives on the Soul so both the tool and the REPL share it.
@@ -125,6 +128,7 @@ class Soul:
         self.approval = approval or Approval()
         self.hooks = hook_engine or HookEngine()
         self.background = background or BackgroundTaskManager(workspace=os.getcwd())
+        self.learning_workspace = learning_workspace or os.getcwd()
         self._mcp_lifecycle = MCPLifecycle()
         if tools is not None:
             self.toolset = Toolset(tools, hook_engine=self.hooks, session_id=session_id, cwd=os.getcwd())
@@ -134,6 +138,7 @@ class Soul:
                 self.llm,
                 self.approval,
                 self.background,
+                self.learning_workspace,
             )
             self.toolset = Toolset(
                 default_tools,
@@ -145,7 +150,10 @@ class Soul:
         self.session_store = session_store
         self.session_id = session_id
         self.max_steps = max_steps
-        self._conversation_wiki = ObsidianLearningWiki(LearningStore(os.getcwd()), os.getcwd())
+        self._conversation_wiki = ObsidianLearningWiki(
+            LearningStore(self.learning_workspace),
+            self.learning_workspace,
+        )
         self._session_titled = False
         if self.session_store and self.session_id:
             info = self.session_store.get_session_info(self.session_id)

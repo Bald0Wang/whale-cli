@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="webui/public/project-intro.html">项目介绍</a> ·
-  <a href="docs/新手入门/README.md">28 章教程</a> ·
+  <a href="docs/新手入门/README.md">29 章教程</a> ·
   <a href="docs/部署与发布.md">部署指南</a> ·
   <a href="docs/测试报告.md">测试报告</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -40,7 +40,7 @@ Whale CLI 面向两类人：想亲手理解 coding agent 如何工作的学习�
 | MCP | stdio、Streamable HTTP、SSE | 外部工具如何进入统一 schema、审批和生命周期 |
 | 文件任务 | 代码、图片、PDF、Office、表格和文本 | 附件预览、视觉输入、工作区文件浏览与受控写入 |
 | 学习规划 | Datawhale BM25、学习者档案、动态路线 | 推荐依据、路线子任务、手动 checklist 与完成状态 |
-| 知识沉淀 | Obsidian Wiki、知识图谱、间隔复习、学习档案 | 学过什么、知识如何关联、何时复习、项目留下了什么证据 |
+| 知识沉淀 | Obsidian Wiki、知识图谱、间隔复习、学习档案、学习项目空间 | 学过什么、知识如何关联、何时复习，以及每个学习方向的数据边界 |
 
 ## 五分钟开始
 
@@ -134,6 +134,30 @@ Copy-Item config.example.json "$HOME\.whale\config.json"
 ```
 
 真实 Key 不要写入仓库、教程、截图或提交记录。
+
+### 运行路径配置
+
+Whale 将运行数据与学习工作区分开。所有配置中的本地路径都会由 Python `pathlib` 解析；WebUI URL、Markdown 图片、Wiki 链接和图谱 JSON 则统一使用 `/`。因此在 Windows 上可以使用反斜杠配置环境变量，但不要把反斜杠写进教程图片链接或 WebUI URL。
+
+#### macOS / Linux
+
+```bash
+export WHALE_HOME="$HOME/.whale"
+export WHALE_WORKSPACE="$HOME/whale-workspace"
+mkdir -p "$WHALE_WORKSPACE"
+cd "$WHALE_WORKSPACE"
+```
+
+#### Windows PowerShell
+
+```powershell
+$env:WHALE_HOME = "$HOME\.whale"
+$env:WHALE_WORKSPACE = "$HOME\whale-workspace"
+New-Item -ItemType Directory -Force -Path $env:WHALE_WORKSPACE | Out-Null
+Set-Location $env:WHALE_WORKSPACE
+```
+
+在项目目录执行 `whale-web` 后，学习项目空间会保存到 `.whale_cli/projects/`；每个项目的会话、Wiki、图谱、路线和复习数据彼此隔离。
 
 ### 3. 选择入口
 
@@ -233,6 +257,7 @@ Whale 的垂直能力不是一次性生成一份计划，而是一条由用户�
 5. 用户在 CLI 对话或 WebUI 中明确标记完成。
 6. `LearningReview` 根据日期生成间隔复习表，由用户自评回忆质量。
 7. Obsidian Wiki、项目产出和 `LearningPortfolio` 留下可回看的学习证据。
+8. 学习项目空间将不同课程或方向的会话、图谱、路线、复习、附件和档案分开保存。
 
 ## 教程地图与 WebUI 共学
 
@@ -251,7 +276,7 @@ Whale 的垂直能力不是一次性生成一份计划，而是一条由用户�
 | 00-03 先跑起来 | 第一次接触 Agent | 启动 REPL，完成第一次对话和会话恢复 | 聊天、历史会话、学习地图 |
 | 04-10 核心循环 | 想弄懂 Agent 为什么会行动 | 让模型调用工具、写 Todo、观察压缩 | 运行架构、运行轨迹、审批 |
 | 11-20 扩展能力 | 想改造自己的 Agent | 配置 Agent、接入 MCP、尝试附件和后台任务 | 设置、命令面板、文件与轨迹 |
-| 21-27 学习陪伴 | 想把项目用在真实学习上 | 生成路线、确认完成、复习并沉淀成果 | 学习图谱、路线 checklist、复习表、档案 |
+| 21-28 学习陪伴 | 想把项目用在真实学习上 | 生成路线、确认完成、复习并沉淀成果 | 学习项目、图谱、路线 checklist、复习表、档案 |
 
 ### 00-03：先获得可观察的对话
 
@@ -295,7 +320,7 @@ Whale 的垂直能力不是一次性生成一份计划，而是一条由用户�
 
 **WebUI 配合**：在 **设置** 中确认模型与视觉开关；用命令面板快速发起章节任务，上传一个小文件，并在运行轨迹中对照 MCP、Subagent 或后台任务事件。真实外部工具只接入可信来源。
 
-### 21-27：把 Agent 变成学习陪伴系统
+### 21-28：把 Agent 变成学习陪伴系统
 
 | 章节 | 难度 | 预计 | 学完后你能做什么 |
 |---|---|---:|---|
@@ -306,8 +331,9 @@ Whale 的垂直能力不是一次性生成一份计划，而是一条由用户�
 | [25 间隔复习：让学过的内容留下来](docs/新手入门/25-间隔复习-让学过的内容留下来.md) | 入门 | 40 分钟 | 生成复习表、查看资料摘要并记录回忆反馈。 |
 | [26 项目陪学：从推荐到本地练习](docs/新手入门/26-项目陪学-从推荐到本地练习.md) | 进阶 | 50 分钟 | 把课程或仓库转为有前置补充与产出要求的项目任务。 |
 | [27 学习档案与社区反馈：把进步留下来](docs/新手入门/27-学习档案与社区反馈-把进步留下来.md) | 入门 | 35 分钟 | 浏览学习证据、生成总结，并准备可选的社区反馈草稿。 |
+| [28 学习项目空间：让数据持续隔离](docs/新手入门/28-学习项目空间-让数据持续隔离.md) | 入门 | 30 分钟 | 为课程或方向建立独立的会话、图谱、路线、复习和档案。 |
 
-**WebUI 配合**：先在对话里说明你的学习目标，只让 Agent **预览**路线；确认后到 **学习路线** 勾选 checklist。再打开 **学习图谱** 查看知识点关系，在 **间隔复习** 中完成复习，最后到 **学习档案** 浏览可展示的证据。路线和完成状态应由学习者确认，而不是由模型自行宣告。
+**WebUI 配合**：先创建一个学习项目，再在对话里说明你的学习目标，只让 Agent **预览**路线；确认后到 **学习路线** 勾选 checklist。再打开 **学习图谱** 查看知识点关系，在 **间隔复习** 中完成复习，最后到 **学习档案** 浏览可展示的证据。路线和完成状态应由学习者确认，而不是由模型自行宣告。
 
 ## 目录结构
 
@@ -330,7 +356,7 @@ src/whale_cli/
 └── web/server.py     # 可安装 WebUI 后端
 
 webui/                # React 前端与静态项目介绍页
-docs/新手入门/        # 00-27 渐进教程
+docs/新手入门/        # 00-28 渐进教程
 tests/                # 单元、模块、集成与真实模型 E2E
 ```
 
@@ -372,18 +398,18 @@ whale-cli
 
 ```bash
 export STEP_API_KEY="your-step-plan-key"
-export WHALE_WORKSPACE_PATH="$PWD"
+export WHALE_WORKSPACE="$PWD"
 docker compose up -d --build
-curl http://127.0.0.1:8765/ready
+curl http://127.0.0.1:8765/api/ready
 ```
 
 #### Windows PowerShell
 
 ```powershell
 $env:STEP_API_KEY="your-step-plan-key"
-$env:WHALE_WORKSPACE_PATH=(Get-Location).Path
+$env:WHALE_WORKSPACE=(Get-Location).Path
 docker compose up -d --build
-(Invoke-WebRequest http://127.0.0.1:8765/ready).Content
+(Invoke-WebRequest http://127.0.0.1:8765/api/ready).Content
 ```
 
 Compose 默认只向宿主机 `127.0.0.1` 发布端口。运行数据保存在 `whale-data` volume，工作区通过 bind mount 提供给 Agent。

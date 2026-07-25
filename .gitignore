@@ -33,6 +33,7 @@ config.json
 .vscode/
 .DS_Store
 todo.txt
+hello.txt
 
 # Generated release assets (created by scripts/build_web.sh)
 src/whale_cli/web/static/

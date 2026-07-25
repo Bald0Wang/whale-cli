@@ -289,7 +289,7 @@ class ObsidianLearningWiki:
             log.write(f"- {captured_at.isoformat()}: 自动收录一轮对话：{page_title}\n")
         return {
             "path": str(page_path),
-            "relative_path": str(relative_path),
+            "relative_path": relative_path.as_posix(),
             "title": page_title,
             "captured_at": captured_at.isoformat(),
         }
@@ -392,7 +392,7 @@ class ObsidianLearningWiki:
                 raise ValueError("Obsidian 导出文件路径超出指定 vault。") from exc
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_path, target)
-            copied.append(str(target.relative_to(external_root)))
+            copied.append(target.relative_to(external_root).as_posix())
         return {
             "vault_path": str(external_root),
             "export_path": str(destination),

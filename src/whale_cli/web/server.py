@@ -20,12 +20,14 @@ import threading
 import time
 import uuid
 import zipfile
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 from xml.etree import ElementTree
@@ -55,6 +57,7 @@ class RunState:
     prompt: str
     mode: str
     session_id: str
+    project_id: str = "legacy"
     attachment_ids: list[str] = field(default_factory=list)
     status: str = "queued"
     summary: str = ""
@@ -87,6 +90,7 @@ class RunState:
                 "prompt": self.prompt,
                 "mode": self.mode,
                 "session_id": self.session_id,
+                "project_id": self.project_id,
                 "attachment_ids": list(self.attachment_ids),
                 "status": self.status,
                 "summary": self.summary,
@@ -142,12 +146,21 @@ class RunStore:
         self._runs: dict[str, RunState] = {}
         self._lock = threading.RLock()
 
-    def create(self, prompt: str, mode: str, session_id: str, attachment_ids: list[str] | None = None) -> RunState:
+    def create(
+        self,
+        prompt: str,
+        mode: str,
+        session_id: str,
+        attachment_ids: list[str] | None = None,
+        *,
+        project_id: str = "legacy",
+    ) -> RunState:
         state = RunState(
             id=f"run_{uuid.uuid4().hex[:8]}",
             prompt=prompt,
             mode=mode,
             session_id=session_id,
+            project_id=project_id,
             attachment_ids=attachment_ids or [],
         )
         with self._lock:
@@ -158,10 +171,12 @@ class RunStore:
         with self._lock:
             return self._runs.get(run_id)
 
-    def has_active_session(self, session_id: str) -> bool:
+    def has_active_session(self, session_id: str, *, project_id: str | None = None) -> bool:
         with self._lock:
             return any(
-                state.session_id == session_id and state.status in {"queued", "running"}
+                state.session_id == session_id
+                and (project_id is None or state.project_id == project_id)
+                and state.status in {"queued", "running"}
                 for state in self._runs.values()
             )
 
@@ -401,6 +416,181 @@ class AttachmentStore:
 ATTACHMENTS = AttachmentStore()
 
 
+@dataclass(frozen=True)
+class LearningProject:
+    """One learner-owned WebUI space stored below the selected workspace."""
+
+    id: str
+    name: str
+    root: Path
+    created_at: float
+    legacy: bool = False
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "path": str(self.root),
+            "legacy": self.legacy,
+            "created_at": self.created_at,
+        }
+
+
+class ProjectRegistry:
+    """Persist project-space metadata without moving existing learner data."""
+
+    def __init__(self, workspace: Path) -> None:
+        self.workspace = workspace.resolve()
+        self.root = self.workspace / ".whale_cli" / "projects"
+        self.index_path = self.root / "index.json"
+        self._lock = threading.RLock()
+
+    def _default_record(self) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "projects": [{
+                "id": "legacy",
+                "name": "默认学习空间",
+                "created_at": time.time(),
+                "legacy": True,
+            }],
+        }
+
+    def _read(self) -> dict[str, Any]:
+        if not self.index_path.is_file():
+            return self._default_record()
+        try:
+            payload = json.loads(self.index_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return self._default_record()
+        if not isinstance(payload, dict) or not isinstance(payload.get("projects"), list):
+            return self._default_record()
+        return payload
+
+    def _write(self, payload: dict[str, Any]) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+        temporary = self.index_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        temporary.replace(self.index_path)
+
+    def list(self) -> list[LearningProject]:
+        with self._lock:
+            payload = self._read()
+            projects: list[LearningProject] = []
+            for item in payload["projects"]:
+                if not isinstance(item, dict):
+                    continue
+                project_id = str(item.get("id") or "")
+                if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", project_id):
+                    continue
+                legacy = bool(item.get("legacy")) or project_id == "legacy"
+                root = self.workspace if legacy else self.root / project_id
+                projects.append(
+                    LearningProject(
+                        id=project_id,
+                        name=str(item.get("name") or project_id)[:80],
+                        root=root,
+                        created_at=float(item.get("created_at") or 0),
+                        legacy=legacy,
+                    )
+                )
+            if not any(project.legacy for project in projects):
+                projects.insert(0, LearningProject("legacy", "默认学习空间", self.workspace, time.time(), True))
+            return projects
+
+    def get(self, project_id: str) -> LearningProject | None:
+        return next((project for project in self.list() if project.id == project_id), None)
+
+    def create(self, name: str) -> LearningProject:
+        cleaned = " ".join(name.split())
+        if not 1 <= len(cleaned) <= 80:
+            raise ValueError("Project name must contain 1 to 80 characters.")
+        slug = re.sub(r"[^a-z0-9]+", "-", cleaned.lower()).strip("-")
+        project_id = f"project-{(slug or 'learning')[:36]}-{uuid.uuid4().hex[:6]}"
+        with self._lock:
+            payload = self._read()
+            root = self.root / project_id
+            root.mkdir(parents=True, exist_ok=False)
+            manifest = {
+                "id": project_id,
+                "name": cleaned,
+                "created_at": time.time(),
+                "purpose": "Isolated Whale CLI learning data.",
+            }
+            (root / "project.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            payload["projects"].append({**manifest, "legacy": False})
+            self._write(payload)
+            return LearningProject(project_id, cleaned, root, float(manifest["created_at"]))
+
+
+@dataclass(frozen=True)
+class ProjectScope:
+    project: LearningProject
+    learning_root: Path
+    sessions: SessionStore
+    attachments: AttachmentStore
+    knowledge_base: DatawhaleKnowledgeBase
+    knowledge_updater: DatawhaleKnowledgeBaseUpdater
+
+
+PROJECTS = ProjectRegistry(PROJECT_ROOT)
+_CURRENT_PROJECT_SCOPE: ContextVar[ProjectScope | None] = ContextVar("whale_project_scope", default=None)
+_PROJECT_SCOPE_CACHE: dict[str, ProjectScope] = {}
+_PROJECT_SCOPE_LOCK = threading.RLock()
+
+
+def _legacy_project_scope() -> ProjectScope:
+    project = LearningProject("legacy", "默认学习空间", PROJECT_ROOT, 0, True)
+    return ProjectScope(project, PROJECT_ROOT, SESSIONS, ATTACHMENTS, DATAWHALE_KB, DATAWHALE_UPDATER)
+
+
+def _scope_for_project(project_id: str) -> ProjectScope:
+    if project_id == "legacy":
+        return _legacy_project_scope()
+    project = PROJECTS.get(project_id)
+    if project is None or project.legacy:
+        raise ValueError("Unknown learning project.")
+    with _PROJECT_SCOPE_LOCK:
+        cached = _PROJECT_SCOPE_CACHE.get(project.id)
+        if cached is not None:
+            return cached
+        knowledge_base = DatawhaleKnowledgeBase(project.root / "datawhale_bm25_documents.jsonl")
+        scope = ProjectScope(
+            project=project,
+            learning_root=project.root,
+            sessions=SessionStore(base_dir=str(project.root)),
+            attachments=AttachmentStore(project.root / "uploads"),
+            knowledge_base=knowledge_base,
+            knowledge_updater=DatawhaleKnowledgeBaseUpdater(knowledge_base),
+        )
+        _PROJECT_SCOPE_CACHE[project.id] = scope
+        return scope
+
+
+def _current_project_scope() -> ProjectScope:
+    return _CURRENT_PROJECT_SCOPE.get() or _legacy_project_scope()
+
+
+def _learning_root() -> Path:
+    return _current_project_scope().learning_root
+
+
+def _session_store() -> SessionStore:
+    return _current_project_scope().sessions
+
+
+def _attachment_store() -> AttachmentStore:
+    return _current_project_scope().attachments
+
+
+def _datawhale_knowledge_base() -> DatawhaleKnowledgeBase:
+    return _current_project_scope().knowledge_base
+
+
+def _datawhale_updater() -> DatawhaleKnowledgeBaseUpdater:
+    return _current_project_scope().knowledge_updater
+
+
 def _tutorial_paths() -> list[Path]:
     """Return the numbered tutorial files in their learning order."""
     if not TUTORIALS_ROOT.is_dir():
@@ -461,9 +651,30 @@ _HIDDEN_WORKSPACE_PARTS = {".git", ".whale_cli", ".venv", "node_modules", "dist"
 _MAX_PREVIEW_BYTES = 200_000
 
 
+def _web_relative_path(value: str) -> str:
+    """Normalize a browser/Markdown path before resolving it on this host.
+
+    Browser URLs, graph payloads, and Markdown assets always use ``/``.  A
+    Windows-authored Markdown file can still contain ``\\`` though, so accept
+    it at the boundary and turn it into the same logical path.  Drive paths,
+    absolute paths, and traversal are never valid web-relative paths.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    normalized = raw.replace("\\", "/")
+    if normalized.startswith("/") or re.match(r"^[A-Za-z]:/", normalized):
+        raise ValueError("Path must be relative to the workspace.")
+    parts = PurePosixPath(normalized).parts
+    if any(part in {".", ".."} for part in parts):
+        raise ValueError("Path traversal is not allowed.")
+    return "/".join(parts)
+
+
 def _workspace_target(relative_path: str) -> Path:
     """Resolve a readable workspace path without permitting an escape."""
-    target = (PROJECT_ROOT / relative_path).resolve()
+    logical_path = _web_relative_path(relative_path)
+    target = (PROJECT_ROOT / Path(*PurePosixPath(logical_path).parts)).resolve()
     try:
         relative = target.relative_to(PROJECT_ROOT)
     except ValueError as exc:
@@ -526,7 +737,8 @@ def _workspace_file(relative_path: str) -> dict[str, Any]:
 
 def _learning_wiki_graph_payload() -> dict[str, Any]:
     """Expose a read-only, live view of the project's KnowledgeMap."""
-    wiki = ObsidianLearningWiki(LearningStore(PROJECT_ROOT), PROJECT_ROOT)
+    learning_root = _learning_root()
+    wiki = ObsidianLearningWiki(LearningStore(learning_root), learning_root)
     snapshot = wiki.graph_snapshot()
     status = wiki.status()
     if not snapshot["nodes"]:
@@ -550,19 +762,21 @@ def _learning_wiki_graph_payload() -> dict[str, Any]:
 
 
 def _learning_wiki_settings_payload() -> dict[str, Any]:
-    return ObsidianLearningWiki(LearningStore(PROJECT_ROOT), PROJECT_ROOT).status()
+    learning_root = _learning_root()
+    return ObsidianLearningWiki(LearningStore(learning_root), learning_root).status()
 
 
 def _learning_wiki_page_payload(node_id: str) -> dict[str, Any]:
-    return ObsidianLearningWiki(LearningStore(PROJECT_ROOT), PROJECT_ROOT).render_node_page(node_id)
+    learning_root = _learning_root()
+    return ObsidianLearningWiki(LearningStore(learning_root), learning_root).render_node_page(node_id)
 
 
 def _learning_portfolio_payload() -> dict[str, Any]:
-    return LearningPortfolio(LearningStore(PROJECT_ROOT)).snapshot()
+    return LearningPortfolio(LearningStore(_learning_root())).snapshot()
 
 
 def _roadmap_planner() -> RoadmapPlanner:
-    store = LearningStore(PROJECT_ROOT)
+    store = LearningStore(_learning_root())
     return RoadmapPlanner(store, LearnerProfileService(store))
 
 
@@ -599,30 +813,36 @@ def _confirm_learning_roadmap(weeks: int) -> dict[str, Any]:
 
 
 def _review_scheduler() -> ReviewScheduler:
-    return ReviewScheduler(LearningStore(PROJECT_ROOT))
+    return ReviewScheduler(LearningStore(_learning_root()))
 
 
 def _learning_review_schedule_payload() -> dict[str, Any]:
     scheduler = _review_scheduler()
-    scheduler.sync_from_conversations(session_store=SESSIONS, force=False)
+    scheduler.sync_from_conversations(session_store=_session_store(), force=False)
     return scheduler.schedule()
 
 
 def _learning_review_feedback_payload() -> dict[str, Any]:
     scheduler = _review_scheduler()
-    scheduler.sync_from_conversations(session_store=SESSIONS, force=False)
+    scheduler.sync_from_conversations(session_store=_session_store(), force=False)
     return scheduler.feedback()
 
 
 def _learning_review_detail_payload(concept_id: str) -> dict[str, Any]:
-    return _review_scheduler().detail(concept_id, session_store=SESSIONS)
+    return _review_scheduler().detail(concept_id, session_store=_session_store())
 
 
-def _refresh_learning_reviews_in_background() -> None:
+def _refresh_learning_reviews_in_background(scope: ProjectScope | None = None) -> None:
     """Refresh today's local review table without delaying WebUI startup."""
     def refresh() -> None:
         try:
-            _review_scheduler().sync_from_conversations(session_store=SESSIONS, force=False)
+            if scope is None:
+                _review_scheduler().sync_from_conversations(session_store=_session_store(), force=False)
+            else:
+                ReviewScheduler(LearningStore(scope.learning_root)).sync_from_conversations(
+                    session_store=scope.sessions,
+                    force=False,
+                )
         except (OSError, ValueError):
             # Review refresh is optional; an unavailable session directory must
             # never prevent the local UI from opening.
@@ -761,10 +981,11 @@ SETTINGS = WebSettings()
 
 
 def _session_payload(session_id: str) -> dict[str, Any] | None:
-    info = SESSIONS.get_session_info(session_id)
+    sessions = _session_store()
+    info = sessions.get_session_info(session_id)
     if info is None:
         return None
-    messages = SESSIONS.load_messages(session_id)
+    messages = sessions.load_messages(session_id)
     return {
         "session_id": info.session_id,
         "title": info.title or "未命名会话",
@@ -776,14 +997,16 @@ def _session_payload(session_id: str) -> dict[str, Any] | None:
 
 
 def _datawhale_kb_payload() -> dict[str, Any]:
-    path = DATAWHALE_KB.path
+    scope = _current_project_scope()
+    knowledge_base = _datawhale_knowledge_base()
+    path = knowledge_base.path
     return {
-        "path": str(path.relative_to(PROJECT_ROOT)),
-        "available": DATAWHALE_KB.available,
-        "document_count": len(DATAWHALE_KB.documents()),
+        "path": path.relative_to(scope.learning_root).as_posix(),
+        "available": knowledge_base.available,
+        "document_count": len(knowledge_base.documents()),
         "size": path.stat().st_size if path.is_file() else 0,
         "algorithm": "Okapi BM25",
-        "update": DATAWHALE_UPDATER.preview(),
+        "update": _datawhale_updater().preview(),
     }
 
 
@@ -792,19 +1015,20 @@ def _replace_datawhale_kb(*, name: str, raw: bytes) -> dict[str, Any]:
         raise ValueError("Datawhale knowledge base must be a .jsonl file.")
     if len(raw) > MAX_DATAWHALE_KB_BYTES:
         raise ValueError("Datawhale knowledge base exceeds the 64 MB limit.")
-    DATAWHALE_KB.replace_corpus(raw)
+    _datawhale_knowledge_base().replace_corpus(raw)
     return _datawhale_kb_payload()
 
 
 def _sync_latest_datawhale_kb() -> dict[str, Any]:
-    DATAWHALE_UPDATER.sync_latest()
+    _datawhale_updater().sync_latest()
     return _datawhale_kb_payload()
 
 
 def _session_list_payload() -> dict[str, list[dict[str, Any]]]:
     """Return only persisted conversations that contain a real message."""
     sessions = []
-    for item in SESSIONS.list_sessions(limit=40):
+    sessions_store = _session_store()
+    for item in sessions_store.list_sessions(limit=40):
         payload = _session_payload(item.session_id)
         if payload is not None and payload["message_count"] > 0:
             payload.pop("messages", None)
@@ -813,9 +1037,9 @@ def _session_list_payload() -> dict[str, list[dict[str, Any]]]:
 
 
 def _delete_session_payload(session_id: str) -> dict[str, Any] | None:
-    if RUNS.has_active_session(session_id):
+    if RUNS.has_active_session(session_id, project_id=_current_project_scope().project.id):
         raise RuntimeError("This session has a running task and cannot be deleted yet.")
-    if not SESSIONS.delete_session(session_id):
+    if not _session_store().delete_session(session_id):
         return None
     return {"deleted": session_id}
 
@@ -859,24 +1083,26 @@ def _start_run(state: RunState) -> None:
         approval = WebApproval(state, yolo=state.mode == "yolo")
 
         try:
+            scope = _scope_for_project(state.project_id)
             settings = SETTINGS.snapshot()
-            saved_messages = SESSIONS.load_messages(state.session_id)
+            saved_messages = scope.sessions.load_messages(state.session_id)
             soul = Soul(
                 llm=SETTINGS.build_client(),
                 approval=approval,
                 hook_engine=hooks,
-                session_store=SESSIONS,
+                session_store=scope.sessions,
                 session_id=state.session_id,
                 initial_messages=saved_messages or None,
+                learning_workspace=str(scope.learning_root),
             )
-            attachments = ATTACHMENTS.get_many(state.attachment_ids)
-            prompt = ATTACHMENTS.context_for(state.prompt, attachments, vision_enabled=settings["vision_enabled"])
+            attachments = scope.attachments.get_many(state.attachment_ids)
+            prompt = scope.attachments.context_for(state.prompt, attachments, vision_enabled=settings["vision_enabled"])
             vision_content = (
-                ATTACHMENTS.vision_content(prompt, attachments, settings["vision_detail"])
+                scope.attachments.vision_content(prompt, attachments, settings["vision_detail"])
                 if settings["vision_enabled"]
                 else None
             )
-            attachment_payloads = [ATTACHMENTS.payload(item) for item in attachments]
+            attachment_payloads = [scope.attachments.payload(item) for item in attachments]
             outcome = soul.run(
                 prompt,
                 multimodal_content=vision_content,
@@ -903,9 +1129,12 @@ def _start_run(state: RunState) -> None:
 def _overview_payload() -> dict[str, Any]:
     """Keep the WebUI overview aligned with the built-in runtime tools."""
     settings = SETTINGS.snapshot()
+    scope = _current_project_scope()
     return {
         "project": "Whale CLI",
         "workspace": str(PROJECT_ROOT),
+        "learning_project": scope.project.payload(),
+        "learning_storage": str(scope.learning_root),
         "model_ready": settings["api_key_configured"],
         "model": settings["model"],
         "tools": [
@@ -914,7 +1143,7 @@ def _overview_payload() -> dict[str, Any]:
             "LearningReview", "LearningProjectPlan", "CloneLearningProject", "LearningPortfolio", "LearningWikiStatus", "LearningWiki", "OpenLearningWiki", "SyncToObsidianVault",
             "BackgroundStart", "BackgroundList", "BackgroundOutput",
         ],
-        "session_count": len(SESSIONS.list_sessions(limit=10_000)),
+        "session_count": len(scope.sessions.list_sessions(limit=10_000)),
         "tutorial_count": len(_tutorial_paths()),
     }
 
@@ -926,10 +1155,40 @@ class WebUIHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:
         print(f"[webui] {self.address_string()} - {fmt % args}")
 
+    def _selected_project_id(self) -> str:
+        raw_cookie = self.headers.get("Cookie", "")
+        try:
+            cookies = SimpleCookie()
+            cookies.load(raw_cookie)
+            return str(cookies.get("whale_project").value) if cookies.get("whale_project") else "legacy"
+        except (KeyError, ValueError):
+            return "legacy"
+
+    def _with_project_scope(self, action) -> None:
+        try:
+            scope = _scope_for_project(self._selected_project_id())
+        except ValueError:
+            scope = _legacy_project_scope()
+        token = _CURRENT_PROJECT_SCOPE.set(scope)
+        try:
+            action()
+        finally:
+            _CURRENT_PROJECT_SCOPE.reset(token)
+
     def do_GET(self) -> None:  # noqa: N802
+        self._with_project_scope(self._do_GET)
+
+    def _do_GET(self) -> None:
         request = urlparse(self.path)
         path = request.path
         query = parse_qs(request.query)
+        if path == "/api/projects":
+            active = _current_project_scope().project.id
+            self._send_json(
+                HTTPStatus.OK,
+                {"projects": [project.payload() for project in PROJECTS.list()], "active_project_id": active},
+            )
+            return
         if path in {"/health", "/api/health"}:
             self._send_json(
                 HTTPStatus.OK,
@@ -958,7 +1217,7 @@ class WebUIHandler(SimpleHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, _datawhale_kb_payload())
             return
         if path == "/api/uploads":
-            self._send_json(HTTPStatus.OK, {"uploads": ATTACHMENTS.list()})
+            self._send_json(HTTPStatus.OK, {"uploads": _attachment_store().list()})
             return
         if path == "/api/learning-wiki/graph":
             self._send_json(HTTPStatus.OK, _learning_wiki_graph_payload())
@@ -998,7 +1257,7 @@ class WebUIHandler(SimpleHTTPRequestHandler):
             return
         if path.startswith("/api/uploads/") and path.endswith("/content"):
             attachment_id = path.split("/")[-2]
-            item = ATTACHMENTS.get(attachment_id)
+            item = _attachment_store().get(attachment_id)
             if item is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "Attachment not found."})
                 return
@@ -1039,7 +1298,7 @@ class WebUIHandler(SimpleHTTPRequestHandler):
             return
         if path.startswith("/api/runs/"):
             state = RUNS.get(path.rsplit("/", 1)[-1])
-            if state is None:
+            if state is None or state.project_id != _current_project_scope().project.id:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "Run not found."})
                 return
             self._send_json(HTTPStatus.OK, state.snapshot())
@@ -1050,6 +1309,9 @@ class WebUIHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        self._with_project_scope(self._do_POST)
+
+    def _do_POST(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/datawhale-kb/upload":
             upload = self._read_upload(max_bytes=MAX_DATAWHALE_KB_BYTES)
@@ -1074,7 +1336,7 @@ class WebUIHandler(SimpleHTTPRequestHandler):
             if upload is None:
                 return
             try:
-                payload = ATTACHMENTS.add(
+                payload = _attachment_store().add(
                     name=upload["name"],
                     mime_type=upload["mime_type"],
                     raw=upload["raw"],
@@ -1085,6 +1347,31 @@ class WebUIHandler(SimpleHTTPRequestHandler):
             return
         body = self._read_json_body()
         if body is None:
+            return
+        if path == "/api/projects":
+            try:
+                project = PROJECTS.create(str(body.get("name", "")))
+                scope = _scope_for_project(project.id)
+                _refresh_learning_reviews_in_background(scope)
+                self._send_json(
+                    HTTPStatus.CREATED,
+                    {"project": project.payload(), "active_project_id": project.id},
+                    headers={"Set-Cookie": f"whale_project={project.id}; Path=/; SameSite=Strict"},
+                )
+            except (OSError, ValueError) as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        if path == "/api/projects/select":
+            project_id = str(body.get("project_id", "")).strip()
+            project = PROJECTS.get(project_id)
+            if project is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "Learning project not found."})
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {"project": project.payload(), "active_project_id": project.id},
+                headers={"Set-Cookie": f"whale_project={project.id}; Path=/; SameSite=Strict"},
+            )
             return
         if path == "/api/runs":
             prompt = str(body.get("prompt", "")).strip()
@@ -1106,26 +1393,29 @@ class WebUIHandler(SimpleHTTPRequestHandler):
                     {"error": f"No API key found. Set STEP_API_KEY or configure {SETTINGS.path} first."},
                 )
                 return
-            if session_id and SESSIONS.get_session_info(session_id) is None:
+            sessions = _session_store()
+            attachments = _attachment_store()
+            if session_id and sessions.get_session_info(session_id) is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "Session not found."})
                 return
             try:
-                ATTACHMENTS.get_many(attachment_ids)
+                attachments.get_many(attachment_ids)
             except ValueError as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                 return
             state = RUNS.create(
                 prompt or "请分析我附加的文件。",
                 mode,
-                session_id or SESSIONS.create_session(),
+                session_id or sessions.create_session(),
                 attachment_ids,
+                project_id=_current_project_scope().project.id,
             )
             _start_run(state)
             self._send_json(HTTPStatus.ACCEPTED, state.snapshot())
             return
         if path == "/api/sessions":
             title = str(body.get("title", "")).strip()
-            session_id = SESSIONS.create_session(title=title)
+            session_id = _session_store().create_session(title=title)
             self._send_json(HTTPStatus.CREATED, _session_payload(session_id) or {"session_id": session_id})
             return
         if path == "/api/settings":
@@ -1141,11 +1431,11 @@ class WebUIHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(
                 HTTPStatus.OK,
-                ObsidianLearningWiki(LearningStore(PROJECT_ROOT), PROJECT_ROOT).set_auto_capture(enabled=enabled),
+                ObsidianLearningWiki(LearningStore(_learning_root()), _learning_root()).set_auto_capture(enabled=enabled),
             )
             return
         if path == "/api/learning-review/refresh":
-            self._send_json(HTTPStatus.OK, _review_scheduler().sync_from_conversations(session_store=SESSIONS, force=True))
+            self._send_json(HTTPStatus.OK, _review_scheduler().sync_from_conversations(session_store=_session_store(), force=True))
             return
         if path == "/api/learning-review/rate":
             concept_id = str(body.get("concept_id", "")).strip()
@@ -1195,7 +1485,7 @@ class WebUIHandler(SimpleHTTPRequestHandler):
             run_id = path.split("/")[-2]
             state = RUNS.get(run_id)
             decision = str(body.get("decision", ""))
-            if state is None:
+            if state is None or state.project_id != _current_project_scope().project.id:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "Run not found."})
                 return
             if decision not in {"approve", "approve_for_session", "reject"}:
@@ -1212,6 +1502,9 @@ class WebUIHandler(SimpleHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Unknown API route."})
 
     def do_DELETE(self) -> None:  # noqa: N802
+        self._with_project_scope(self._do_DELETE)
+
+    def _do_DELETE(self) -> None:
         path = urlparse(self.path).path
         if path.startswith("/api/sessions/"):
             session_id = unquote(path.rsplit("/", 1)[-1])
@@ -1227,7 +1520,7 @@ class WebUIHandler(SimpleHTTPRequestHandler):
             return
         if path.startswith("/api/uploads/"):
             attachment_id = path.rsplit("/", 1)[-1]
-            if not ATTACHMENTS.delete(attachment_id):
+            if not _attachment_store().delete(attachment_id):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "Attachment not found."})
                 return
             self._send_json(HTTPStatus.OK, {"deleted": attachment_id})
@@ -1295,15 +1588,14 @@ class WebUIHandler(SimpleHTTPRequestHandler):
 
     def _serve_project_asset(self, raw_path: str) -> None:
         try:
-            target = (PROJECT_ROOT / unquote(raw_path)).resolve()
-            target.relative_to(PROJECT_ROOT)
-        except ValueError:
+            target = _workspace_target(_web_relative_path(unquote(raw_path)))
+        except (OSError, ValueError):
             self.send_error(HTTPStatus.FORBIDDEN)
             return
         if not target.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
-        self.path = "/" + str(target.relative_to(PROJECT_ROOT))
+        self.path = "/" + _workspace_path(target)
         self.directory = str(PROJECT_ROOT)
         super().do_GET()
 
@@ -1320,12 +1612,20 @@ class WebUIHandler(SimpleHTTPRequestHandler):
         with path.open("rb") as source:
             self.wfile.write(source.read())
 
-    def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
+    def _send_json(
+        self,
+        status: HTTPStatus,
+        payload: dict[str, Any],
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 

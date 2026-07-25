@@ -86,7 +86,7 @@ class ProjectCompanion:
         )
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or "git clone failed")
-        relative_directory = str(target.relative_to(self.workspace))
+        relative_directory = target.relative_to(self.workspace).as_posix()
 
         def apply(state: dict[str, Any]) -> None:
             for project in state["projects"]:
