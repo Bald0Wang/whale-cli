@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grep 核心代码解读</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* -- Code Panel -- */
+.code-panel {
+  background: #0f0e0c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #332d28;
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #e05252; }
+.dot-y { background: #e8b863; }
+.dot-g { background: #7ec384; }
+
+.code-header span {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #6a6058;
+}
+
+.code-body {
+  padding: 16px 0;
+  overflow-x: auto;
+}
+
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 16px 2px 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 3px solid transparent;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.code-line:hover {
+  background: rgba(215,119,87,0.06);
+}
+
+.code-line.active {
+  background: rgba(215,119,87,0.1);
+  border-left-color: #D77757;
+}
+
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.code-line.blank:hover {
+  background: transparent;
+}
+
+.line-num {
+  flex: 0 0 44px;
+  text-align: right;
+  padding-right: 16px;
+  color: #6a6058;
+  font-size: 13px;
+  user-select: none;
+  line-height: 24px;
+}
+
+.line-code {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 24px;
+}
+
+/* Syntax colors */
+.kw  { color: #c084e8; }
+.str { color: #e8b863; }
+.bi  { color: #6477e0; }
+.cm  { color: #6a6058; font-style: italic; }
+.fn  { color: #D77757; }
+.op  { color: #ebe0d2; }
+.pr  { color: #ebe0d2; }
+
+/* -- Explanation Panel -- */
+.explain-panel {
+}
+
+.explain-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: #6a6058;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.explain-card {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  pointer-events: none;
+  overflow-y: auto;
+}
+
+.explain-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.card-label {
+  font-size: 12px;
+  color: #D77757;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ebe0d2;
+  line-height: 1.4;
+}
+
+.card-explain {
+  font-size: 13px;
+  color: #ebe0d2;
+  line-height: 1.9;
+  opacity: 0.88;
+}
+
+.card-insight {
+  background: rgba(126,195,132,0.06);
+  border-left: 3px solid #7ec384;
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: #ebe0d2;
+  opacity: 0.85;
+}
+
+.card-chapter {
+  margin-top: auto;
+  font-size: 13px;
+  color: #6477e0;
+  padding-top: 8px;
+  border-top: 1px solid #332d28;
+}
+
+/* -- Responsive -- */
+@media (max-width: 500px) {
+  .container {
+    padding: 8px;
+    gap: 8px;
+  }
+  .explain-panel {
+    min-height: 260px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span>grep_files.py</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <div class="explain-panel" id="explainPanel">
+    <div class="explain-default" id="defaultPrompt">
+      点击左边任意一行代码<br>看 Grep 工具背后发生了什么
+    </div>
+    <div class="explain-card" id="explainCard">
+      <div class="card-label" id="cardLabel"></div>
+      <div class="card-title" id="cardTitle"></div>
+      <div class="card-explain" id="cardExplain"></div>
+      <div class="card-insight" id="cardInsight"></div>
+      <div class="card-chapter" id="cardChapter"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const lines = [
+  { num: 1,  code: '<span class="kw">def</span> <span class="fn">grep_files</span>(pattern, path, max_results<span class="op">=</span><span class="bi">50</span>):' },
+  { num: 2,  code: '    <span class="kw">try</span>:' },
+  { num: 3,  code: '        <span class="pr">result</span> <span class="op">=</span> subprocess.<span class="fn">run</span>([' },
+  { num: 4,  code: '            <span class="str">"rg"</span>,' },
+  { num: 5,  code: '            <span class="str">"--no-heading"</span>,' },
+  { num: 6,  code: '            <span class="str">"--line-number"</span>,' },
+  { num: 7,  code: '            <span class="str">"--color=never"</span>,' },
+  { num: 8,  code: '            pattern, path' },
+  { num: 9,  code: '        ], capture_output<span class="op">=</span><span class="bi">True</span>, text<span class="op">=</span><span class="bi">True</span>, timeout<span class="op">=</span><span class="bi">10</span>)' },
+  { num: 10, code: '        <span class="pr">lines</span> <span class="op">=</span> result.stdout.<span class="fn">strip</span>().<span class="fn">splitlines</span>()' },
+  { num: 11, code: '', blank: true },
+  { num: 12, code: '    <span class="kw">except</span> (<span class="bi">FileNotFoundError</span>, <span class="bi">TimeoutExpired</span>):' },
+  { num: 13, code: '        <span class="cm"># ripgrep 不存在或超时，退回 Python</span>' },
+  { num: 14, code: '        <span class="pr">lines</span> <span class="op">=</span> <span class="fn">_python_grep</span>(pattern, path)' },
+  { num: 15, code: '', blank: true },
+  { num: 16, code: '    <span class="cm"># 截断到 max_results</span>' },
+  { num: 17, code: '    <span class="kw">if</span> <span class="bi">len</span>(lines) <span class="op">></span> max_results:' },
+  { num: 18, code: '        <span class="pr">lines</span> <span class="op">=</span> lines[:max_results]' },
+  { num: 19, code: '        lines.<span class="fn">append</span>(<span class="str">f"... ({len(lines)} total, truncated)"</span>)' },
+  { num: 20, code: '', blank: true },
+  { num: 21, code: '    <span class="kw">return</span> <span class="str">"\\n"</span>.<span class="fn">join</span>(lines)' },
+  { num: 22, code: '', blank: true },
+  { num: 23, code: '<span class="kw">def</span> <span class="fn">_python_grep</span>(pattern, path):' },
+  { num: 24, code: '    <span class="pr">matches</span> <span class="op">=</span> []' },
+  { num: 25, code: '    <span class="kw">for</span> fp <span class="kw">in</span> Path(path).<span class="fn">rglob</span>(<span class="str">"*"</span>):' },
+  { num: 26, code: '        <span class="kw">for</span> i, line <span class="kw">in</span> <span class="bi">enumerate</span>(fp.<span class="fn">read_text</span>().<span class="fn">splitlines</span>(), <span class="bi">1</span>):' },
+  { num: 27, code: '            <span class="kw">if</span> re.<span class="fn">search</span>(pattern, line):' },
+  { num: 28, code: '                matches.<span class="fn">append</span>(<span class="str">f"{fp}:{i}:{line}"</span>)' },
+  { num: 29, code: '    <span class="kw">return</span> matches' },
+];
+
+const explanations = {
+  1: {
+    label: '第 1 行',
+    title: '三个参数定义搜索范围',
+    explain: 'pattern 是正则表达式，path 是搜索根目录，max_results 默认 50。为什么默认 50 而不是"返回所有"？因为 grep 一个大项目可能命中几千行，全返回给模型会塞爆 context window。50 条足够模型定位到关键文件，不够的话它可以缩小范围再搜。',
+    insight: '这个默认值是 token 成本和信息充分度之间的权衡。Claude Code 的 grep 默认也做了类似截断，只是阈值不同。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  2: {
+    label: '第 2-9 行',
+    title: '先尝试 ripgrep',
+    explain: '优先用 ripgrep（rg）——一个用 Rust 写的极快搜索工具。subprocess.run 启动一个子进程调用系统上的 rg 命令。如果用户的机器装了 ripgrep，搜索速度能快 10-100 倍。整个调用包在 try 里，随时准备 fallback。',
+    insight: '这是"渐进增强"模式：有好工具就用好工具，没有也不崩。Claude Code 也采用了类似策略——它检测到系统有 rg 就用 rg，没有就退回内置搜索。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  3: {
+    label: '第 3 行',
+    title: 'subprocess.run 启动子进程',
+    explain: '用列表传参而不是字符串拼接。[\"rg\", \"--no-heading\", ...] 每个参数独立一项，不会有 shell 注入风险。和 Bash 工具的 shell=True 形成对比——grep 工具更安全，因为参数是程序自己拼的，不是模型直接传的命令字符串。',
+    insight: '列表传参是 subprocess 的最佳实践。只有在需要 shell 特性（管道、通配符展开）时才不得不用 shell=True，代价是引入注入风险。',
+    chapter: '→ 第 6 章 · Bash'
+  },
+  4: {
+    label: '第 4 行',
+    title: '调用 ripgrep',
+    explain: '"rg" 是 ripgrep 的命令名。它默认会递归搜索目录、自动跳过 .gitignore 里的文件、跳过二进制文件。这些默认行为刚好是 agent 搜代码想要的——不用额外配置。',
+    insight: 'ripgrep 自动尊重 .gitignore 这一点很关键。模型搜 "import" 时不会命中 node_modules 里几万个文件，搜索结果干净得多。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  5: {
+    label: '第 5 行',
+    title: '--no-heading：不按文件分组',
+    explain: '默认 ripgrep 会按文件分组输出，每组前面带文件名标题。加 --no-heading 后，每一行都是独立的 path:行号:内容 格式，方便程序逐行解析。',
+    insight: '给模型的输出格式越统一越好。分组输出虽然人看着方便，但模型解析起来要处理"哪些行属于哪个文件"的状态，容易出错。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  6: {
+    label: '第 6 行',
+    title: '--line-number：带上行号',
+    explain: '每条结果都带行号。模型拿到 "src/main.py:42:def hello():" 后，下一步就可以调 read_file(\"src/main.py\", start_line=40, end_line=50) 精确读取上下文。行号是 grep 和 read 两个工具之间的"接力棒"。',
+    insight: '工具链设计的关键：上一个工具的输出要恰好是下一个工具的输入。grep 输出行号，read 接收行号。这不是巧合，是刻意设计的。',
+    chapter: '→ 第 3 章 · Read'
+  },
+  7: {
+    label: '第 7 行',
+    title: '--color=never：纯文本输出',
+    explain: 'ripgrep 默认在终端会用 ANSI 颜色码高亮匹配项。但我们的输出是给模型看的，不是给人看的。颜色转义码（\\033[31m 之类）对模型来说是噪音，白白浪费 token，还可能干扰模型理解内容。',
+    insight: '很多命令行工具检测到 stdout 不是终端时会自动关闭颜色，但 ripgrep 在某些环境下不会。显式传 --color=never 是最保险的做法。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  8: {
+    label: '第 8 行',
+    title: '模式和路径透传',
+    explain: 'pattern 和 path 直接传给 ripgrep。pattern 是模型决定的正则表达式，path 是模型决定的搜索目录。模型会根据前几轮的 context 来决定搜什么、在哪搜。',
+    insight: '模型选搜索参数的能力取决于它已有的 context。如果它之前读过项目结构（通过 glob 或 workspace snapshot），搜索会精准得多。这就是为什么 glob 通常在 grep 之前被调用。',
+    chapter: '→ 第 8 章 · Workspace Snapshot'
+  },
+  9: {
+    label: '第 9 行',
+    title: 'timeout=10 防止挂起',
+    explain: 'capture_output=True 捕获 stdout 和 stderr。text=True 让输出是字符串而不是 bytes。timeout=10 表示 10 秒没跑完就杀掉。在一个巨大的 monorepo 里，ripgrep 可能跑很久——不能让一个搜索把整个 agent 卡住。',
+    insight: '10 秒对 ripgrep 来说已经很宽裕了，正常项目毫秒级就能搜完。超时通常意味着搜索路径选错了（比如搜了根目录 /），这时候 fallback 到 Python 也没用。',
+    chapter: '→ 第 6 章 · Bash'
+  },
+  10: {
+    label: '第 10 行',
+    title: '解析输出为行列表',
+    explain: 'stdout 按行切割。每行的格式是 path:行号:内容。strip() 去掉首尾空白，splitlines() 按换行符切分。如果没有匹配结果，stdout 是空字符串，splitlines() 返回空列表——不需要额外判断。',
+    insight: '输出格式是 path:行号:内容，这个三段式在 Unix 世界是事实标准。grep、rg、ag 都用这个格式。模型在训练数据里见过无数次，解析起来几乎不会出错。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  12: {
+    label: '第 12-14 行',
+    title: 'Fallback：退回 Python',
+    explain: 'FileNotFoundError 意味着系统没装 ripgrep，TimeoutExpired 意味着搜太久了。两种情况都退回纯 Python 实现。用户不需要知道后台用了什么——搜索结果格式完全一样。',
+    insight: '这种 try/except fallback 模式在工具实现里很常见。优先用快的，失败了用慢但一定能用的。关键是两条路径的输出格式要完全一致，调用方不应该知道走了哪条路。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  13: {
+    label: '第 13 行',
+    title: '注释说明 fallback 原因',
+    explain: '这条注释是给维护者看的。它解释了为什么 fallback——不是因为 ripgrep 有 bug，而是因为它可能不存在。如果不写这条注释，后面的人可能会问"为什么不直接报错？"',
+    insight: '好的注释解释 why，不解释 what。"ripgrep 不存在或超时"解释了触发条件，"退回 Python"解释了策略选择。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  14: {
+    label: '第 14 行',
+    title: '纯 Python 搜索',
+    explain: '_python_grep 是下面定义的辅助函数，用纯 Python 遍历文件做正则匹配。速度慢几个数量级，但好处是零依赖——只要有 Python 就能跑。',
+    insight: '在用户的开发机上 ripgrep 大概率是装了的，fallback 很少被触发。但在 CI 环境、Docker 容器、或者一些精简系统里，这个 fallback 就是救命的。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  17: {
+    label: '第 17-19 行',
+    title: '截断在应用层做',
+    explain: '不管用 ripgrep 还是 Python fallback，截断逻辑都在这里统一处理。如果结果超过 max_results，截断并附上总数提示。为什么不用 ripgrep 的 --max-count 参数？因为那是"每文件最大匹配数"，不是"总匹配数"，语义不同。',
+    insight: '截断信息 "(200 total, truncated)" 很重要。模型看到这条就知道"搜索结果不完整，还有更多"，可以决定是缩小范围再搜，还是已有信息够用了。不带这条的话，模型会以为 50 条就是全部。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  18: {
+    label: '第 18 行',
+    title: '只保留前 max_results 条',
+    explain: 'lines[:max_results] 切片，丢弃后面的。选择保留"前 N 条"而不是"随机 N 条"，因为 ripgrep 通常按文件系统顺序输出，前面的结果往往是项目根目录下的核心文件，信息密度更高。',
+    insight: '更高级的实现会做"智能排序"——把匹配度高的、文件重要度高的排在前面再截断。但对骨架版本来说，简单的前 N 条已经够用了。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  21: {
+    label: '第 21 行',
+    title: '用换行拼接返回',
+    explain: '把列表拼成一个多行字符串返回给模型。每行格式是 path:行号:内容。模型看到的就像在终端里运行 grep 看到的输出一样，它在训练数据里见过无数次，解析毫无压力。',
+    insight: '返回纯文本而不是 JSON。对于列表型数据，纯文本用换行分隔比 JSON 数组更省 token，模型解析也更自然。JSON 适合结构化数据，grep 结果用纯文本就够了。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  23: {
+    label: '第 23-29 行',
+    title: 'Python fallback 实现',
+    explain: '用 Path.rglob(\"*\") 递归遍历所有文件，逐文件逐行做正则匹配。输出格式和 ripgrep 完全一致：path:行号:内容。慢是慢，但保证有用。',
+    insight: '这个实现有几个问题：不跳过二进制文件、不尊重 .gitignore、大文件 read_text 可能 OOM。作为 fallback 够用，但如果要做成主力搜索引擎，每个问题都要处理。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  25: {
+    label: '第 25 行',
+    title: 'rglob 递归遍历',
+    explain: 'Path(path).rglob(\"*\") 递归列出所有文件。注意这里没有排除 .git、node_modules 等目录——ripgrep 默认会排除 .gitignore 里的路径，但 Python 版本没这个能力，所以 fallback 版本可能搜出很多噪音。',
+    insight: '这是 fallback 版本的已知缺陷。生产级实现会读 .gitignore 文件做排除，或者用 pathspec 库来处理 glob 模式。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  },
+  26: {
+    label: '第 26 行',
+    title: 'enumerate 从 1 开始',
+    explain: 'enumerate(lines, 1) 让行号从 1 开始而不是 0。这和 ripgrep 的输出一致，也和人类看文件的习惯一致——编辑器里第一行是第 1 行，不是第 0 行。',
+    insight: '行号从 1 开始很重要。如果 Python fallback 从 0 开始，模型拿到行号后调 read_file 就会差一行。两条搜索路径的输出格式必须完全一致。',
+    chapter: '→ 第 3 章 · Read'
+  },
+  28: {
+    label: '第 28 行',
+    title: 'path:行号:内容 格式',
+    explain: 'f\"{fp}:{i}:{line}\" 拼出和 ripgrep 一模一样的格式。这是 Unix grep 家族的标准输出格式，模型在预训练时见过无数次。它可以直接从中提取文件路径和行号，用于下一步的 read_file 调用。',
+    insight: '这个输出格式就是 grep 和 read_file 之间的"API 契约"。grep 说"src/main.py 第 42 行有你要的东西"，模型就知道下一步该 read_file(\"src/main.py\", 40, 50)。工具之间通过输出格式形成链条。',
+    chapter: '→ 第 5 章 · Glob + Grep'
+  }
+};
+
+// Build code lines
+const codeBody = document.getElementById('codeBody');
+lines.forEach(line => {
+  const el = document.createElement('div');
+  el.className = 'code-line' + (line.blank ? ' blank' : '');
+  el.dataset.num = line.num;
+  el.innerHTML = '<span class="line-num">' + line.num + '</span><span class="line-code">' + line.code + '</span>';
+  if (!line.blank) {
+    el.addEventListener('click', () => selectLine(line.num));
+  }
+  codeBody.appendChild(el);
+});
+
+let activeLine = null;
+const defaultPrompt = document.getElementById('defaultPrompt');
+const explainCard = document.getElementById('explainCard');
+const cardLabel = document.getElementById('cardLabel');
+const cardTitle = document.getElementById('cardTitle');
+const cardExplain = document.getElementById('cardExplain');
+const cardInsight = document.getElementById('cardInsight');
+const cardChapter = document.getElementById('cardChapter');
+
+function selectLine(num) {
+  let data = explanations[num];
+  if (!data) {
+    // Check if this line falls within a range
+    if (num >= 2 && num <= 9) data = explanations[2];
+    else if (num >= 12 && num <= 14) data = explanations[12];
+    else if (num >= 17 && num <= 19) data = explanations[17];
+    else if (num >= 23 && num <= 29) data = explanations[23];
+    else if (num === 16) data = explanations[17];
+    else if (num === 24) data = explanations[23];
+    else if (num === 27) data = explanations[28];
+    else if (num === 29) data = explanations[23];
+    else return;
+  }
+
+  if (activeLine === num) return;
+
+  const prev = document.querySelector('.code-line.active');
+  if (prev) prev.classList.remove('active');
+
+  const el = document.querySelector('.code-line[data-num="' + num + '"]');
+  if (el) el.classList.add('active');
+
+  activeLine = num;
+
+  defaultPrompt.style.display = 'none';
+
+  explainCard.classList.remove('visible');
+
+  requestAnimationFrame(() => {
+    explainCard.style.transition = 'none';
+    explainCard.style.opacity = '0';
+    explainCard.style.transform = 'translateY(12px)';
+
+    void explainCard.offsetHeight;
+
+    explainCard.style.transition = '';
+    explainCard.style.opacity = '';
+    explainCard.style.transform = '';
+    cardLabel.textContent = data.label;
+    cardTitle.textContent = data.title;
+    cardExplain.textContent = data.explain;
+    cardInsight.textContent = data.insight;
+    cardChapter.textContent = data.chapter;
+    explainCard.classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

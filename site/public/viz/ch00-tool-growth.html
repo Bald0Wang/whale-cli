@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tool Growth Chart</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #faf9f5;
+  color: #29261f;
+  padding: 24px;
+  min-height: 100vh;
+}
+.container {
+  max-width: 780px;
+  margin: 0 auto;
+}
+h2 {
+  font-size: 14px;
+  font-weight: 500;
+  color: #29261f;
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
+}
+.chart-wrapper {
+  background: #fbfaf6;
+  border: 1px solid #e0ddd5;
+  border-radius: 8px;
+  padding: 24px 24px 16px 24px;
+  position: relative;
+}
+.chart-area {
+  position: relative;
+  width: 100%;
+  height: 260px;
+}
+svg.chart-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.tooltip {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #e0ddd5;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 11px;
+  line-height: 1.6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 10;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.tooltip.visible {
+  opacity: 1;
+}
+.tooltip.pinned {
+  pointer-events: auto;
+  opacity: 1;
+}
+.tooltip-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: #29261f;
+  margin-bottom: 6px;
+}
+.tooltip-row {
+  color: #7d766a;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tooltip-row .label { color: #7d766a; }
+.tooltip-row .value { color: #29261f; }
+.tooltip-desc {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e0ddd5;
+  color: #7d766a;
+  font-size: 10px;
+}
+.tooltip-new-tools {
+  color: #d97757;
+  font-size: 10px;
+  margin-top: 2px;
+}
+.legend {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #3d382e;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.annotation {
+  position: absolute;
+  font-size: 10px;
+  color: #3d382e;
+  background: #fff;
+  border: 1px solid #e0ddd5;
+  border-radius: 4px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Timeline section */
+.timeline-section {
+  margin-top: 20px;
+  background: #fbfaf6;
+  border: 1px solid #e0ddd5;
+  border-radius: 8px;
+  padding: 20px 24px;
+}
+.timeline-section h3 {
+  font-size: 12px;
+  font-weight: 500;
+  color: #3d382e;
+  margin-bottom: 16px;
+}
+.timeline {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-top: 8px;
+}
+.timeline-track {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #e0ddd5;
+}
+.timeline-point {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+.timeline-label {
+  font-size: 10px;
+  color: #3d382e;
+}
+.timeline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e0ddd5;
+  border: 1px solid #7d766a;
+}
+.timeline-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.tool-pill {
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.tool-pill.file { background: rgba(217,119,87,0.12); color: #d97757; border: 1px solid rgba(217,119,87,0.25); }
+.tool-pill.search { background: rgba(14,124,102,0.10); color: #0e7c66; border: 1px solid rgba(14,124,102,0.25); }
+.tool-pill.execute { background: rgba(14,124,102,0.10); color: #0e7c66; border: 1px solid rgba(14,124,102,0.25); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h2>工具增长曲线 — 入门篇 6 章</h2>
+  <div class="chart-wrapper">
+    <div class="chart-area" id="chartArea">
+      <svg class="chart-svg" id="chartSvg"></svg>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#d97757"></div>
+        <span>工具数量</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#0e7c66"></div>
+        <span>Prompt tokens</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="timeline-section">
+    <h3>工具添加时间线</h3>
+    <div class="timeline">
+      <div class="timeline-track"></div>
+      <div class="timeline-point">
+        <div class="timeline-label">Ch01</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-tools">
+          <span class="tool-pill file">read_file</span>
+        </div>
+      </div>
+      <div class="timeline-point">
+        <div class="timeline-label">Ch02</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-tools">
+          <span class="tool-pill file" style="opacity:0.4">registry</span>
+        </div>
+      </div>
+      <div class="timeline-point">
+        <div class="timeline-label">Ch03</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-tools">
+          <span class="tool-pill file" style="opacity:0.4">params+</span>
+        </div>
+      </div>
+      <div class="timeline-point">
+        <div class="timeline-label">Ch04</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-tools">
+          <span class="tool-pill file">write_file</span>
+          <span class="tool-pill file">edit_file</span>
+        </div>
+      </div>
+      <div class="timeline-point">
+        <div class="timeline-label">Ch05</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-tools">
+          <span class="tool-pill search">glob</span>
+          <span class="tool-pill search">grep</span>
+        </div>
+      </div>
+      <div class="timeline-point">
+        <div class="timeline-label">Ch06</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-tools">
+          <span class="tool-pill execute">bash</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const data = [
+  { ch: 'Ch01', tools: 1, tokens: 170, newTools: 'read_file', desc: '最小 loop，一个工具' },
+  { ch: 'Ch02', tools: 1, tokens: 200, newTools: 'registry 重构', desc: '结构变了，工具数没变' },
+  { ch: 'Ch03', tools: 1, tokens: 240, newTools: 'read_file 升级', desc: '加了 start_line/end_line 参数' },
+  { ch: 'Ch04', tools: 3, tokens: 420, newTools: '+write_file, +edit_file', desc: '从只读到可写' },
+  { ch: 'Ch05', tools: 5, tokens: 570, newTools: '+glob, +grep', desc: '能搜代码了' },
+  { ch: 'Ch06', tools: 6, tokens: 720, newTools: '+bash', desc: '入门篇 6 个工具全部到位' },
+];
+
+const svg = document.getElementById('chartSvg');
+const chartArea = document.getElementById('chartArea');
+const tooltipEl = document.getElementById('tooltip');
+
+// Chart dimensions
+const margin = { top: 30, right: 56, bottom: 36, left: 48 };
+let width, height, plotW, plotH;
+
+function resize() {
+  const rect = chartArea.getBoundingClientRect();
+  width = rect.width;
+  height = rect.height;
+  plotW = width - margin.left - margin.right;
+  plotH = height - margin.top - margin.bottom;
+  render();
+}
+
+function scale(val, min, max, rangeMin, rangeMax) {
+  return rangeMin + ((val - min) / (max - min)) * (rangeMax - rangeMin);
+}
+
+// Smooth curve through points using cubic bezier
+function smoothPath(points) {
+  if (points.length < 2) return '';
+  let d = `M ${points[0][0]} ${points[0][1]}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const cpx = (prev[0] + curr[0]) / 2;
+    d += ` C ${cpx} ${prev[1]}, ${cpx} ${curr[1]}, ${curr[0]} ${curr[1]}`;
+  }
+  return d;
+}
+
+let pinned = -1;
+
+function render() {
+  const toolMin = 0, toolMax = 7;
+  const tokenMin = 0, tokenMax = 800;
+
+  // Calculate positions
+  const positions = data.map((d, i) => ({
+    x: margin.left + (i / (data.length - 1)) * plotW,
+    toolY: margin.top + plotH - scale(d.tools, toolMin, toolMax, 0, plotH),
+    tokenY: margin.top + plotH - scale(d.tokens, tokenMin, tokenMax, 0, plotH),
+  }));
+
+  let svgContent = '';
+
+  // Grid lines (horizontal)
+  const toolTicks = [1, 2, 3, 4, 5, 6];
+  toolTicks.forEach(t => {
+    const y = margin.top + plotH - scale(t, toolMin, toolMax, 0, plotH);
+    svgContent += `<line x1="${margin.left}" y1="${y}" x2="${margin.left + plotW}" y2="${y}" stroke="#e0ddd5" stroke-width="1"/>`;
+  });
+
+  // X axis labels
+  data.forEach((d, i) => {
+    const x = positions[i].x;
+    svgContent += `<text x="${x}" y="${margin.top + plotH + 24}" text-anchor="middle" fill="#7d766a" font-size="11" font-family="JetBrains Mono">${d.ch}</text>`;
+  });
+
+  // Left Y axis labels (tools)
+  toolTicks.forEach(t => {
+    const y = margin.top + plotH - scale(t, toolMin, toolMax, 0, plotH);
+    svgContent += `<text x="${margin.left - 12}" y="${y + 4}" text-anchor="end" fill="#7d766a" font-size="10" font-family="JetBrains Mono">${t}</text>`;
+  });
+
+  // Right Y axis labels (tokens)
+  const tokenTicks = [200, 400, 600, 800];
+  tokenTicks.forEach(t => {
+    const y = margin.top + plotH - scale(t, tokenMin, tokenMax, 0, plotH);
+    svgContent += `<text x="${margin.left + plotW + 12}" y="${y + 4}" text-anchor="start" fill="#7d766a" font-size="10" font-family="JetBrains Mono">${t}</text>`;
+  });
+
+  // Y axis titles
+  svgContent += `<text x="${margin.left - 12}" y="${margin.top - 12}" text-anchor="end" fill="#d97757" font-size="9" font-family="JetBrains Mono">工具数</text>`;
+  svgContent += `<text x="${margin.left + plotW + 12}" y="${margin.top - 12}" text-anchor="start" fill="#0e7c66" font-size="9" font-family="JetBrains Mono">tokens</text>`;
+
+  // Tool count line (smooth)
+  const toolPoints = positions.map(p => [p.x, p.toolY]);
+  svgContent += `<path d="${smoothPath(toolPoints)}" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/>`;
+
+  // Token line (smooth)
+  const tokenPoints = positions.map(p => [p.x, p.tokenY]);
+  svgContent += `<path d="${smoothPath(tokenPoints)}" fill="none" stroke="#0e7c66" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="6 3"/>`;
+
+  // Data points - tool count
+  positions.forEach((p, i) => {
+    svgContent += `<circle cx="${p.x}" cy="${p.toolY}" r="5" fill="#d97757" stroke="#fbfaf6" stroke-width="2" class="data-point" data-index="${i}" style="cursor:pointer"/>`;
+  });
+
+  // Data points - tokens
+  positions.forEach((p, i) => {
+    svgContent += `<circle cx="${p.x}" cy="${p.tokenY}" r="5" fill="#0e7c66" stroke="#fbfaf6" stroke-width="2" class="data-point" data-index="${i}" style="cursor:pointer"/>`;
+  });
+
+  // Annotations
+  // Ch04 annotation
+  const ann1X = positions[3].x;
+  const ann1Y = positions[3].toolY - 28;
+  svgContent += `<rect x="${ann1X - 52}" y="${ann1Y - 12}" width="104" height="20" rx="4" fill="#fff" stroke="#e0ddd5"/>`;
+  svgContent += `<text x="${ann1X}" y="${ann1Y + 2}" text-anchor="middle" fill="#3d382e" font-size="10" font-family="JetBrains Mono">从只读到可写</text>`;
+  svgContent += `<line x1="${ann1X}" y1="${ann1Y + 8}" x2="${ann1X}" y2="${positions[3].toolY - 7}" stroke="#e0ddd5" stroke-width="1"/>`;
+
+  // Ch06 annotation
+  const ann2X = positions[5].x;
+  const ann2Y = positions[5].toolY - 28;
+  svgContent += `<rect x="${ann2X - 88}" y="${ann2Y - 12}" width="176" height="20" rx="4" fill="#fff" stroke="#e0ddd5"/>`;
+  svgContent += `<text x="${ann2X}" y="${ann2Y + 2}" text-anchor="middle" fill="#3d382e" font-size="10" font-family="JetBrains Mono">入门篇 6 个工具全部到位</text>`;
+  svgContent += `<line x1="${ann2X}" y1="${ann2Y + 8}" x2="${ann2X}" y2="${positions[5].toolY - 7}" stroke="#e0ddd5" stroke-width="1"/>`;
+
+  svg.innerHTML = svgContent;
+
+  // Add event listeners
+  const points = svg.querySelectorAll('.data-point');
+  points.forEach(point => {
+    point.addEventListener('mouseenter', (e) => {
+      if (pinned >= 0) return;
+      showTooltip(parseInt(point.dataset.index), e);
+    });
+    point.addEventListener('mouseleave', () => {
+      if (pinned >= 0) return;
+      hideTooltip();
+    });
+    point.addEventListener('click', (e) => {
+      const idx = parseInt(point.dataset.index);
+      if (pinned === idx) {
+        pinned = -1;
+        hideTooltip();
+      } else {
+        pinned = idx;
+        showTooltip(idx, e, true);
+      }
+    });
+  });
+
+  // Click outside to unpin
+  chartArea.addEventListener('click', (e) => {
+    if (e.target.classList.contains('data-point')) return;
+    if (pinned >= 0) {
+      pinned = -1;
+      hideTooltip();
+    }
+  });
+}
+
+function showTooltip(idx, e, isPinned) {
+  const d = data[idx];
+  tooltipEl.innerHTML = `
+    <div class="tooltip-title">${d.ch}</div>
+    <div class="tooltip-row"><span class="label">工具数量</span><span class="value">${d.tools}</span></div>
+    <div class="tooltip-row"><span class="label">Prompt tokens</span><span class="value">${d.tokens}</span></div>
+    <div class="tooltip-new-tools">${d.newTools}</div>
+    <div class="tooltip-desc">${d.desc}</div>
+  `;
+
+  const chartRect = chartArea.getBoundingClientRect();
+  const positions = data.map((_, i) => ({
+    x: margin.left + (i / (data.length - 1)) * plotW,
+  }));
+
+  let left = positions[idx].x + 16;
+  if (left + 200 > chartRect.width) {
+    left = positions[idx].x - 200;
+  }
+  let top = 40;
+
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = top + 'px';
+  tooltipEl.classList.add('visible');
+  if (isPinned) {
+    tooltipEl.classList.add('pinned');
+  } else {
+    tooltipEl.classList.remove('pinned');
+  }
+}
+
+function hideTooltip() {
+  tooltipEl.classList.remove('visible');
+  tooltipEl.classList.remove('pinned');
+}
+
+// Init
+resize();
+window.addEventListener('resize', resize);
+</script>
+</body>
+</html>

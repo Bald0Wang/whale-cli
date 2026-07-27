@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ch01 main.py 代码解读</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0a0c10;
+  --panel: #0d1117;
+  --border: #1e2430;
+  --text: #c9d1d9;
+  --text-dim: #484f58;
+  --accent: #58a6ff;
+  --accent-bg: rgba(88,166,255,0.08);
+  --accent-border: rgba(88,166,255,0.4);
+  --kw: #ff7b72;
+  --str: #a5d6ff;
+  --fn: #d2a8ff;
+  --bi: #79c0ff;
+  --cm: #484f58;
+  --num: #79c0ff;
+  --green: #3fb950;
+  --green-bg: rgba(63,185,80,0.06);
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: calc(100vh - 32px);
+}
+
+/* -- Code Panel -- */
+.code-panel {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,17,23,0.8);
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #e05252; }
+.dot-y { background: #e8b863; }
+.dot-g { background: #7ec384; }
+
+.code-header span {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.code-body {
+  padding: 16px 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 16px 2px 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 3px solid transparent;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.code-line:hover {
+  background: var(--accent-bg);
+}
+
+.code-line.active {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+}
+
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.code-line.blank:hover {
+  background: transparent;
+}
+
+.line-num {
+  flex: 0 0 44px;
+  text-align: right;
+  padding-right: 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+  user-select: none;
+  line-height: 24px;
+}
+
+.line-code {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 24px;
+}
+
+/* Syntax colors */
+.kw  { color: var(--kw); }
+.str { color: var(--str); }
+.bi  { color: var(--bi); }
+.cm  { color: var(--cm); font-style: italic; }
+.fn  { color: var(--fn); }
+.op  { color: var(--text); }
+.pr  { color: var(--text); }
+.num { color: var(--num); }
+
+/* -- Explain Panel -- */
+.explain-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.explain-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.8;
+  flex: 1;
+}
+
+.explain-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  pointer-events: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.explain-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.card-label {
+  font-size: 12px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.card-explain {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.9;
+  opacity: 0.88;
+}
+
+.card-why {
+  background: rgba(88,166,255,0.06);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.card-observe {
+  background: var(--green-bg);
+  border-left: 3px solid var(--green);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.hint {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 12px;
+}
+
+/* -- Responsive -- */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    padding: 8px;
+    gap: 8px;
+  }
+  .explain-panel {
+    min-height: 280px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span>main.py -- Ch01 agent loop</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <div class="explain-panel" id="explainPanel">
+    <div class="explain-default" id="defaultPrompt">
+      点击任意一行代码<br>查看它背后发生了什么
+    </div>
+    <div class="explain-card" id="explainCard">
+      <div class="card-label" id="cardLabel"></div>
+      <div class="card-title" id="cardTitle"></div>
+      <div class="card-explain" id="cardExplain"></div>
+      <div class="card-why" id="cardWhy"></div>
+      <div class="card-observe" id="cardObserve"></div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">点击任意一行查看解释 | Ch01 main.py 主循环</div>
+
+<script>
+const lines = [
+  { num: 1,  code: '<span class="pr">llm</span> <span class="op">=</span> <span class="fn">LLMClient</span>(<span class="pr">provider</span><span class="op">=</span>args.provider)' },
+  { num: 2,  code: '<span class="pr">messages</span> <span class="op">=</span> [{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: args.task}]' },
+  { num: 3,  code: '', blank: true },
+  { num: 4,  code: '<span class="kw">for</span> turn <span class="kw">in</span> <span class="bi">range</span>(args.max_turns):' },
+  { num: 5,  code: '    <span class="cm"># -- 一拍：调 LLM --</span>' },
+  { num: 6,  code: '    <span class="pr">response</span> <span class="op">=</span> llm.<span class="fn">chat</span>(messages, <span class="pr">tools</span><span class="op">=</span>TOOLS_SCHEMA)' },
+  { num: 7,  code: '    messages.<span class="fn">append</span>(response)' },
+  { num: 8,  code: '', blank: true },
+  { num: 9,  code: '    <span class="pr">tool_calls</span> <span class="op">=</span> response.<span class="fn">get</span>(<span class="str">"tool_calls"</span>)' },
+  { num: 10, code: '    <span class="kw">if not</span> tool_calls:' },
+  { num: 11, code: '        <span class="bi">print</span>(response.<span class="fn">get</span>(<span class="str">"content"</span>, <span class="str">"(空回复)"</span>))' },
+  { num: 12, code: '        <span class="kw">return</span>' },
+  { num: 13, code: '', blank: true },
+  { num: 14, code: '    <span class="cm"># -- 同一拍：执行模型要的所有工具 --</span>' },
+  { num: 15, code: '    <span class="kw">for</span> call <span class="kw">in</span> tool_calls:' },
+  { num: 16, code: '        <span class="pr">name</span> <span class="op">=</span> call[<span class="str">"function"</span>][<span class="str">"name"</span>]' },
+  { num: 17, code: '        <span class="pr">call_args</span> <span class="op">=</span> json.<span class="fn">loads</span>(call[<span class="str">"function"</span>][<span class="str">"arguments"</span>])' },
+  { num: 18, code: '        <span class="bi">print</span>(<span class="str">f"&#x23F5; {name}({call_args})"</span>, <span class="pr">file</span><span class="op">=</span>sys.stderr)' },
+  { num: 19, code: '', blank: true },
+  { num: 20, code: '        <span class="pr">result</span> <span class="op">=</span> <span class="fn">run_tool</span>(name, call_args)' },
+  { num: 21, code: '        messages.<span class="fn">append</span>({' },
+  { num: 22, code: '            <span class="str">"role"</span>: <span class="str">"tool"</span>,' },
+  { num: 23, code: '            <span class="str">"tool_call_id"</span>: call[<span class="str">"id"</span>],' },
+  { num: 24, code: '            <span class="str">"content"</span>: result,' },
+  { num: 25, code: '        })' },
+];
+
+const explanations = {
+  1: {
+    label: '第 1 行',
+    title: '创建 LLM 客户端',
+    explain: 'LLMClient 封装了和模型 API 的通信。provider 参数决定调哪家（dashscope / deepseek / openai）。不管用哪家的 API，对外暴露的接口都是同一个 .chat() 方法。',
+    why: '为什么不直接写 openai.ChatCompletion.create()？因为教程要支持多个 provider，把差异封装在 LLMClient 里，主循环就不用改了。这也是 Claude Code 的做法——内部有 Provider 抽象层。',
+    observe: '在 Claude Code 里输入 /model 可以切换模型，但你的对话体验几乎不变——就是因为它也有类似的抽象层。'
+  },
+  2: {
+    label: '第 2 行',
+    title: '对话历史从这里开始',
+    explain: 'messages 列表是整个 agent 的"记忆"。LLM API 是无状态的，每次调用都要把完整的对话历史传过去。第一条消息是用户的任务指令。',
+    why: '为什么不把历史存在 LLMClient 里？因为 messages 是 agent 循环的核心数据结构，要在循环里不断 append。放在外面，主循环能完全控制它的生命周期。',
+    observe: '在 Claude Code 里每发一条消息，左下角的 token 计数会涨——因为每一轮都把整段历史重新发送给模型。'
+  },
+  4: {
+    label: '第 4 行',
+    title: '有限次循环取代 while True',
+    explain: 'for + range 代替 while True，保证循环一定会结束。max_turns 默认 10，命令行 --max-turns 可调。如果模型一直调工具停不下来，到次数就强制退出。',
+    why: '序章的骨架用 while True 是为了简洁，但真跑起来发现模型可能陷入死循环（比如反复读同一个文件）。这是第一个从"跑起来"到"跑得稳"的升级。',
+    observe: '在 Claude Code 里如果模型循环太久，你会看到它自动停下来并给出摘要。背后就是类似的 max-turns 机制。'
+  },
+  5: {
+    label: '第 5 行',
+    title: '注释标记节拍',
+    explain: '"一拍"是指 agent 循环的一个完整步骤：调模型 -> 判断结果 -> 执行工具 -> 反馈结果。每一拍 messages 列表至少增长两条（assistant + tool）。',
+    why: '用"拍"这个隐喻是因为 agent 像一个节拍器：模型思考一拍、工具执行一拍，交替进行直到任务完成。注释写在这里帮助读者在代码里看到节奏。',
+    observe: '在 Claude Code 里你能看到思考和执行交替出现——模型回复一段文字，然后一个工具调用块，然后又是文字。'
+  },
+  6: {
+    label: '第 6 行',
+    title: '把球传给模型',
+    explain: '把完整的对话历史和工具描述发给模型。tools=TOOLS_SCHEMA 告诉模型有哪些工具可用。模型根据上下文决定是直接回答还是调用工具。',
+    why: '为什么每次都把 TOOLS_SCHEMA 传一遍？因为 API 是无状态的，模型不记得你上一次传了什么工具。好处是你可以动态调整工具列表，比如某些场景下屏蔽危险工具。',
+    observe: '在 Claude Code 里输入一个需要读文件的任务，模型第一拍就会返回 tool_calls 而不是纯文本回答——说明它看到了工具列表并决定使用。'
+  },
+  7: {
+    label: '第 7 行',
+    title: '先把模型的回复存进历史',
+    explain: '不管模型回的是纯文本还是 tool_calls，第一步都是 append 到 messages。这样下一轮模型才能看到"自己上一拍做了什么"。',
+    why: '为什么先 append response 再处理 tool_calls？因为 API 规范要求 tool message 必须紧跟在对应的 assistant message 后面。如果你漏了 append response，直接 append tool result，API 会报错。',
+    observe: '如果你在 Claude Code 的 verbose 模式下看日志，会发现 assistant message 总是先于 tool result message 插入——就是这个顺序。'
+  },
+  9: {
+    label: '第 9 行',
+    title: '提取 tool_calls',
+    explain: '用 .get() 取 tool_calls 字段。如果模型决定直接回答（不调工具），这个字段就是 None。',
+    why: '为什么用 .get() 而不是 response["tool_calls"]？因为没有 tool_calls 时这个字段可能不存在。.get() 返回 None 而不是抛 KeyError，代码更健壮。',
+    observe: '在 Claude Code 里模型给出最终答案时，你看不到任何工具调用块——那就是 tool_calls 为空的情况。'
+  },
+  10: {
+    label: '第 10 行',
+    title: '该停了吗？',
+    explain: '如果 tool_calls 为空（None 或空列表），说明模型认为任务完成了，可以给最终答案了。',
+    why: '终止条件是"模型自己决定不调工具了"。这个判定在骨架阶段够用，但模型有时候不调工具并不代表任务完成——它可能只是不知道该调什么。后续章节会增加更精细的终止逻辑。',
+    observe: '在 Claude Code 里有时候模型会说"我需要查看某个文件"但没有调 read_file——这就是模型"忘了"自己有工具可用的情况。'
+  },
+  11: {
+    label: '第 11 行',
+    title: '打印最终回答',
+    explain: '模型的文本回复直接 print 到终端。如果 content 为空（理论上不应该，但防御一下），显示"(空回复)"。',
+    why: '骨架版本 print 就够了，但真正的产品会做 Markdown 渲染、语法高亮、流式输出。这行代码会在后续章节逐步升级。',
+    observe: '在 Claude Code 里最终回复是带颜色和格式的 Markdown——而不是纯文本。那就是在 print 这一步做了渲染增强。'
+  },
+  12: {
+    label: '第 12 行',
+    title: 'return 退出整个函数',
+    explain: '任务完成，退出 main()。注意这里用 return 而不是 break——因为 for...else 结构里 break 不会触发 else 块，而 return 直接结束函数。',
+    why: '第 4 行的 for 循环有一个 else 块（代码中没展示完），用来处理"到达 max_turns 还没结束"的情况。如果用 break，else 块不执行；用 return，直接跳出函数，else 块也不执行。两者在这里效果一样，但 return 语义更清晰：任务完成了，走了。',
+    observe: '在 Claude Code 里模型给完答案后命令行回到 > 提示符等待下一条输入——对应的就是这个函数返回后回到外层的输入循环。'
+  },
+  14: {
+    label: '第 14 行',
+    title: '注释标记工具执行阶段',
+    explain: '"同一拍"的意思是：模型思考和工具执行发生在循环的同一轮里。模型先返回 tool_calls，然后我们立即执行这些工具，结果塞回 messages，进入下一轮。',
+    why: '强调"同一拍"是为了跟"下一拍"区分——工具结果不是下一轮的输入，而是当前轮的补充。模型看到工具结果后在下一轮才做出反应。',
+    observe: '在 Claude Code 里你会看到模型文字和工具调用是一起出现的（同一个消息块里），然后工具结果跟在后面——这就是"同一拍"。'
+  },
+  15: {
+    label: '第 15 行',
+    title: '遍历所有工具调用',
+    explain: '模型可以一次请求调用多个工具——比如同时 read 一个文件和 grep 搜索一段代码。这个 for 循环把每个调用依次执行。',
+    why: '为什么不并发执行？骨架版本顺序执行最简单。生产级的 Claude Code 会判断工具之间是否有依赖，没有依赖的并发执行以节省时间。',
+    observe: '在 Claude Code 里你偶尔会看到多个工具调用几乎同时出结果——那就是并发执行。但骨架版本里工具结果是一个接一个出来的。'
+  },
+  16: {
+    label: '第 16 行',
+    title: '解析工具名',
+    explain: '从 tool_calls 结构里取出工具名。OpenAI 格式的 tool_calls 是嵌套结构：call["function"]["name"]。',
+    why: '这个嵌套结构是 OpenAI function calling 协议定义的。所有兼容 OpenAI 协议的模型（包括 dashscope、deepseek）都用这个格式。名字 + 参数分开存，方便解析。',
+    observe: '在 Claude Code 的调试日志里，每个 tool_use 块都有 name 和 input 两个字段——结构相似，只是 Anthropic 协议的字段名不同。'
+  },
+  17: {
+    label: '第 17 行',
+    title: '解析工具参数',
+    explain: 'arguments 字段是一个 JSON 字符串（不是字典），需要 json.loads() 解析。模型生成的 JSON 偶尔会有格式问题，实际代码里还有 try/except 兜底。',
+    why: '为什么 arguments 是字符串不是字典？因为模型生成的是文本，arguments 保持为原始 JSON 字符串，让调用方决定怎么解析。这个设计选择在流式场景下也更友好——可以逐 token 拼接。',
+    observe: '在 Claude Code 里如果模型生成了不合法的 JSON 参数，工具会报错并把错误信息返回给模型——模型通常会在下一拍修正参数重新调用。'
+  },
+  18: {
+    label: '第 18 行',
+    title: '打日志到 stderr',
+    explain: '在终端显示"正在调用什么工具"。输出到 stderr 而不是 stdout，这样用管道重定向时不会污染正式输出。',
+    why: '为什么区分 stderr 和 stdout？因为 agent 的最终答案是"正经输出"（stdout），工具调用日志是"过程信息"（stderr）。用户可以 python main.py "..." 2>/dev/null 只看结果。',
+    observe: '在 Claude Code 里工具调用过程显示在主面板，但最终回答和过程日志在视觉上有明确区分（颜色、缩进不同）——对应的就是 stdout vs stderr 的分离思路。'
+  },
+  20: {
+    label: '第 20 行',
+    title: '真正干活的地方',
+    explain: 'run_tool() 根据工具名找到对应的函数并执行。现在是 Ch01，tools.py 里用 if-else 分发。Ch02 会升级成 registry 结构。',
+    why: '为什么不直接在这里写执行逻辑？因为工具的种类会越来越多，每增加一个工具就要改主循环是不可接受的。run_tool() 是主循环和工具之间的解耦点。',
+    observe: '在 Claude Code 里每个工具都是独立注册的，新增工具不需要改 agent loop 的任何一行代码——就是这个解耦的最终形态。'
+  },
+  21: {
+    label: '第 21-25 行',
+    title: '把工具结果交回给模型',
+    explain: '工具执行完，把结果以 tool 角色追加到 messages。tool_call_id 把这条结果关联到对应的工具调用请求。下一轮模型就能看到"我上一拍调的工具返回了什么"。',
+    why: '为什么需要 tool_call_id？因为模型可能一次调了多个工具，每个工具的结果要对应到正确的请求上。如果 id 对不上，API 会报错。这个设计保证了多工具并行调用的正确性。',
+    observe: '在 Claude Code 里如果你 verbose 看日志，tool_result 消息里有 tool_use_id 字段——就是用来做这个关联的。模型 -> 工具 -> 模型 -> 工具 -> ... -> 最终回答，这个链条靠 id 串起来。'
+  }
+};
+
+// Build code lines
+const codeBody = document.getElementById('codeBody');
+lines.forEach(line => {
+  const el = document.createElement('div');
+  el.className = 'code-line' + (line.blank ? ' blank' : '');
+  el.dataset.num = line.num;
+  el.innerHTML = '<span class="line-num">' + line.num + '</span><span class="line-code">' + line.code + '</span>';
+  if (!line.blank) {
+    el.addEventListener('click', () => selectLine(line.num));
+  }
+  codeBody.appendChild(el);
+});
+
+let activeLine = null;
+const defaultPrompt = document.getElementById('defaultPrompt');
+const explainCard = document.getElementById('explainCard');
+const cardLabel = document.getElementById('cardLabel');
+const cardTitle = document.getElementById('cardTitle');
+const cardExplain = document.getElementById('cardExplain');
+const cardWhy = document.getElementById('cardWhy');
+const cardObserve = document.getElementById('cardObserve');
+
+function selectLine(num) {
+  // For multi-line entries, map to the first line
+  const key = (num >= 21 && num <= 25) ? 21 : num;
+  if (activeLine === num) return;
+
+  // Remove previous active
+  document.querySelectorAll('.code-line.active').forEach(el => el.classList.remove('active'));
+
+  // Set new active (highlight range for multi-line)
+  if (key === 21) {
+    for (let i = 21; i <= 25; i++) {
+      const el = document.querySelector('.code-line[data-num="' + i + '"]');
+      if (el) el.classList.add('active');
+    }
+  } else {
+    const el = document.querySelector('.code-line[data-num="' + num + '"]');
+    if (el) el.classList.add('active');
+  }
+
+  activeLine = num;
+  const data = explanations[key];
+  if (!data) return;
+
+  defaultPrompt.style.display = 'none';
+
+  explainCard.classList.remove('visible');
+  requestAnimationFrame(() => {
+    explainCard.style.transition = 'none';
+    explainCard.style.opacity = '0';
+    explainCard.style.transform = 'translateY(12px)';
+    void explainCard.offsetHeight;
+    explainCard.style.transition = '';
+    explainCard.style.opacity = '';
+    explainCard.style.transform = '';
+
+    cardLabel.textContent = data.label;
+    cardTitle.textContent = data.title;
+    cardExplain.textContent = data.explain;
+    cardWhy.innerHTML = '<strong>为什么这么写：</strong>' + data.why;
+    cardObserve.innerHTML = '<strong>在 Claude Code 里：</strong>' + data.observe;
+    explainCard.classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

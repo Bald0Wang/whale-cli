@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>最小 agent loop · 步进式 session 回放</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg0:#faf9f5; --bg1:#f5f0e8; --card:#ffffff; --card2:#fbfaf6;
+      --border:#e6dfd8; --border2:#d9d3c2;
+      --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+      --accent:#d97757; --accent-deep:#c45f3c;
+      --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+      --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+      --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+      --blue:#4a5eb8;
+      --yellow:#b8860b;
+      --code-keyword: #8a63c9;
+      --code-string:  #b8860b;
+      --code-comment: #b3ac9d;
+      --code-builtin: #4a5eb8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      background: var(--bg0);
+      color: var(--ink);
+      font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 24px 20px;
+      height: 85vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .panel-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card2);
+      font-size: 12px;
+      color: var(--text2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Header */
+    .header { margin-bottom: 16px; flex-shrink: 0; }
+    .header .breadcrumb { color: var(--text3); font-size: 11px; margin-bottom: 4px; }
+    .header h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; color: var(--ink); }
+    .header p { color: var(--text2); font-size: 12px; margin: 0; max-width: 900px; line-height: 1.6; }
+
+    /* Step indicator */
+    .step-indicator {
+      display: flex; align-items: center; gap: 3px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .step-dot {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 600;
+      transition: all 0.3s; cursor: pointer; flex-shrink: 0;
+      background: var(--bg1); color: var(--text3);
+      border: 1px solid var(--border);
+    }
+    .step-dot.past { background: var(--accent-deep); color: #fff; border-color: var(--accent-deep); }
+    .step-dot.current { background: var(--accent); color: #fff; border-color: var(--accent); transform: scale(1.15); box-shadow: 0 0 0 3px rgba(217,119,87,0.25); }
+    .step-line { flex: 1; height: 1px; background: var(--border); min-width: 4px; }
+    .step-line.passed { background: var(--accent-deep); }
+
+    /* Step description card */
+    .step-card { padding: 10px 16px; margin-bottom: 12px; flex-shrink: 0; }
+    .step-card .step-meta { font-size: 10px; color: var(--accent); margin-bottom: 2px; letter-spacing: 0.05em; font-weight: 600; }
+    .step-card h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; color: var(--ink); }
+    .step-card .desc { color: var(--text2); font-size: 12px; line-height: 1.6; }
+
+    /* Main grid */
+    .grid-main {
+      display: grid;
+      grid-template-columns: 2fr 3fr;
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Code pane */
+    .code-pane { display: flex; flex-direction: column; min-height: 0; }
+    .code-content {
+      padding: 10px 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .code-line {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      align-items: center;
+      padding: 2px 12px;
+      font-size: 12.5px;
+      line-height: 1.6;
+      transition: background 0.3s ease;
+      border-left: 3px solid transparent;
+      white-space: pre;
+      color: var(--text2);
+    }
+    .code-line .lineno {
+      color: var(--text3);
+      text-align: right;
+      padding-right: 10px;
+      font-size: 10px;
+      user-select: none;
+    }
+    .code-line .code { color: var(--text2); }
+    .code-line.highlight {
+      background: rgba(217,119,87,0.08);
+      border-left-color: var(--accent);
+    }
+    .code-line.highlight .code { color: var(--ink); }
+    .code-line.highlight .lineno { color: var(--accent); }
+    .code-line.blank { padding: 0; height: 10px; }
+    .code-line .kw { color: var(--code-keyword); }
+    .code-line .str { color: var(--code-string); }
+    .code-line .num { color: var(--accent); }
+    .code-line .builtin { color: var(--code-builtin); }
+    .code-line .cmt { color: var(--code-comment); font-style: italic; }
+
+    /* Session pane */
+    .session-pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg0);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+    }
+    .session-titlebar {
+      padding: 8px 14px;
+      background: var(--card2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px;
+      color: var(--text2);
+      flex-shrink: 0;
+    }
+    .session-dots { display: flex; gap: 6px; }
+    .session-dots .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .session-dots .dot.r { background: var(--red); }
+    .session-dots .dot.y { background: var(--yellow); }
+    .session-dots .dot.g { background: var(--green); }
+
+    .session-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      scroll-behavior: smooth;
+    }
+
+    /* Message cards */
+    .msg-card {
+      margin-bottom: 12px;
+      border-radius: 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--border);
+      overflow: hidden;
+      animation: cardIn 0.4s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .msg-card.past-msg { opacity: 0.55; }
+    .msg-card.current-msg { opacity: 1; }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-card.user-card { border-left-color: var(--blue); }
+    .msg-card.assistant-card { border-left-color: var(--accent); }
+    .msg-card.tool-card { border-left-color: var(--green); }
+
+    .msg-card-header {
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .msg-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .badge-user { background: rgba(74,94,184,0.10); color: var(--blue); }
+    .badge-assistant { background: rgba(217,119,87,0.10); color: var(--accent); }
+    .badge-tool { background: rgba(46,125,79,0.10); color: var(--green); }
+
+    .msg-card-body {
+      padding: 0 12px 10px;
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: var(--ink);
+    }
+    .msg-card-body .msg-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Tool call card inside assistant message */
+    .tool-call-inner {
+      margin-top: 8px;
+      padding: 10px 12px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .tool-call-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .tool-call-icon { color: var(--accent); font-size: 10px; }
+    .tool-call-name {
+      font-weight: 700;
+      font-size: 12.5px;
+      color: var(--ink);
+    }
+    .tool-call-args {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+    .tool-call-args .arg-key { color: var(--text3); }
+    .tool-call-args .arg-val { color: var(--yellow); }
+
+    /* Tool result expandable */
+    .tool-result-preview {
+      font-size: 12px;
+      color: var(--text2);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tool-result-preview:hover { color: var(--ink); }
+    .tool-result-preview .expand-arrow {
+      font-size: 8px;
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+    .tool-result-preview .expand-arrow.open { transform: rotate(90deg); }
+    .tool-result-preview .ok-text { color: var(--green); }
+    .tool-result-preview .preview-text { color: var(--text2); }
+    .tool-result-preview .click-hint { color: var(--text3); font-size: 10px; }
+
+    .tool-result-expanded {
+      display: none;
+      margin-top: 8px;
+      padding: 10px 12px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .tool-result-expanded.open { display: block; animation: cardIn 0.3s ease; }
+    .tool-result-expanded pre {
+      margin: 0;
+      font-size: 11.5px;
+      line-height: 1.6;
+      color: var(--text);
+      white-space: pre;
+    }
+    .result-line {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+    }
+    .result-lineno {
+      color: var(--text3);
+      text-align: right;
+      padding-right: 10px;
+      font-size: 10px;
+      user-select: none;
+    }
+    .result-code { color: var(--text); }
+    .result-code .r-kw { color: var(--code-keyword); }
+    .result-code .r-str { color: var(--code-string); }
+    .result-code .r-cmt { color: var(--code-comment); }
+
+    /* Context info bar */
+    .context-bar {
+      margin-bottom: 12px;
+      padding: 6px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 10.5px;
+      color: var(--text3);
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .context-bar .ctx-item { display: flex; align-items: center; gap: 4px; }
+    .context-bar .ctx-label { color: var(--text3); }
+    .context-bar .ctx-val { color: var(--text2); font-weight: 600; }
+
+    /* Cursor */
+    .session-cursor {
+      display: inline-block; width: 7px; height: 14px;
+      background: var(--accent); margin-left: 2px;
+      vertical-align: text-bottom; animation: blink 1s steps(2) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    /* Session footer */
+    .session-footer {
+      padding: 6px 14px;
+      background: var(--card2);
+      border-top: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--text3);
+      display: flex; justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    /* Raw messages */
+    .raw-msgs { margin-top: 12px; flex-shrink: 0; }
+    .raw-msgs-toggle {
+      padding: 8px 16px;
+      background: var(--card2);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text2);
+      cursor: pointer; user-select: none;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .raw-msgs-toggle:hover { color: var(--accent); }
+    .raw-msgs-toggle .label::before {
+      content: '\25B6'; margin-right: 8px;
+      transition: transform 0.2s;
+      font-size: 8px;
+      display: inline-block;
+    }
+    .raw-msgs.open .raw-msgs-toggle .label::before { transform: rotate(90deg); }
+    .raw-msgs-body {
+      display: none;
+      padding: 12px 16px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .raw-msgs.open .raw-msgs-body { display: block; }
+    .raw-msg {
+      margin-bottom: 6px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.5;
+      border-left: 3px solid;
+    }
+    .raw-msg.user { background: rgba(74,94,184,0.06); border-color: var(--blue); }
+    .raw-msg.assistant { background: rgba(217,119,87,0.06); border-color: var(--accent); }
+    .raw-msg.tool { background: rgba(46,125,79,0.06); border-color: var(--green); }
+    .raw-msg .role { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-bottom: 2px; }
+    .raw-msg .body { color: var(--text); white-space: pre-wrap; word-break: break-word; font-size: 10.5px; }
+    .raw-msg .json-key { color: var(--blue); }
+    .raw-msg .json-str { color: var(--yellow); }
+    .raw-msg .json-punct { color: var(--text3); }
+
+    /* Controls */
+    .controls {
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      margin-top: 12px;
+    }
+    .ctrl-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+      cursor: pointer;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .ctrl-btn:hover:not(:disabled) { background: var(--bg1); border-color: var(--border2); }
+    .ctrl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .ctrl-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .ctrl-btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+    .speed-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .controls .spacer { flex: 1; }
+    .controls .label { color: var(--text3); font-size: 10px; margin-right: 4px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="header">
+      <div class="breadcrumb">Whale CLI 教程 / 第 1 章 / 配套 viz</div>
+      <h1>最小 agent loop &middot; 步进式 session 回放</h1>
+      <p>12 行 Python 跑通一次完整对话。每一步看哪行代码在执行、session 里实际发生了什么、messages 数组如何积累。</p>
+    </header>
+
+    <div id="step-indicator" class="step-indicator"></div>
+
+    <div class="panel step-card">
+      <div class="step-meta">STEP <span id="step-num"></span> / 11</div>
+      <h2 id="step-title"></h2>
+      <div class="desc" id="step-desc"></div>
+    </div>
+
+    <div class="grid-main">
+
+      <div class="panel code-pane">
+        <div class="panel-header">
+          <span>main.py &middot; agent loop</span>
+          <span style="color: var(--text3)">高亮 = 当前执行</span>
+        </div>
+        <div id="code-view" class="code-content"></div>
+      </div>
+
+      <div class="session-pane">
+        <div class="session-titlebar">
+          <div class="session-dots">
+            <span class="dot r"></span>
+            <span class="dot y"></span>
+            <span class="dot g"></span>
+          </div>
+          <span>whale-cli session &middot; ~/projects/whale-cli</span>
+          <span style="color: var(--text3)">v0 &middot; minimal loop</span>
+        </div>
+        <div id="session-content" class="session-content"></div>
+        <div class="session-footer">
+          <span>← → 切步骤 &middot; Space 播放 &middot; O 展开/折叠工具输出</span>
+          <span id="session-status">等待开始</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="raw-msgs" class="panel raw-msgs">
+      <div class="raw-msgs-toggle" id="raw-toggle">
+        <span class="label">messages 数组 raw view（Python list 实际状态）</span>
+        <span id="raw-count" style="color: var(--text3)">0 条</span>
+      </div>
+      <div class="raw-msgs-body" id="raw-body"></div>
+    </div>
+
+    <div class="panel controls">
+      <button id="prev-btn" class="ctrl-btn">&larr; 上一步</button>
+      <button id="play-btn" class="ctrl-btn primary">&#9654; 播放</button>
+      <button id="next-btn" class="ctrl-btn">下一步 &rarr;</button>
+      <button id="reset-btn" class="ctrl-btn">&#8634; 重置</button>
+      <span class="spacer"></span>
+      <span class="label">速度</span>
+      <button class="speed-btn ctrl-btn" data-speed="0.5">0.5&times;</button>
+      <button class="speed-btn ctrl-btn active" data-speed="1">1&times;</button>
+      <button class="speed-btn ctrl-btn" data-speed="2">2&times;</button>
+    </div>
+
+  </div>
+
+  <script>
+    /* ========== CODE LINES ========== */
+    const CODE_LINES = [
+      '<span class="builtin">messages</span> = [{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="builtin">user_input</span>}]',
+      '',
+      '<span class="kw">while</span> <span class="kw">True</span>:',
+      '    <span class="builtin">response</span> = <span class="builtin">llm</span>.chat(<span class="builtin">messages</span>, tools=<span class="builtin">TOOLS</span>)',
+      '    <span class="builtin">messages</span>.append(<span class="builtin">response</span>)',
+      '',
+      '    <span class="kw">if not</span> <span class="builtin">response</span>.tool_calls:',
+      '        <span class="builtin">print</span>(<span class="builtin">response</span>.content)',
+      '        <span class="kw">break</span>',
+      '',
+      '    <span class="kw">for</span> <span class="builtin">call</span> <span class="kw">in</span> <span class="builtin">response</span>.tool_calls:',
+      '        <span class="builtin">result</span> = run_tool(<span class="builtin">call</span>.name, <span class="builtin">call</span>.args)',
+      '        <span class="builtin">messages</span>.append({<span class="str">"role"</span>: <span class="str">"tool"</span>, <span class="str">"content"</span>: <span class="builtin">result</span>})',
+    ];
+
+    /* ========== SESSION DATA ========== */
+    const TASK = '项目里 README.md 写了啥？';
+
+    const README_FULL =
+`# Whale CLI
+
+CLI Coding Agent 教程的样例项目。Python 单文件起步，渐进添加 14 个核心工具。
+
+## 安装
+
+\`\`\`bash
+pip install -e .
+\`\`\`
+
+## 用法
+
+\`\`\`bash
+whale "你的任务"
+\`\`\`
+
+## 文档
+
+完整教程见 tutorial/。
+
+## License
+
+MIT`;
+
+    const FINAL_ANSWER = '你的 README.md 介绍了 Whale CLI——一个 CLI Coding Agent 教程的样例项目，Python 单文件起步并渐进添加工具。安装方式 pip install -e .，调用方式 whale "你的任务"。';
+
+    /* ========== 11 STEPS ========== */
+    const STEPS = [
+      {
+        title: '用户输入进 messages',
+        desc: 'messages 数组初始化为只含一条 user message 的列表。LLM API 是无状态的，每次调用都要传整段历史。',
+        highlightLines: [0],
+        msgCount: 1, tokens: '~120', turn: 0,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK }
+        ]
+      },
+      {
+        title: '进入 while 循环',
+        desc: 'agent 的运行节拍。模型可能一拍就给最终答案，也可能要调几轮工具。while 让循环持续到模型决定结束。',
+        highlightLines: [2],
+        msgCount: 1, tokens: '~120', turn: 1,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK }
+        ]
+      },
+      {
+        title: '第一次调 LLM',
+        desc: '把 messages 和工具列表 TOOLS（含 read_file 的 schema）一起传给 LLM。模型现在看到任务（1 条 user message）+ 它有什么工具可调。',
+        highlightLines: [3],
+        msgCount: 1, tokens: '~620', turn: 1,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: '用户问 README.md 的内容，我需要先读取这个文件...' }
+        ]
+      },
+      {
+        title: '模型决定调工具',
+        desc: '模型读完 messages，决定不直接回答，先调 read_file("README.md")。response 里的 tool_calls 字段就是模型这一拍要执行的动作清单。',
+        highlightLines: [3],
+        msgCount: 1, tokens: '~820', turn: 1,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] }
+        ]
+      },
+      {
+        title: '模型回复进 messages',
+        desc: '把模型这一拍的输出（含 tool_call）追加到 messages。下一拍它还能看到自己上一拍的决定，否则就失忆了。',
+        highlightLines: [4],
+        msgCount: 2, tokens: '~840', turn: 1,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] }
+        ]
+      },
+      {
+        title: '终止判定: 不终止',
+        desc: 'if 检查模型这次输出有没有 tool_calls。这一拍有 → 不进 if 分支 → 不 break，继续走下面的 for 循环。',
+        highlightLines: [6, 7, 8],
+        msgCount: 2, tokens: '~840', turn: 1,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] }
+        ]
+      },
+      {
+        title: '执行工具',
+        desc: 'for 循环里调 run_tool("read_file", { path: "README.md" })。这一步去文件系统真读文件，返回结果。',
+        highlightLines: [10, 11],
+        msgCount: 2, tokens: '~840', turn: 1,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] },
+          { id: 'tool-1', type: 'tool-result', toolName: 'read_file', preview: '# Whale CLI — CLI Coding Agent 教程的样例项目...', fullContent: README_FULL, status: 'success' }
+        ]
+      },
+      {
+        title: '工具结果进 messages',
+        desc: '工具的返回值以 "tool" 角色 push 回 messages。现在 messages 有 3 条：用户提问、模型 tool_call、工具结果。',
+        highlightLines: [12],
+        msgCount: 3, tokens: '~1,240', turn: 1,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] },
+          { id: 'tool-1', type: 'tool-result', toolName: 'read_file', preview: '# Whale CLI — CLI Coding Agent 教程的样例项目...', fullContent: README_FULL, status: 'success' }
+        ]
+      },
+      {
+        title: '回到 while 顶部',
+        desc: 'for 循环结束，回到 while True 顶部。messages 现在已经包含工具结果，准备第二轮 LLM 调用。',
+        highlightLines: [2],
+        msgCount: 3, tokens: '~1,240', turn: 2,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] },
+          { id: 'tool-1', type: 'tool-result', toolName: 'read_file', preview: '# Whale CLI — CLI Coding Agent 教程的样例项目...', fullContent: README_FULL, status: 'success' }
+        ]
+      },
+      {
+        title: '第二次调 LLM',
+        desc: '再调一次。这次模型能看到工具结果，知道 README.md 写的是什么，可以基于此回答。',
+        highlightLines: [3, 4],
+        msgCount: 4, tokens: '~1,840', turn: 2,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] },
+          { id: 'tool-1', type: 'tool-result', toolName: 'read_file', preview: '# Whale CLI — CLI Coding Agent 教程的样例项目...', fullContent: README_FULL, status: 'success' },
+          { id: 'asst-2', type: 'assistant-final', content: FINAL_ANSWER }
+        ]
+      },
+      {
+        title: '终止判定: 终止 + 输出',
+        desc: '这次模型给的是纯文本，没有 tool_calls。if 分支命中 → print + break。一次完整 agent loop 结束。',
+        highlightLines: [6, 7, 8],
+        msgCount: 4, tokens: '~1,840', turn: 2,
+        sessionCards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'asst-1', type: 'assistant-tool', content: '需要先看一下 README.md 的内容。', toolCalls: [{ name: 'read_file', args: { path: 'README.md' } }] },
+          { id: 'tool-1', type: 'tool-result', toolName: 'read_file', preview: '# Whale CLI — CLI Coding Agent 教程的样例项目...', fullContent: README_FULL, status: 'success' },
+          { id: 'asst-2', type: 'assistant-final', content: FINAL_ANSWER }
+        ]
+      }
+    ];
+
+    /* ========== RAW MESSAGE DATA (for raw view) ========== */
+    const RAW_MESSAGES_BY_STEP = STEPS.map(s => {
+      const msgs = [];
+      for (const card of s.sessionCards) {
+        if (card.type === 'user') msgs.push({ role: 'user', content: card.content });
+        else if (card.type === 'assistant-tool') msgs.push({ role: 'assistant', tool_calls: card.toolCalls });
+        else if (card.type === 'tool-result') msgs.push({ role: 'tool', content: card.fullContent || card.preview });
+        else if (card.type === 'assistant-final') msgs.push({ role: 'assistant', content: card.content });
+        // skip 'thinking' type from raw view
+      }
+      return msgs;
+    });
+
+    /* ========== STATE ========== */
+    let currentStep = 1;
+    let playing = false;
+    let playTimer = null;
+    let speedMultiplier = 1;
+    const BASE_INTERVAL_MS = 3000;
+    const expandedSet = new Set();
+
+    /* ========== UTILS ========== */
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+
+    /* ========== RENDER: CODE VIEW ========== */
+    function renderCodeView(highlightLines) {
+      const view = document.getElementById('code-view');
+      view.innerHTML = CODE_LINES.map((line, i) => {
+        if (line === '') return '<div class="code-line blank"></div>';
+        const cls = highlightLines.includes(i) ? 'code-line highlight' : 'code-line';
+        const lineno = String(i + 1).padStart(2, ' ');
+        return `<div class="${cls}"><span class="lineno">${lineno}</span><span class="code">${line}</span></div>`;
+      }).join('');
+    }
+
+    /* ========== RENDER: SESSION CARDS ========== */
+    function renderSessionCard(card, isNew) {
+      const animClass = isNew ? '' : '';
+      const pastClass = isNew ? 'current-msg' : 'past-msg';
+
+      switch (card.type) {
+        case 'user':
+          return `<div class="msg-card user-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header">
+              <span class="msg-badge badge-user">USER</span>
+            </div>
+            <div class="msg-card-body"><div class="msg-text">${esc(card.content)}</div></div>
+          </div>`;
+
+        case 'thinking':
+          return `<div class="msg-card assistant-card ${pastClass}" data-card-id="${card.id}" style="border-left-color: var(--yellow); opacity: 0.7;">
+            <div class="msg-card-header">
+              <span class="msg-badge" style="background: rgba(184,134,11,0.10); color: var(--yellow);">THINKING</span>
+            </div>
+            <div class="msg-card-body"><div class="msg-text" style="color: var(--text2); font-style: italic;">${esc(card.content)}</div></div>
+          </div>`;
+
+        case 'assistant-tool':
+          return `<div class="msg-card assistant-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header">
+              <span class="msg-badge badge-assistant">ASSISTANT</span>
+            </div>
+            <div class="msg-card-body">
+              ${card.content ? `<div class="msg-text" style="margin-bottom: 8px; color: var(--text2);">${esc(card.content)}</div>` : ''}
+              ${(card.toolCalls || []).map(tc => `
+                <div class="tool-call-inner">
+                  <div class="tool-call-header">
+                    <span class="tool-call-icon">&#9210;</span>
+                    <span class="tool-call-name">${esc(tc.name)}</span>
+                  </div>
+                  <div class="tool-call-args">
+                    ${Object.entries(tc.args).map(([k, v]) => `<span class="arg-key">${esc(k)}</span>: <span class="arg-val">"${esc(v)}"</span>`).join('<br>')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+
+        case 'tool-result': {
+          const rid = `result-${card.id}`;
+          const isExpanded = expandedSet.has(rid);
+          const fullLines = (card.fullContent || '').split('\n');
+          const numberedLines = fullLines.map((line, i) =>
+            `<div class="result-line"><span class="result-lineno">${i + 1}</span><span class="result-code">${highlightReadmeLine(esc(line))}</span></div>`
+          ).join('');
+
+          return `<div class="msg-card tool-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header">
+              <span class="msg-badge badge-tool">TOOL</span>
+              <span style="color: var(--text3); font-size: 10px;">${esc(card.toolName)}</span>
+            </div>
+            <div class="msg-card-body">
+              <div class="tool-result-preview" data-rid="${rid}">
+                <span class="expand-arrow ${isExpanded ? 'open' : ''}">&#9654;</span>
+                <span class="ok-text">&#10003; 成功</span>
+                <span class="preview-text">${esc(card.preview)}</span>
+                <span class="click-hint">${isExpanded ? '点击收起' : '点击展开'}</span>
+              </div>
+              <div class="tool-result-expanded ${isExpanded ? 'open' : ''}" data-rid="${rid}">
+                <pre>${numberedLines}</pre>
+              </div>
+            </div>
+          </div>`;
+        }
+
+        case 'assistant-final':
+          return `<div class="msg-card assistant-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header">
+              <span class="msg-badge badge-assistant">ASSISTANT</span>
+            </div>
+            <div class="msg-card-body"><div class="msg-text">${esc(card.content)}</div></div>
+          </div>`;
+      }
+      return '';
+    }
+
+    function highlightReadmeLine(line) {
+      // Simple syntax highlighting for the README content
+      if (line.startsWith('#')) return `<span class="r-kw">${line}</span>`;
+      if (line.startsWith('```')) return `<span class="r-cmt">${line}</span>`;
+      if (line.match(/^(pip |whale )/)) return `<span class="r-str">${line}</span>`;
+      return line;
+    }
+
+    function renderSession(stepN) {
+      const view = document.getElementById('session-content');
+      const status = document.getElementById('session-status');
+      const step = STEPS[stepN - 1];
+      const cards = step.sessionCards;
+
+      // Determine which cards are new at this step vs previous step
+      const prevCards = stepN > 1 ? STEPS[stepN - 2].sessionCards : [];
+      const prevIds = new Set(prevCards.map(c => c.id));
+
+      // Context bar
+      let html = `<div class="context-bar">
+        <div class="ctx-item"><span class="ctx-label">messages:</span> <span class="ctx-val">${step.msgCount}</span></div>
+        <div class="ctx-item"><span class="ctx-label">tokens:</span> <span class="ctx-val">${step.tokens}</span></div>
+        <div class="ctx-item"><span class="ctx-label">turn:</span> <span class="ctx-val">${step.turn}</span></div>
+      </div>`;
+
+      cards.forEach(card => {
+        const isNew = !prevIds.has(card.id);
+        html += renderSessionCard(card, isNew);
+      });
+
+      // Show cursor if not at the final step
+      if (stepN < 11) {
+        html += `<div style="padding: 4px 0;"><span class="session-cursor"></span></div>`;
+      }
+
+      view.innerHTML = html;
+
+      // Attach expand/collapse handlers
+      view.querySelectorAll('.tool-result-preview').forEach(el => {
+        el.addEventListener('click', () => {
+          const rid = el.dataset.rid;
+          if (expandedSet.has(rid)) expandedSet.delete(rid);
+          else expandedSet.add(rid);
+          renderSession(stepN);
+        });
+      });
+
+      // Scroll to bottom
+      requestAnimationFrame(() => {
+        view.scrollTop = view.scrollHeight;
+      });
+
+      status.textContent = stepN < 11
+        ? `step ${stepN}/11 · 运行中`
+        : 'step 11/11 · 完成';
+    }
+
+    /* ========== RENDER: RAW MESSAGES ========== */
+    function syntaxHighlightJSON(str) {
+      return str
+        .replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:')
+        .replace(/: "([^"]*)"/g, ': <span class="json-str">"$1"</span>')
+        .replace(/[{}\[\],]/g, '<span class="json-punct">$&</span>');
+    }
+
+    function renderRawMessages(stepN) {
+      const body = document.getElementById('raw-body');
+      const count = document.getElementById('raw-count');
+      const messages = RAW_MESSAGES_BY_STEP[stepN - 1];
+      count.textContent = messages.length + ' 条';
+      body.innerHTML = messages.map(m => {
+        let inner;
+        if (m.role === 'assistant' && m.tool_calls) {
+          const obj = { role: 'assistant', tool_calls: m.tool_calls };
+          inner = JSON.stringify(obj, null, 2);
+        } else {
+          const obj = { role: m.role, content: m.content || '' };
+          const full = JSON.stringify(obj, null, 2);
+          inner = full.length > 300 ? full.slice(0, 300) + '\n  ...' : full;
+        }
+        const highlighted = syntaxHighlightJSON(esc(inner));
+        return `<div class="raw-msg ${m.role}"><div class="role">${m.role}</div><div class="body">${highlighted}</div></div>`;
+      }).join('');
+    }
+
+    /* ========== RENDER: STEP INDICATOR ========== */
+    function renderStepIndicator(n) {
+      const ind = document.getElementById('step-indicator');
+      let html = '';
+      for (let i = 1; i <= 11; i++) {
+        const cls = i < n ? 'past' : (i === n ? 'current' : 'future');
+        html += `<div class="step-dot ${cls}" data-step="${i}">${i}</div>`;
+        if (i < 11) html += `<div class="step-line ${i < n ? 'passed' : ''}"></div>`;
+      }
+      ind.innerHTML = html;
+      ind.querySelectorAll('.step-dot').forEach(dot => {
+        dot.addEventListener('click', () => goTo(parseInt(dot.dataset.step)));
+      });
+    }
+
+    /* ========== RENDER: FULL STEP ========== */
+    function renderStep(n) {
+      const step = STEPS[n - 1];
+      document.getElementById('step-num').textContent = n;
+      document.getElementById('step-title').textContent = step.title;
+      document.getElementById('step-desc').textContent = step.desc;
+      renderCodeView(step.highlightLines);
+      renderSession(n);
+      renderRawMessages(n);
+      renderStepIndicator(n);
+      document.getElementById('prev-btn').disabled = (n === 1);
+      document.getElementById('next-btn').disabled = (n === 11);
+    }
+
+    /* ========== NAVIGATION ========== */
+    function goTo(n) { if (n >= 1 && n <= 11) { currentStep = n; renderStep(n); } }
+    function next() { if (currentStep < 11) goTo(currentStep + 1); }
+    function prev() { if (currentStep > 1) goTo(currentStep - 1); }
+    function reset() { goTo(1); stopPlay(); }
+
+    /* ========== PLAY CONTROLS ========== */
+    function startPlay() {
+      playing = true;
+      document.getElementById('play-btn').innerHTML = '⏸ 暂停';
+      playTimer = setInterval(() => {
+        if (currentStep === 11) { stopPlay(); return; }
+        next();
+      }, BASE_INTERVAL_MS / speedMultiplier);
+    }
+    function stopPlay() {
+      clearInterval(playTimer);
+      playing = false;
+      document.getElementById('play-btn').innerHTML = '▶ 播放';
+    }
+    function togglePlay() {
+      if (playing) stopPlay();
+      else { if (currentStep === 11) goTo(1); startPlay(); }
+    }
+    function setSpeed(s) {
+      speedMultiplier = s;
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.speed) === s));
+      if (playing) { stopPlay(); startPlay(); }
+    }
+
+    /* ========== EXPAND/COLLAPSE ALL ========== */
+    function toggleAllExpansions() {
+      const step = STEPS[currentStep - 1];
+      const toolCards = step.sessionCards.filter(c => c.type === 'tool-result');
+      if (!toolCards.length) return;
+      const rids = toolCards.map(c => `result-${c.id}`);
+      const allExpanded = rids.every(id => expandedSet.has(id));
+      if (allExpanded) rids.forEach(id => expandedSet.delete(id));
+      else rids.forEach(id => expandedSet.add(id));
+      renderSession(currentStep);
+    }
+
+    /* ========== EVENT LISTENERS ========== */
+    document.getElementById('prev-btn').addEventListener('click', prev);
+    document.getElementById('next-btn').addEventListener('click', next);
+    document.getElementById('play-btn').addEventListener('click', togglePlay);
+    document.getElementById('reset-btn').addEventListener('click', reset);
+    document.querySelectorAll('.speed-btn').forEach(btn =>
+      btn.addEventListener('click', () => setSpeed(parseFloat(btn.dataset.speed)))
+    );
+    document.getElementById('raw-toggle').addEventListener('click', () => {
+      document.getElementById('raw-msgs').classList.toggle('open');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') prev();
+      else if (e.key === 'ArrowRight') next();
+      else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+      else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); toggleAllExpansions(); }
+    });
+
+    /* ========== INIT ========== */
+    renderStep(1);
+  </script>
+</body>
+</html>

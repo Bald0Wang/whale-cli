@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Trace — 参数从哪来</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace;background:#1c1816;color:#ebe0d2;padding:32px 20px;max-width:780px;margin:0 auto;line-height:1.6}
+h1{font-size:16px;color:#D77757;margin-bottom:4px}
+.subtitle{font-size:11px;color:#6a6058;margin-bottom:24px}
+
+.honesty-box{background:rgba(224,200,100,.06);border:1px solid rgba(224,200,100,.2);border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:10px;color:#e0c864;line-height:1.6}
+
+.task-bar{background:#0f0e0c;border:1px solid #332d28;border-radius:6px;padding:12px 16px;margin-bottom:24px;font-size:11px}
+.task-bar .label{color:#6a6058;font-size:10px;margin-bottom:4px}
+.task-bar .task{color:#ebe0d2}
+
+.step{margin-bottom:2px;border-left:2px solid #332d28;position:relative;transition:border-color .3s}
+.step.active{border-left-color:#D77757}
+.step.done{border-left-color:#7ec384}
+
+.step-header{display:flex;align-items:center;gap:8px;padding:8px 0 8px 16px;cursor:pointer;user-select:none}
+.step-header:hover .step-title{color:#ebe0d2}
+.step-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;transition:all .3s}
+.step.pending .step-num{background:#332d28;color:#6a6058}
+.step.active .step-num{background:rgba(215,119,87,.2);color:#D77757}
+.step.done .step-num{background:rgba(126,195,132,.15);color:#7ec384}
+.step-title{font-size:11px;color:#6a6058;transition:color .2s}
+.step.active .step-title,.step.done .step-title{color:#ebe0d2}
+.step-tag{font-size:9px;padding:1px 6px;border-radius:3px;flex-shrink:0}
+.tag-find{background:rgba(100,119,224,.15);color:#6477e0}
+.tag-grep{background:rgba(155,126,216,.15);color:#9b7ed8}
+.tag-refine{background:rgba(224,200,100,.15);color:#e0c864}
+
+.step-body{display:none;padding:4px 0 12px 16px;margin-left:11px;border-left:1px dashed #332d28}
+.step.expanded .step-body{display:block}
+
+.phase{margin-bottom:10px}
+.phase-label{font-size:9px;color:#6a6058;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.phase-label .observable{background:rgba(126,195,132,.15);color:#7ec384;padding:1px 5px;border-radius:2px;font-size:8px}
+.phase-label .blackbox{background:rgba(215,119,87,.15);color:#D77757;padding:1px 5px;border-radius:2px;font-size:8px}
+
+.context-box{font-size:11px;color:#ebe0d2;background:rgba(100,119,224,.06);border:1px solid rgba(100,119,224,.2);border-radius:4px;padding:8px 10px;line-height:1.5}
+.context-box .src{color:#6477e0;font-size:9px}
+
+.command{font-size:11px;background:#0f0e0c;border:1px solid #332d28;border-radius:4px;padding:8px 10px;color:#ebe0d2;overflow-x:auto}
+.command .kw{color:#D77757}
+.command .str{color:#7ec384}
+.command .pipe{color:#6477e0}
+
+.result{font-size:10px;color:#6a6058;background:#0f0e0c;border:1px solid #332d28;border-radius:4px;padding:8px 10px;max-height:120px;overflow-y:auto}
+.result .hit{color:#7ec384}
+
+.correlation{font-size:10px;color:#e0c864;background:rgba(224,200,100,.06);border:1px dashed rgba(224,200,100,.2);border-radius:4px;padding:6px 10px;margin-top:6px}
+.correlation::before{content:"⚠ ";font-size:9px}
+
+.arrow-area{text-align:center;color:#332d28;font-size:11px;margin:4px 0;padding-left:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.arrow-area .arr{color:#D77757}
+.arrow-area .label{font-size:9px;color:#6a6058}
+
+.controls{display:flex;gap:8px;margin-bottom:20px}
+.btn{font-family:inherit;font-size:10px;background:#0f0e0c;border:1px solid #332d28;color:#ebe0d2;padding:6px 12px;border-radius:4px;cursor:pointer;transition:all .2s}
+.btn:hover{border-color:#D77757;color:#D77757}
+
+.progress{display:flex;gap:4px;align-items:center;margin-bottom:20px}
+.progress-dot{width:8px;height:8px;border-radius:50%;background:#332d28;transition:background .3s}
+.progress-dot.done{background:#7ec384}
+.progress-dot.active{background:#D77757}
+.progress-label{font-size:10px;color:#6a6058;margin-left:8px}
+
+.takeaway{background:rgba(215,119,87,.08);border:1px solid rgba(215,119,87,.2);border-radius:6px;padding:12px 16px;margin-top:20px;font-size:11px;color:#ebe0d2;display:none}
+.takeaway strong{color:#D77757}
+.takeaway p{margin-top:8px}
+</style>
+</head>
+<body>
+
+<h1>Decision Trace</h1>
+<div class="subtitle">参数从哪来 — OpenClaw 真实 session · 追踪消息处理调用链</div>
+
+<div class="honesty-box">
+  下面每一步的<b>命令</b>和<b>结果</b>来自真实 session trace。但模型内部怎么从 context 映射到具体参数，是黑盒——我们标注的"可能的关联"是人类事后分析，不是模型自述的推理过程。
+</div>
+
+<div class="task-bar">
+  <div class="label">USER TASK</div>
+  <div class="task">"追踪用户消息从接收到回复的完整调用链"</div>
+</div>
+
+<div class="controls">
+  <button class="btn" onclick="playAll()">▶ 自动播放</button>
+  <button class="btn" onclick="expandAll()">展开全部</button>
+  <button class="btn" onclick="collapseAll()">收起全部</button>
+</div>
+
+<div class="progress" id="progress"></div>
+
+<div id="steps"></div>
+
+<div class="takeaway" id="takeaway">
+  <strong>我们能控制什么？</strong>
+  <p>参数生成是黑盒，但模型生成参数时看到的 <b>context</b> 不是。tool schema 的 description、上一步的输出格式、错误信息的措辞——这些都直接影响下一步参数的 token 概率。工具设计的本质不是控制模型怎么想，而是控制它生成参数时能看到什么。</p>
+</div>
+
+<script>
+const steps = [
+  {
+    title: "项目结构探索",
+    tag: "find", tagClass: "tag-find",
+    context: '任务描述: "追踪用户消息处理的完整调用链"<br>tool schemas: Bash, Read, Grep 等<br><span class="src">← 没有任何项目信息</span>',
+    command: '<span class="kw">find</span> ./src -type f -name <span class="str">"*.ts"</span> <span class="pipe">|</span> <span class="kw">head</span> -50',
+    result: 'src/entry.ts\nsrc/agents/agent-command.ts\nsrc/auto-reply/templating.ts\nsrc/channels/sender-identity.ts\nsrc/gateway/server-startup-log.ts\n<span class="hit">... 50 个文件名</span>',
+    correlation: '模型选了 find 而非 grep，选了 head -50 而非 head -20。这些数字是训练数据中的常见模式，还是某种"策略"？无法确认。'
+  },
+  {
+    title: "目录结构",
+    tag: "find", tagClass: "tag-find",
+    context: '上一步结果中出现的目录名: channels/, gateway/, auto-reply/, agents/<br><span class="src">← 来自 step 1 的 find 结果</span>',
+    command: '<span class="kw">find</span> ./src/gateway -type f -name <span class="str">"*.ts"</span> <span class="pipe">|</span> <span class="kw">head</span> -20',
+    result: 'src/gateway/server-startup-log.ts\nsrc/gateway/server-config.ts\nsrc/gateway/event-loop-ready.ts\nsrc/gateway/server-chat.ts\n<span class="hit">... 20+ 个文件</span>',
+    correlation: '模型选了 gateway/ 而非 channels/。可能因为 "gateway" 在训练数据中跟 "message processing" 共现频率更高。也可能因为它在结果列表里出现的位置。'
+  },
+  {
+    title: "文件名过滤（过于宽泛）",
+    tag: "refine", tagClass: "tag-refine",
+    context: '上一步返回 20+ 个文件名<br>任务关键词: "消息" "处理"<br><span class="src">← 文件太多需要过滤</span>',
+    command: '<span class="kw">find</span> ./src/gateway -name <span class="str">"*.ts"</span> <span class="pipe">|</span> <span class="kw">grep</span> -E <span class="str">"server|chat|message"</span>',
+    result: 'server-startup-log.ts\nserver-config.ts\n<span class="hit">server-chat.ts</span>\nserver-methods.ts',
+    correlation: '"server|chat|message" 这三个关键词跟任务描述中的"消息"有关联。但 "server" 匹配了太多无关文件。模型是否"知道"这会产生噪声？不知道——它只是生成了 token。'
+  },
+  {
+    title: "缩窄关键词",
+    tag: "refine", tagClass: "tag-refine",
+    context: '上一步结果中 server-startup-log.ts, server-config.ts 占多数<br>这些文件名跟 "消息处理" 无关<br><span class="src">← 噪声在 context 里可见</span>',
+    command: '<span class="kw">find</span> ./src/gateway -name <span class="str">"server.ts"</span> -o -name <span class="str">"server-*.ts"</span> <span class="pipe">|</span> <span class="kw">grep</span> -v test',
+    result: 'server-startup-log.ts\nserver-config.ts\nserver-chat.ts\nserver-methods.ts',
+    correlation: '从 "server|chat|message" 缩窄到 "server.ts / server-*.ts"。跟人类程序员的行为模式一致——搜索太宽就缩小。但这是"策略"还是训练数据中的统计模式？'
+  },
+  {
+    title: "扩大搜索范围",
+    tag: "refine", tagClass: "tag-refine",
+    context: '连续两步在 gateway/ 下搜索，结果不理想<br><span class="src">← context 中连续两个"没找到目标"的结果</span>',
+    command: '<span class="kw">find</span> ./src -type f -name <span class="str">"server.ts"</span>',
+    result: '<span class="hit">src/acp/server.ts</span>\nsrc/cli/server.ts\nsrc/test-utils/server.ts',
+    correlation: '去掉了 gateway/ 限制。连续失败 → 扩大范围，这在训练数据中是常见的人类搜索行为。模型在模仿这个模式。'
+  },
+  {
+    title: "grep 关键词（来自已读代码）",
+    tag: "grep", tagClass: "tag-grep",
+    context: '前面 Read 的代码中出现了 dispatch(), handleInbound() 等函数名<br><span class="src">← 这些 token 在 context 中已经存在</span>',
+    command: '<span class="kw">grep</span> -r <span class="str">"dispatchInboundMessage\\|handleInbound\\|receiveMessage"</span> ./src --include=<span class="str">"*.ts"</span>',
+    result: '<span class="hit">src/plugin-sdk/reply-runtime.ts: dispatchInboundMessage()</span>\nsrc/channels/message/dispatch.ts: handleInbound(msg)\nsrc/auto-reply/dispatch.ts: receiveMessage(payload)',
+    correlation: '"dispatchInboundMessage" 在前面读过的代码里出现过。模型在重复 context 中已有的 token——这正是 next token prediction 做的事。"receiveMessage" 可能来自训练数据中的常见命名。'
+  },
+  {
+    title: "追踪回复发送",
+    tag: "grep", tagClass: "tag-grep",
+    context: '前面读过 auto-reply/ 模块的代码<br>代码中出现过 queuedFinal 这个函数名<br><span class="src">← 非通用命名，仅存在于这个项目</span>',
+    command: '<span class="kw">grep</span> -r <span class="str">"sendReply\\|broadcastReply\\|deliverReply\\|queuedFinal"</span> ./src/auto-reply/',
+    result: '<span class="hit">src/auto-reply/reply/dispatch-from-queue.ts: queuedFinal()</span>\nsrc/auto-reply/reply/send.ts: deliverReply(channel, msg)',
+    correlation: '"queuedFinal" 不是通用编程词汇——模型之前读代码时在 context 里见过它。sendReply / broadcastReply / deliverReply 则是 动词+Reply 的常见模式。两类来源混在一个 grep 里。'
+  }
+];
+
+const stepsEl = document.getElementById('steps');
+const progressEl = document.getElementById('progress');
+const takeawayEl = document.getElementById('takeaway');
+let currentStep = -1;
+let playing = false;
+let playTimer = null;
+
+function render() {
+  stepsEl.innerHTML = '';
+  progressEl.innerHTML = '';
+  steps.forEach((s, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'progress-dot' + (i < currentStep ? ' done' : i === currentStep ? ' active' : '');
+    progressEl.appendChild(dot);
+
+    const state = i < currentStep ? 'done' : i === currentStep ? 'active' : 'pending';
+    const expanded = i === currentStep ? ' expanded' : '';
+    const div = document.createElement('div');
+    div.className = `step ${state}${expanded}`;
+    div.innerHTML = `
+      <div class="step-header" onclick="toggle(${i})">
+        <div class="step-num">${i + 1}</div>
+        <div class="step-title">${s.title}</div>
+        <span class="step-tag ${s.tagClass}">${s.tag}</span>
+      </div>
+      <div class="step-body">
+        <div class="phase">
+          <div class="phase-label">模型的 context <span class="observable">可观察</span></div>
+          <div class="context-box">${s.context}</div>
+        </div>
+        <div class="arrow-area"><span class="arr">↓</span> <span class="label">next token prediction（黑盒）</span> <span class="arr">↓</span></div>
+        <div class="phase">
+          <div class="phase-label">生成的参数 <span class="observable">可观察</span></div>
+          <div class="command">${s.command}</div>
+        </div>
+        <div class="arrow-area"><span class="arr">↓</span> <span class="label">执行</span> <span class="arr">↓</span></div>
+        <div class="phase">
+          <div class="phase-label">返回结果（进入下一步 context）<span class="observable">可观察</span></div>
+          <div class="result">${s.result}</div>
+        </div>
+        <div class="correlation">${s.correlation}</div>
+      </div>
+    `;
+    stepsEl.appendChild(div);
+  });
+
+  const label = document.createElement('div');
+  label.className = 'progress-label';
+  label.textContent = currentStep < 0 ? '点击步骤或自动播放' :
+    currentStep >= steps.length ? `${steps.length} / ${steps.length}` :
+    `${currentStep + 1} / ${steps.length}`;
+  progressEl.appendChild(label);
+
+  takeawayEl.style.display = currentStep >= steps.length - 1 ? 'block' : 'none';
+}
+
+function toggle(i) {
+  currentStep = currentStep === i ? -1 : i;
+  render();
+}
+
+function expandAll() {
+  stopPlay();
+  currentStep = steps.length - 1;
+  render();
+  document.querySelectorAll('.step').forEach(el => el.classList.add('expanded', 'done'));
+  takeawayEl.style.display = 'block';
+}
+
+function collapseAll() {
+  stopPlay();
+  currentStep = -1;
+  render();
+}
+
+function stopPlay() {
+  playing = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+}
+
+function playAll() {
+  if (playing) { stopPlay(); render(); return; }
+  playing = true;
+  currentStep = 0;
+  render();
+  function next() {
+    if (!playing) return;
+    currentStep++;
+    if (currentStep >= steps.length) { playing = false; render(); return; }
+    render();
+    playTimer = setTimeout(next, 3500);
+  }
+  playTimer = setTimeout(next, 3500);
+}
+
+render();
+</script>
+</body>
+</html>

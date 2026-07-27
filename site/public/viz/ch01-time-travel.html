@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 执行过程 -- 时间旅行</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f5f0e8; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e6dfd8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+
+  /* Role colors */
+  --role-user:#0550ae;
+  --role-user-bg:rgba(5,80,174,0.06);
+  --role-user-badge-bg:rgba(5,80,174,0.12);
+  --role-assistant:#b45309;
+  --role-assistant-bg:rgba(180,83,9,0.06);
+  --role-assistant-badge-bg:rgba(180,83,9,0.12);
+  --role-tool:#116329;
+  --role-tool-bg:rgba(17,99,41,0.06);
+  --role-tool-badge-bg:rgba(17,99,41,0.12);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg0);
+  color: var(--ink);
+  min-height: 100vh;
+  padding: 32px 24px;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+  letter-spacing: -0.3px;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 28px;
+}
+
+/* ── Slider area ── */
+.slider-area {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.step-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  margin-top: 6px;
+}
+
+.step-label {
+  font-size: 9px;
+  color: var(--text3);
+  width: 0;
+  text-align: center;
+  transition: color 0.2s;
+}
+
+.step-label.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.slider-track {
+  flex: 1;
+  position: relative;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--card);
+  box-shadow: 0 1px 4px rgba(41,38,31,0.18);
+  cursor: grab;
+  transition: box-shadow 0.15s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 2px 8px rgba(217,119,87,0.4);
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--card);
+  box-shadow: 0 1px 4px rgba(41,38,31,0.18);
+  cursor: grab;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.step-display {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 64px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Controls ── */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.btn {
+  background: var(--bg0);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+
+.btn:hover {
+  background: var(--bg1);
+  border-color: var(--border2);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn.active {
+  background: rgba(217,119,87,0.08);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* ── Panels grid ── */
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  min-height: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.panel-messages {
+  grid-row: 1 / 3;
+}
+
+.panel-action {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.panel-stats {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.panel-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text2);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-title-icon {
+  font-size: 12px;
+  color: var(--text3);
+}
+
+/* ── Messages panel ── */
+.array-label {
+  font-size: 11px;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+
+.array-bracket {
+  font-size: 13px;
+  color: var(--text3);
+  padding: 1px 0;
+}
+
+.messages-stack {
+  padding: 4px 0 4px 10px;
+  border-left: 2px solid var(--border);
+  min-height: 40px;
+  transition: min-height 0.3s;
+}
+
+.msg-card {
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-left: 3px solid transparent;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transform: translateY(-8px);
+  transition: opacity 0.35s ease, transform 0.35s ease, max-height 0.35s ease, margin 0.35s ease, padding 0.35s ease;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.msg-card.visible {
+  opacity: 1;
+  max-height: 120px;
+  transform: translateY(0);
+  margin-bottom: 6px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.msg-card.highlight {
+  box-shadow: 0 0 0 2px rgba(217,119,87,0.25);
+}
+
+.msg-card.role-user {
+  background: var(--role-user-bg);
+  border-left-color: var(--role-user);
+}
+
+.msg-card.role-assistant {
+  background: var(--role-assistant-bg);
+  border-left-color: var(--role-assistant);
+}
+
+.msg-card.role-tool {
+  background: var(--role-tool-bg);
+  border-left-color: var(--role-tool);
+}
+
+.msg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.role-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.role-user .role-badge {
+  background: var(--role-user-badge-bg);
+  color: var(--role-user);
+}
+
+.role-assistant .role-badge {
+  background: var(--role-assistant-badge-bg);
+  color: var(--role-assistant);
+}
+
+.role-tool .role-badge {
+  background: var(--role-tool-badge-bg);
+  color: var(--role-tool);
+}
+
+.msg-index {
+  font-size: 9px;
+  color: var(--text3);
+}
+
+.msg-content {
+  font-size: 11px;
+  color: var(--ink);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.msg-content code {
+  font-size: 10px;
+  background: rgba(217,119,87,0.08);
+  padding: 1px 4px;
+  border-radius: 2px;
+  color: var(--accent-deep);
+}
+
+.empty-hint {
+  font-size: 11px;
+  color: var(--text3);
+  padding: 12px 0;
+  text-align: center;
+  font-style: italic;
+  transition: opacity 0.3s;
+}
+
+/* ── Action panel ── */
+.action-display {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 56px;
+}
+
+.action-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  transition: background 0.3s;
+}
+
+.action-icon-wrap.waiting {
+  background: var(--bg1);
+  color: var(--text3);
+}
+
+.action-icon-wrap.thinking {
+  background: var(--role-assistant-bg);
+  color: var(--role-assistant);
+}
+
+.action-icon-wrap.executing {
+  background: var(--role-tool-bg);
+  color: var(--role-tool);
+}
+
+.action-icon-wrap.responding {
+  background: rgba(217,119,87,0.08);
+  color: var(--accent);
+}
+
+.action-text {
+  flex: 1;
+}
+
+.action-phase {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+  transition: color 0.3s;
+}
+
+.action-phase.waiting { color: var(--text3); }
+.action-phase.thinking { color: var(--role-assistant); }
+.action-phase.executing { color: var(--role-tool); }
+.action-phase.responding { color: var(--accent); }
+
+.action-desc {
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+/* Turn indicator */
+.turn-indicator {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.turn-bar {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.turn-segment {
+  height: 4px;
+  border-radius: 2px;
+  flex: 1;
+  background: var(--border);
+  transition: background 0.3s;
+}
+
+.turn-segment.active {
+  background: var(--accent);
+}
+
+.turn-segment.done {
+  background: rgba(217,119,87,0.4);
+}
+
+.turn-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text3);
+}
+
+.turn-labels span.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Stats panel ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  transition: color 0.2s, transform 0.2s;
+  display: block;
+  line-height: 1.3;
+}
+
+.stat-value.changed {
+  color: var(--accent);
+  transform: scale(1.08);
+}
+
+.stat-label {
+  font-size: 9px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Token bar */
+.token-bar-area {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.token-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+
+.token-bar-track {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.token-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(217,119,87,0.6), var(--accent));
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  width: 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 680px) {
+  .panels {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+
+  .panel-messages {
+    grid-row: auto;
+  }
+
+  .panel-action {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .panel-stats {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Agent 执行过程 -- 时间旅行</h1>
+  <div class="subtitle">拖动进度条，观察 2 轮 agent turn 中 messages 数组和状态的变化</div>
+
+  <!-- Slider -->
+  <div class="slider-area">
+    <div class="slider-row">
+      <span class="step-display" id="stepDisplay">Step 0</span>
+      <div class="slider-track">
+        <input type="range" id="slider" min="0" max="7" value="0" step="1">
+        <div class="step-labels" id="stepLabels"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="btnPrev" disabled>
+        <span class="btn-icon">&lt;</span> 上一步
+      </button>
+      <button class="btn" id="btnPlay">
+        <span class="btn-icon" id="playIcon">&#9654;</span> 自动播放
+      </button>
+      <button class="btn" id="btnNext">
+        下一步 <span class="btn-icon">&gt;</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panels -->
+  <div class="panels">
+    <!-- Panel 1: Messages -->
+    <div class="panel panel-messages">
+      <div class="panel-title">
+        <span class="panel-title-icon">[]</span>
+        messages 数组
+      </div>
+      <div class="array-label">messages =</div>
+      <div class="array-bracket">[</div>
+      <div class="messages-stack" id="messagesStack">
+        <div class="empty-hint" id="emptyHint">-- 空数组 --</div>
+      </div>
+      <div class="array-bracket">]</div>
+    </div>
+
+    <!-- Panel 2: Current action -->
+    <div class="panel panel-action">
+      <div class="panel-title">
+        <span class="panel-title-icon">&gt;_</span>
+        当前执行
+      </div>
+      <div class="action-display" id="actionDisplay">
+        <div class="action-icon-wrap waiting" id="actionIconWrap">
+          <span id="actionIcon">...</span>
+        </div>
+        <div class="action-text">
+          <div class="action-phase waiting" id="actionPhase">IDLE</div>
+          <div class="action-desc" id="actionDesc">拖动上方进度条开始</div>
+        </div>
+      </div>
+      <div class="turn-indicator">
+        <div class="turn-bar" id="turnBar"></div>
+        <div class="turn-labels">
+          <span id="turnLabel1">Turn 1: 读 README</span>
+          <span id="turnLabel2">Turn 2: 生成回答</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 3: Context stats -->
+    <div class="panel panel-stats">
+      <div class="panel-title">
+        <span class="panel-title-icon">#</span>
+        Context 统计
+      </div>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <span class="stat-value" id="statTokens">0</span>
+          <div class="stat-label">Tokens</div>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="statAPI">0</span>
+          <div class="stat-label">API 调用</div>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="statTools">0</span>
+          <div class="stat-label">工具调用</div>
+        </div>
+      </div>
+      <div class="token-bar-area">
+        <div class="token-bar-label">
+          <span>Token 用量</span>
+          <span id="tokenBarValue">0 / 1200</span>
+        </div>
+        <div class="token-bar-track">
+          <div class="token-bar-fill" id="tokenBarFill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ──
+const TOTAL_STEPS = 8; // 0..7
+const MAX_TOKENS = 1200;
+
+const stepsData = [
+  // Step 0: User sends message — user message appears
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' }
+    ],
+    action: {
+      icon: '...',
+      phase: 'WAITING',
+      phaseClass: 'waiting',
+      iconClass: 'waiting',
+      desc: '等待模型响应...'
+    },
+    stats: { tokens: 24, api: 0, tools: 0 },
+    turn: 0 // turn index (0-based, steps 0-3 = turn 1, steps 4-7 = turn 2)
+  },
+  // Step 1: Model responds with tool call
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [read_file(path="README.md")]' }
+    ],
+    action: {
+      icon: 'f()',
+      phase: 'THINKING',
+      phaseClass: 'thinking',
+      iconClass: 'thinking',
+      desc: '模型决定调用 read_file'
+    },
+    stats: { tokens: 140, api: 1, tools: 0 },
+    turn: 0
+  },
+  // Step 2: Tool execution — tool result appended
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [read_file(path="README.md")]' },
+      { role: 'tool', badge: 'TOOL', content: '"# My Project\\nA CLI agent tutorial..."' }
+    ],
+    action: {
+      icon: '>>',
+      phase: 'EXECUTING',
+      phaseClass: 'executing',
+      iconClass: 'executing',
+      desc: '执行 read_file，读取 README.md'
+    },
+    stats: { tokens: 580, api: 1, tools: 1 },
+    turn: 0
+  },
+  // Step 3: Model generates final answer for turn 1
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [read_file(path="README.md")]' },
+      { role: 'tool', badge: 'TOOL', content: '"# My Project\\nA CLI agent tutorial..."' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '"这个项目是一个 CLI Agent 教程..."' }
+    ],
+    action: {
+      icon: 'Aa',
+      phase: 'RESPONDING',
+      phaseClass: 'responding',
+      iconClass: 'responding',
+      desc: '模型生成最终回答'
+    },
+    stats: { tokens: 720, api: 2, tools: 1 },
+    turn: 0
+  },
+  // Step 4: Turn 2 — user sends follow-up
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [read_file(path="README.md")]' },
+      { role: 'tool', badge: 'TOOL', content: '"# My Project\\nA CLI agent tutorial..."' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '"这个项目是一个 CLI Agent 教程..."' },
+      { role: 'user', badge: 'USER', content: '"有几个源文件？"' }
+    ],
+    action: {
+      icon: '...',
+      phase: 'WAITING',
+      phaseClass: 'waiting',
+      iconClass: 'waiting',
+      desc: '等待模型响应...'
+    },
+    stats: { tokens: 746, api: 2, tools: 1 },
+    turn: 1
+  },
+  // Step 5: Model calls glob
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [read_file(path="README.md")]' },
+      { role: 'tool', badge: 'TOOL', content: '"# My Project\\nA CLI agent tutorial..."' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '"这个项目是一个 CLI Agent 教程..."' },
+      { role: 'user', badge: 'USER', content: '"有几个源文件？"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [glob_files(pattern="**/*.py")]' }
+    ],
+    action: {
+      icon: 'f()',
+      phase: 'THINKING',
+      phaseClass: 'thinking',
+      iconClass: 'thinking',
+      desc: '模型决定调用 glob_files'
+    },
+    stats: { tokens: 870, api: 3, tools: 1 },
+    turn: 1
+  },
+  // Step 6: Tool result
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [read_file(path="README.md")]' },
+      { role: 'tool', badge: 'TOOL', content: '"# My Project\\nA CLI agent tutorial..."' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '"这个项目是一个 CLI Agent 教程..."' },
+      { role: 'user', badge: 'USER', content: '"有几个源文件？"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [glob_files(pattern="**/*.py")]' },
+      { role: 'tool', badge: 'TOOL', content: '["main.py", "tools.py", "loop.py"]' }
+    ],
+    action: {
+      icon: '>>',
+      phase: 'EXECUTING',
+      phaseClass: 'executing',
+      iconClass: 'executing',
+      desc: '执行 glob_files，匹配 **/*.py'
+    },
+    stats: { tokens: 960, api: 3, tools: 2 },
+    turn: 1
+  },
+  // Step 7: Final answer
+  {
+    messages: [
+      { role: 'user', badge: 'USER', content: '"看看 README.md 写了什么"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [read_file(path="README.md")]' },
+      { role: 'tool', badge: 'TOOL', content: '"# My Project\\nA CLI agent tutorial..."' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '"这个项目是一个 CLI Agent 教程..."' },
+      { role: 'user', badge: 'USER', content: '"有几个源文件？"' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '<code>tool_calls</code>: [glob_files(pattern="**/*.py")]' },
+      { role: 'tool', badge: 'TOOL', content: '["main.py", "tools.py", "loop.py"]' },
+      { role: 'assistant', badge: 'ASSISTANT', content: '"项目里有 3 个 Python 源文件..."' }
+    ],
+    action: {
+      icon: 'Aa',
+      phase: 'RESPONDING',
+      phaseClass: 'responding',
+      iconClass: 'responding',
+      desc: '模型生成最终回答'
+    },
+    stats: { tokens: 1100, api: 4, tools: 2 },
+    turn: 1
+  }
+];
+
+// ── DOM refs ──
+const slider = document.getElementById('slider');
+const stepDisplay = document.getElementById('stepDisplay');
+const stepLabelsContainer = document.getElementById('stepLabels');
+const messagesStack = document.getElementById('messagesStack');
+const emptyHint = document.getElementById('emptyHint');
+const actionIconWrap = document.getElementById('actionIconWrap');
+const actionIcon = document.getElementById('actionIcon');
+const actionPhase = document.getElementById('actionPhase');
+const actionDesc = document.getElementById('actionDesc');
+const turnBar = document.getElementById('turnBar');
+const turnLabel1 = document.getElementById('turnLabel1');
+const turnLabel2 = document.getElementById('turnLabel2');
+const statTokens = document.getElementById('statTokens');
+const statAPI = document.getElementById('statAPI');
+const statTools = document.getElementById('statTools');
+const tokenBarFill = document.getElementById('tokenBarFill');
+const tokenBarValue = document.getElementById('tokenBarValue');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnPlay = document.getElementById('btnPlay');
+const playIcon = document.getElementById('playIcon');
+
+let currentStep = -1; // will be set to 0 on init
+let autoTimer = null;
+
+// ── Build step labels ──
+for (let i = 0; i < TOTAL_STEPS; i++) {
+  const span = document.createElement('span');
+  span.className = 'step-label';
+  span.textContent = i;
+  stepLabelsContainer.appendChild(span);
+}
+
+// ── Build turn bar segments (8 segments) ──
+for (let i = 0; i < TOTAL_STEPS; i++) {
+  const seg = document.createElement('div');
+  seg.className = 'turn-segment';
+  turnBar.appendChild(seg);
+}
+
+// ── Precompute message card elements ──
+// Maximum number of messages across all steps = 8
+const MAX_MSGS = 8;
+const msgCards = [];
+for (let i = 0; i < MAX_MSGS; i++) {
+  const card = document.createElement('div');
+  card.className = 'msg-card';
+  card.innerHTML = `
+    <div class="msg-header">
+      <span class="role-badge"></span>
+      <span class="msg-index"></span>
+    </div>
+    <div class="msg-content"></div>
+  `;
+  messagesStack.appendChild(card);
+  msgCards.push(card);
+}
+
+// ── Animate stat ──
+function animateStat(el, value) {
+  const prev = el.textContent;
+  const next = String(value);
+  if (prev !== next) {
+    el.textContent = next;
+    el.classList.add('changed');
+    setTimeout(() => el.classList.remove('changed'), 350);
+  }
+}
+
+// ── Render ──
+function render(step) {
+  if (step === currentStep) return;
+  const prevStep = currentStep;
+  currentStep = step;
+
+  const data = stepsData[step];
+
+  // Slider
+  slider.value = step;
+  stepDisplay.textContent = 'Step ' + step;
+
+  // Step labels
+  const labels = stepLabelsContainer.children;
+  for (let i = 0; i < labels.length; i++) {
+    labels[i].classList.toggle('active', i === step);
+  }
+
+  // Buttons
+  btnPrev.disabled = step === 0;
+  btnNext.disabled = step === TOTAL_STEPS - 1;
+
+  // Messages
+  const msgs = data.messages;
+  emptyHint.style.display = msgs.length === 0 ? 'block' : 'none';
+
+  // Determine which card is "new" (highlight it briefly)
+  const prevMsgCount = prevStep >= 0 ? stepsData[prevStep].messages.length : 0;
+  const newIndex = msgs.length - 1;
+  const isForward = step > prevStep;
+
+  for (let i = 0; i < MAX_MSGS; i++) {
+    const card = msgCards[i];
+    if (i < msgs.length) {
+      const m = msgs[i];
+      // Update content
+      card.className = 'msg-card role-' + m.role;
+      card.querySelector('.role-badge').textContent = m.badge;
+      card.querySelector('.msg-index').textContent = '[' + i + ']';
+      card.querySelector('.msg-content').innerHTML = m.content;
+
+      // Show with slight delay for newly appearing cards
+      if (isForward && i === newIndex && i >= prevMsgCount) {
+        // New card — animate in with delay
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            card.classList.add('visible');
+            card.classList.add('highlight');
+            setTimeout(() => card.classList.remove('highlight'), 600);
+          });
+        });
+      } else {
+        card.classList.add('visible');
+        card.classList.remove('highlight');
+      }
+    } else {
+      card.classList.remove('visible');
+      card.classList.remove('highlight');
+    }
+  }
+
+  // Action panel
+  const a = data.action;
+  actionIconWrap.className = 'action-icon-wrap ' + a.iconClass;
+  actionIcon.textContent = a.icon;
+  actionPhase.className = 'action-phase ' + a.phaseClass;
+  actionPhase.textContent = a.phase;
+  actionDesc.textContent = a.desc;
+
+  // Turn indicator
+  const segments = turnBar.children;
+  for (let i = 0; i < TOTAL_STEPS; i++) {
+    const seg = segments[i];
+    if (i < step) {
+      seg.className = 'turn-segment done';
+    } else if (i === step) {
+      seg.className = 'turn-segment active';
+    } else {
+      seg.className = 'turn-segment';
+    }
+  }
+
+  turnLabel1.className = data.turn === 0 ? 'active' : '';
+  turnLabel2.className = data.turn === 1 ? 'active' : '';
+
+  // Stats
+  animateStat(statTokens, data.stats.tokens);
+  animateStat(statAPI, data.stats.api);
+  animateStat(statTools, data.stats.tools);
+
+  // Token bar
+  const pct = Math.min((data.stats.tokens / MAX_TOKENS) * 100, 100);
+  tokenBarFill.style.width = pct + '%';
+  tokenBarValue.textContent = data.stats.tokens + ' / ' + MAX_TOKENS;
+}
+
+// ── Controls ──
+slider.addEventListener('input', () => {
+  render(parseInt(slider.value));
+});
+
+btnPrev.addEventListener('click', () => {
+  if (currentStep > 0) render(currentStep - 1);
+});
+
+btnNext.addEventListener('click', () => {
+  if (currentStep < TOTAL_STEPS - 1) render(currentStep + 1);
+});
+
+function stopAuto() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    btnPlay.classList.remove('active');
+    playIcon.innerHTML = '&#9654;';
+    btnPlay.querySelector('.btn-icon + *') || null;
+    // Update text
+    btnPlay.lastChild.textContent = ' 自动播放';
+  }
+}
+
+function startAuto() {
+  if (currentStep === TOTAL_STEPS - 1) {
+    render(0);
+  }
+  btnPlay.classList.add('active');
+  playIcon.innerHTML = '&#9646;&#9646;';
+  btnPlay.lastChild.textContent = ' 暂停';
+  autoTimer = setInterval(() => {
+    if (currentStep < TOTAL_STEPS - 1) {
+      render(currentStep + 1);
+    } else {
+      stopAuto();
+    }
+  }, 1500);
+}
+
+btnPlay.addEventListener('click', () => {
+  if (autoTimer) {
+    stopAuto();
+  } else {
+    startAuto();
+  }
+});
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (currentStep < TOTAL_STEPS - 1) render(currentStep + 1);
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (currentStep > 0) render(currentStep - 1);
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    if (autoTimer) stopAuto(); else startAuto();
+  }
+});
+
+// ── Init ──
+render(0);
+</script>
+</body>
+</html>

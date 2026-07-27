@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ch03 read_file.py 代码解读</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0a0c10;
+  --panel: #0d1117;
+  --border: #1e2430;
+  --text: #c9d1d9;
+  --text-dim: #484f58;
+  --accent: #58a6ff;
+  --accent-bg: rgba(88,166,255,0.08);
+  --accent-border: rgba(88,166,255,0.4);
+  --kw: #ff7b72;
+  --str: #a5d6ff;
+  --fn: #d2a8ff;
+  --bi: #79c0ff;
+  --cm: #484f58;
+  --num: #79c0ff;
+  --green: #3fb950;
+  --green-bg: rgba(63,185,80,0.06);
+  --orange: #d29922;
+  --orange-bg: rgba(210,153,34,0.06);
+  --red: #f85149;
+  --red-bg: rgba(248,81,73,0.06);
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: calc(100vh - 32px);
+}
+
+/* -- Code Panel -- */
+.code-panel {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,17,23,0.8);
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #e05252; }
+.dot-y { background: #e8b863; }
+.dot-g { background: #7ec384; }
+
+.code-header span {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.code-body {
+  padding: 16px 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 16px 2px 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 3px solid transparent;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.code-line:hover {
+  background: var(--accent-bg);
+}
+
+.code-line.active {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+}
+
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.code-line.blank:hover {
+  background: transparent;
+}
+
+.line-num {
+  flex: 0 0 44px;
+  text-align: right;
+  padding-right: 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+  user-select: none;
+  line-height: 24px;
+}
+
+.line-code {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 24px;
+}
+
+/* Syntax colors */
+.kw  { color: var(--kw); }
+.str { color: var(--str); }
+.bi  { color: var(--bi); }
+.cm  { color: var(--cm); font-style: italic; }
+.fn  { color: var(--fn); }
+.op  { color: var(--text); }
+.pr  { color: var(--text); }
+.num { color: var(--num); }
+.const { color: var(--orange); }
+
+/* -- Explain Panel -- */
+.explain-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.explain-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.8;
+  flex: 1;
+}
+
+.explain-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  pointer-events: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.explain-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.card-label {
+  font-size: 12px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.card-shield {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.shield-1 { background: var(--red-bg); color: var(--red); border: 1px solid rgba(248,81,73,0.2); }
+.shield-2 { background: var(--orange-bg); color: var(--orange); border: 1px solid rgba(210,153,34,0.2); }
+.shield-3 { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.2); }
+.shield-fmt { background: rgba(88,166,255,0.06); color: var(--accent); border: 1px solid rgba(88,166,255,0.2); }
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.card-explain {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.9;
+  opacity: 0.88;
+}
+
+.card-detail {
+  background: var(--orange-bg);
+  border-left: 3px solid var(--orange);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.card-detail code {
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.card-guard {
+  background: var(--red-bg);
+  border-left: 3px solid var(--red);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.card-guard code {
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.hint {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 12px;
+}
+
+/* -- Responsive -- */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    padding: 8px;
+    gap: 8px;
+  }
+  .explain-panel {
+    min-height: 280px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span>read_file.py -- Ch03 三层防护</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <div class="explain-panel" id="explainPanel">
+    <div class="explain-default" id="defaultPrompt">
+      点击任意一行代码<br>看 read_file 的三层防护和格式化逻辑
+    </div>
+    <div class="explain-card" id="explainCard">
+      <div class="card-label" id="cardLabel"></div>
+      <div class="card-title" id="cardTitle"></div>
+      <div class="card-explain" id="cardExplain"></div>
+      <div class="card-detail" id="cardDetail"></div>
+      <div class="card-guard" id="cardGuard"></div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">点击任意一行查看解释 | Ch03 read_file.py 三层防护 + 行号格式化</div>
+
+<script>
+const lines = [
+  { num: 1,  code: '<span class="const">BINARY_EXTENSIONS</span> <span class="op">=</span> <span class="fn">frozenset</span>({' },
+  { num: 2,  code: '    <span class="str">".png"</span>, <span class="str">".jpg"</span>, <span class="str">".pdf"</span>, <span class="str">".zip"</span>, <span class="str">".exe"</span>, ...' },
+  { num: 3,  code: '})' },
+  { num: 4,  code: '<span class="const">MAX_FILE_SIZE</span> <span class="op">=</span> <span class="num">500_000</span>  <span class="cm"># 500KB</span>' },
+  { num: 5,  code: '<span class="const">MAX_LINES_PER_READ</span> <span class="op">=</span> <span class="num">2000</span>' },
+  { num: 6,  code: '', blank: true },
+  { num: 7,  code: '<span class="fn">@tool</span>(<span class="pr">name</span><span class="op">=</span><span class="str">"read_file"</span>, <span class="pr">description</span><span class="op">=</span><span class="str">"..."</span>, <span class="pr">parameters</span><span class="op">=</span>{...})' },
+  { num: 8,  code: '<span class="kw">def</span> <span class="fn">read_file</span>(<span class="pr">path</span>: <span class="bi">str</span>, <span class="pr">start_line</span>: <span class="bi">int</span> <span class="op">=</span> <span class="num">1</span>, <span class="pr">end_line</span> <span class="op">=</span> <span class="bi">None</span>) <span class="op">-></span> <span class="bi">str</span>:' },
+  { num: 9,  code: '    <span class="pr">p</span> <span class="op">=</span> <span class="fn">Path</span>(path)' },
+  { num: 10, code: '', blank: true },
+  { num: 11, code: '    <span class="kw">if not</span> p.<span class="fn">exists</span>():' },
+  { num: 12, code: '        <span class="kw">return</span> <span class="str">f"Error: 文件不存在 {path}"</span>' },
+  { num: 13, code: '    <span class="kw">if not</span> p.<span class="fn">is_file</span>():' },
+  { num: 14, code: '        <span class="kw">return</span> <span class="str">f"Error: 不是文件 {path}"</span>' },
+  { num: 15, code: '', blank: true },
+  { num: 16, code: '    <span class="cm"># 第一层防护：二进制扩展名拦截</span>' },
+  { num: 17, code: '    <span class="kw">if</span> p.suffix.<span class="fn">lower</span>() <span class="kw">in</span> <span class="const">BINARY_EXTENSIONS</span>:' },
+  { num: 18, code: '        <span class="pr">size</span> <span class="op">=</span> p.<span class="fn">stat</span>().st_size' },
+  { num: 19, code: '        <span class="kw">return</span> <span class="str">f"Error: {p.suffix} 是二进制格式...文件大小 {size} bytes"</span>' },
+  { num: 20, code: '', blank: true },
+  { num: 21, code: '    <span class="cm"># 第二层防护：大文件截断</span>' },
+  { num: 22, code: '    <span class="pr">size</span> <span class="op">=</span> p.<span class="fn">stat</span>().st_size' },
+  { num: 23, code: '    <span class="kw">if</span> size <span class="op">></span> <span class="const">MAX_FILE_SIZE</span>:' },
+  { num: 24, code: '        <span class="kw">return</span> <span class="str">f"Error: 文件太大（{size} bytes）。用 start_line/end_line 分段读"</span>' },
+  { num: 25, code: '', blank: true },
+  { num: 26, code: '    <span class="cm"># 第三层防护：编码检测</span>' },
+  { num: 27, code: '    <span class="kw">try</span>:' },
+  { num: 28, code: '        <span class="pr">text</span> <span class="op">=</span> p.<span class="fn">read_text</span>(<span class="pr">encoding</span><span class="op">=</span><span class="str">"utf-8"</span>)' },
+  { num: 29, code: '    <span class="kw">except</span> <span class="bi">UnicodeDecodeError</span>:' },
+  { num: 30, code: '        <span class="kw">return</span> <span class="str">"Error: 不是 UTF-8 文本（可能是二进制文件）"</span>' },
+  { num: 31, code: '', blank: true },
+  { num: 32, code: '    <span class="pr">lines</span> <span class="op">=</span> text.<span class="fn">splitlines</span>()' },
+  { num: 33, code: '    <span class="pr">total</span> <span class="op">=</span> <span class="bi">len</span>(lines)' },
+  { num: 34, code: '', blank: true },
+  { num: 35, code: '    <span class="cm"># 行范围计算</span>' },
+  { num: 36, code: '    <span class="pr">start</span> <span class="op">=</span> <span class="bi">max</span>(<span class="num">1</span>, start_line)' },
+  { num: 37, code: '    <span class="pr">end</span> <span class="op">=</span> <span class="bi">min</span>(total, end_line <span class="kw">if</span> end_line <span class="kw">else</span> start + <span class="const">MAX_LINES_PER_READ</span> - <span class="num">1</span>)' },
+  { num: 38, code: '    <span class="pr">selected</span> <span class="op">=</span> lines[start - <span class="num">1</span> : end]' },
+  { num: 39, code: '', blank: true },
+  { num: 40, code: '    <span class="cm"># 行号格式化</span>' },
+  { num: 41, code: '    <span class="pr">numbered</span> <span class="op">=</span> <span class="str">"\\n"</span>.<span class="fn">join</span>(' },
+  { num: 42, code: '        <span class="str">f"{i:>5}  {line}"</span> <span class="kw">for</span> i, line <span class="kw">in</span> <span class="bi">enumerate</span>(selected, <span class="pr">start</span><span class="op">=</span>start)' },
+  { num: 43, code: '    )' },
+  { num: 44, code: '', blank: true },
+  { num: 45, code: '    <span class="pr">header</span> <span class="op">=</span> <span class="str">f"# {path} ({total} lines, showing {start}-{end})"</span>' },
+  { num: 46, code: '    <span class="kw">return</span> <span class="str">f"{header}\\n{numbered}"</span>' },
+];
+
+const explanations = {
+  1: {
+    label: '第 1-3 行 <span class="shield-1">第一层防护</span>',
+    title: 'BINARY_EXTENSIONS：二进制黑名单',
+    explain: '一个 frozenset，列出所有已知的二进制文件扩展名。read_file 在打开文件之前先检查扩展名，如果命中就直接返回错误，根本不尝试读取。',
+    detail: '<strong>为什么用 frozenset？</strong>frozenset 是不可变的集合，查找复杂度 O(1)。普通 set 也行，但 frozenset 表示"这个列表不该被修改"的意图更明确。约 30 个扩展名覆盖了图片、音视频、压缩包、编译产物、字体等常见二进制格式。',
+    guard: '<strong>为什么要在打开文件前就拦截？</strong>读取一个 50MB 的 .png 文件会把整个内容加载到内存，然后发现不是文本，白浪费资源。扩展名检测几乎零成本，是最便宜的第一道防线。Claude Code 的 FileReadTool 也有类似的扩展名白/黑名单。'
+  },
+  4: {
+    label: '第 4 行 <span class="shield-2">第二层防护</span>',
+    title: 'MAX_FILE_SIZE = 500KB',
+    explain: '文件大小阈值。超过 500KB 的文件直接拒绝全文读取，提示模型用 start_line/end_line 分段读，或用 grep 先定位再读。',
+    detail: '<strong>500KB 怎么来的？</strong>500KB 大约 10000-15000 行代码。一个文件超过这个量级通常是数据文件、日志或生成的代码——全文读进 context 既浪费 token 又可能超出模型的注意力范围。Claude Code 的限制更精细，按 token 数而不是字节数。',
+    guard: '<strong>防什么？</strong>防模型不小心读了一个巨大的日志文件（比如 npm-debug.log 可以有几 MB），把整段 token 窗口撑爆。让模型自己选择分段读，既省 token 又读得更精准。'
+  },
+  5: {
+    label: '第 5 行',
+    title: 'MAX_LINES_PER_READ = 2000',
+    explain: '每次最多读 2000 行。如果模型不指定 end_line，默认从 start_line 开始读 2000 行。这个限制和 MAX_FILE_SIZE 互补——一个限制字节，一个限制行数。',
+    detail: '<strong>为什么 2000 行？</strong>2000 行大约 40-60KB 文本，对大多数模型的 context 来说是合理的一次性输入量。Claude Code 也有类似的 Read tool 行数限制。太多行模型处理不过来，太少又需要反复读。',
+    guard: '<strong>什么时候会触发？</strong>模型调用 read_file(path="big.py") 不带 end_line 时，自动截断到前 2000 行。模型看到返回结果里的 "showing 1-2000" 就知道文件没读完，会在下一拍继续读后面的部分。'
+  },
+  7: {
+    label: '第 7 行',
+    title: '@tool 装饰器：注册 + 描述',
+    explain: '@tool(name="read_file", description="...", parameters={...}) 把这个函数注册到 Ch02 的 _TOOLS 字典里。description 和 parameters 是给模型看的——模型据此决定什么时候用 read_file、传什么参数。',
+    detail: '<strong>description 写了什么：</strong>"读取一个本地文本文件。返回带行号的内容。可用 start_line/end_line 只读一段（大文件必须分段读）。二进制文件会报错。" 模型看到"大文件必须分段读"就会在遇到大文件时主动传 start_line/end_line。',
+    guard: '<strong>parameters 的作用：</strong>JSON Schema 格式描述参数。path 是 required，start_line 和 end_line 是可选的 integer。模型根据 schema 知道可以传哪些参数、什么类型。写错 schema 会导致模型传错参数。'
+  },
+  8: {
+    label: '第 8 行',
+    title: '函数签名：三个参数',
+    explain: 'path 必填，start_line 默认 1，end_line 默认 None（不指定就读到 start_line + 2000）。模型可以只传 path 读全文，也可以精确指定行范围。',
+    detail: '<strong>类型标注：</strong>path: str, start_line: int = 1, end_line: int | None = None。int | None 是 Python 3.10+ 语法，等价于 Optional[int]。返回 -> str 是 registry 约定——所有工具都返回字符串。',
+    guard: '<strong>默认值的设计：</strong>start_line 默认 1（从头开始），end_line 默认 None（读到 MAX_LINES_PER_READ）。这意味着 read_file(path="main.py") 等价于 read_file(path="main.py", start_line=1, end_line=2000)。最常见的用法零参数负担。'
+  },
+  9: {
+    label: '第 9 行',
+    title: 'Path(path)：统一路径处理',
+    explain: '用 pathlib.Path 包装路径字符串。Path 对象提供跨平台的路径操作：.exists()、.is_file()、.suffix、.stat()、.read_text() 等，比 os.path 更现代更好用。',
+    detail: '<strong>为什么不用 os.path？</strong>Path 是面向对象的 API，链式调用更自然：p.suffix.lower() vs os.path.splitext(path)[1].lower()。Python 3.6+ 推荐用 pathlib。',
+    guard: '<strong>相对路径 vs 绝对路径：</strong>Path(path) 不做路径解析，传进来什么就是什么。如果传的是相对路径，相对于当前工作目录。Claude Code 的 read_file 会做更多路径规范化（resolve symlink、sandbox 检查等）。'
+  },
+  11: {
+    label: '第 11-14 行',
+    title: '基础存在性检查',
+    explain: '文件不存在或不是文件（比如是目录）时直接返回错误。这两个检查发生在三层防护之前，是最基本的前置校验。',
+    detail: '<strong>p.exists() vs p.is_file()：</strong>exists() 检查路径是否存在（文件或目录都算），is_file() 检查是否是普通文件。模型传了一个目录路径进来时，exists() 通过但 is_file() 拦截。两个检查缺一不可。',
+    guard: '<strong>返回 Error 字符串：</strong>和 Ch02 的 run_tool 一样，不 raise 异常。模型拿到 "Error: 文件不存在 xxx" 后会换个路径重试——比如它拼错了文件名，看到错误后能自动纠正。'
+  },
+  16: {
+    label: '第 16-19 行 <span class="shield-1">第一层：扩展名拦截</span>',
+    title: '二进制检测在这一步',
+    explain: '取文件后缀名（.lower() 忽略大小写），查 BINARY_EXTENSIONS 集合。如果命中，返回错误信息并附上文件大小——不尝试读取，不加载到内存。',
+    detail: '<strong>为什么返回文件大小？</strong>模型看到 "Error: .png 是二进制格式，文件大小 204800 bytes" 就知道这是一个约 200KB 的图片。这个信息有时对模型有用——比如它在排查为什么某个目录很大。',
+    guard: '<strong>局限性：</strong>扩展名检测不完美。有些文件没有扩展名但确实是二进制的（如 a.out），有些文件有 .txt 扩展名但内容是乱码。所以还需要第三层（UnicodeDecodeError 兜底）。三层防护互补，层层递进。'
+  },
+  17: {
+    label: '第 17 行 <span class="shield-1">第一层：扩展名拦截</span>',
+    title: 'p.suffix.lower() in BINARY_EXTENSIONS',
+    explain: 'suffix 返回文件扩展名（含点号），如 ".PNG"。lower() 统一成小写再查集合。frozenset 的 in 操作是 O(1) 哈希查找。',
+    detail: '<strong>.suffix 的行为：</strong>Path("photo.PNG").suffix 返回 ".PNG"，Path("archive.tar.gz").suffix 返回 ".gz"（只取最后一个）。对于 .tar.gz 这种双扩展名，.gz 在黑名单里所以能拦截。',
+    guard: '<strong>大小写处理：</strong>.lower() 确保 .PNG、.Png、.png 都能匹配。Windows 上文件扩展名经常大小写混用，不 lower() 就会漏。'
+  },
+  21: {
+    label: '第 21-24 行 <span class="shield-2">第二层：大小限制</span>',
+    title: '大文件截断',
+    explain: '过了扩展名检查的文件，再查文件大小。超过 500KB 直接拒绝，提示模型用分段读取或 grep 先定位。',
+    detail: '<strong>size 计算：</strong>p.stat().st_size 返回文件字节数。stat() 是系统调用，不需要读取文件内容，很快。500_000 bytes 约等于 500KB（Python 的下划线只是数字分隔符，提高可读性）。',
+    guard: '<strong>错误信息带引导：</strong>"用 start_line/end_line 分段读，或用 grep 先定位再读"——不只是报错，还告诉模型怎么绕过限制。模型看到后会改用 grep 搜索关键词，找到行号，再用 read_file 精确读那一段。这种"错误即指引"的设计让 agent 自愈能力更强。'
+  },
+  26: {
+    label: '第 26-30 行 <span class="shield-3">第三层：编码检测</span>',
+    title: 'UTF-8 解码兜底',
+    explain: '尝试用 UTF-8 解码读取文件。如果文件内容不是合法的 UTF-8（比如是一个伪装成 .txt 的二进制文件），read_text 会抛 UnicodeDecodeError，被 except 捕获后返回错误。',
+    detail: '<strong>为什么指定 encoding="utf-8"？</strong>不指定的话 Python 用系统默认编码（Windows 上可能是 GBK），读中文文件可能乱码。指定 utf-8 是最安全的选择——现代代码文件几乎都是 UTF-8。非 UTF-8 的文本文件（如 GBK 编码的老代码）会被这层拦截。',
+    guard: '<strong>三层防护的完整图景：</strong>(1) 扩展名黑名单——最快，零 IO (2) 文件大小检查——一次 stat 调用 (3) 编码检测——需要实际读取。三层成本递增，越前面拦截越省资源。通过第一层的文件大概率不是二进制，通过第二层的文件大概率不会撑爆内存，第三层是最后的安全网。'
+  },
+  28: {
+    label: '第 28 行',
+    title: 'p.read_text(encoding="utf-8")',
+    explain: '一次性读取整个文件内容为字符串。这是文件实际被加载到内存的那一步——之前的检查都没有读取文件内容。',
+    detail: '<strong>read_text vs open+read：</strong>Path.read_text() 等价于 open(path, "r", encoding="utf-8").read() 但更简洁，自动处理文件句柄关闭。一行搞定。',
+    guard: '<strong>内存风险：</strong>因为前面已经检查了文件大小 < 500KB，所以一次性读取是安全的。如果没有第二层防护，这里可能加载几百 MB 的文件直接 OOM。防护的顺序很重要。'
+  },
+  32: {
+    label: '第 32-33 行',
+    title: '按行切分 + 统计总行数',
+    explain: 'splitlines() 把文本按换行符切成列表，len() 计算总行数。total 用在返回结果的 header 里，告诉模型文件一共有多少行。',
+    detail: '<strong>splitlines() vs split("\\n")：</strong>splitlines() 能正确处理 \\r\\n（Windows）、\\r（老 Mac）、\\n（Unix）三种换行符。split("\\n") 在遇到 \\r\\n 时会在行尾留下 \\r。跨平台兼容选 splitlines()。',
+    guard: '<strong>total 的用途：</strong>返回给模型的 header 是 "# main.py (150 lines, showing 1-50)"。模型看到 total=150 就知道还有 100 行没读，需不需要继续读取由模型自己判断。'
+  },
+  35: {
+    label: '第 35-38 行 <span class="shield-fmt">行范围计算</span>',
+    title: '计算实际的起止行号',
+    explain: 'start 至少为 1（防止传入 0 或负数），end 取 "total 行数" 和 "start + 2000 - 1" 的较小值。然后用 Python 切片取出对应行。',
+    detail: '<strong>切片 lines[start-1:end]：</strong>Python 列表从 0 开始，行号从 1 开始，所以要 start-1。切片的 end 是"不含"的，但我们的 end 是"含"的，而 lines[start-1:end] 刚好取到第 end 行（因为列表下标从 0 开始）。',
+    guard: '<strong>边界处理：</strong>如果 start > total，前面有检查会返回错误。如果 end_line 超过 total，min(total, end_line) 会截断到 total。无论传什么参数都不会越界。'
+  },
+  36: {
+    label: '第 36 行',
+    title: 'max(1, start_line)：防止非法起始行',
+    explain: '确保 start 至少为 1。模型偶尔会传 start_line=0 甚至负数（幻觉），max(1, ...) 静默修正而不是报错。',
+    detail: '<strong>为什么不报错？</strong>start_line=0 是个小问题，修正成 1 不影响语义。如果每个小瑕疵都报错，模型会浪费一轮来修正参数。容忍小错误、只拦截大问题，是工具设计的平衡点。',
+    guard: '<strong>对比严格校验：</strong>registry 里的 _validate_args 做类型检查（传 string 给 integer 参数会报错），这里做值域修正（0 修正为 1）。两种策略互补：类型错误是"传错了"必须报错，值域偏差是"差一点"可以容忍。'
+  },
+  37: {
+    label: '第 37 行',
+    title: 'end 的默认计算',
+    explain: '如果 end_line 为 None（模型没传），默认读 start + MAX_LINES_PER_READ - 1 行。然后和 total 取最小值，防止越界。',
+    detail: '<strong>公式拆解：</strong>end_line if end_line else start + 2000 - 1 。当 end_line 为 None 时，走 else 分支。-1 是因为 start 本身算一行：从第 1 行读 2000 行，应该读到第 2000 行而不是第 2001 行。',
+    guard: '<strong>MAX_LINES_PER_READ 的作用：</strong>即使文件只有 300KB（通过了大小检查），但有 50000 行短行。没有行数限制的话全读进来会塞满 context。MAX_FILE_SIZE 和 MAX_LINES_PER_READ 双保险。'
+  },
+  38: {
+    label: '第 38 行',
+    title: 'Python 切片取行',
+    explain: 'lines[start-1 : end] 取出从第 start 行到第 end 行的内容。Python 切片左闭右开，lines[0:3] 取下标 0/1/2，对应行号 1/2/3。',
+    detail: '<strong>下标转换：</strong>行号 start=5, end=10 → 切片 lines[4:10] → 取下标 4/5/6/7/8/9 → 对应行号 5/6/7/8/9/10。start-1 把行号转成下标，end 不用减 1 因为切片右边本身就不含。',
+    guard: '<strong>空结果：</strong>如果 start > end（理论上不应该，但如果 end_line < start_line），切片返回空列表，numbered 是空字符串。函数不会崩溃，只是返回只有 header 没有内容的结果。'
+  },
+  40: {
+    label: '第 40-43 行 <span class="shield-fmt">行号格式化</span>',
+    title: '给每行加上右对齐的行号',
+    explain: '用 enumerate 从 start 开始编号，f-string 的 {:>5} 把行号右对齐到 5 位宽，后面跟两个空格和原始行内容。最后用换行符 join 起来。',
+    detail: '<strong>{i:>5} 的含义：</strong>> 是右对齐，5 是总宽度。行号 1 显示为 "    1"，行号 100 显示为 "  100"，行号 10000 显示为 "10000"。5 位宽足够处理 99999 行以内的文件。两个空格把行号和代码隔开，方便模型在 Edit 时引用行号。',
+    guard: '<strong>为什么要行号？</strong>模型后续调用 Edit 工具时需要指定"改第几行"。没有行号的话模型只能靠内容匹配定位，不精确。Claude Code 的 Read 工具也带行号，格式几乎一样。这不是装饰，是后续工具链的必要输入。'
+  },
+  45: {
+    label: '第 45-46 行',
+    title: '拼接 header 和内容返回',
+    explain: 'header 一行写明文件路径、总行数、当前显示范围。然后换行接上带行号的内容。整个返回值就是模型在 tool result 里看到的。',
+    detail: '<strong>header 的信息密度：</strong>"# main.py (150 lines, showing 1-50)" 一行包含了三个信息：哪个文件、多大、看了哪段。模型据此决定要不要继续读——150 行只看了 50 行，可能需要再读一次。',
+    guard: '<strong># 前缀：</strong>header 以 # 开头，在 Markdown 里是一级标题。模型看到这个格式能快速定位"这是 read_file 的返回值"而不是其他文本。这种微小的格式设计对模型的理解准确度有实际影响。'
+  }
+};
+
+// Build code lines
+const codeBody = document.getElementById('codeBody');
+lines.forEach(line => {
+  const el = document.createElement('div');
+  el.className = 'code-line' + (line.blank ? ' blank' : '');
+  el.dataset.num = line.num;
+  el.innerHTML = '<span class="line-num">' + line.num + '</span><span class="line-code">' + line.code + '</span>';
+  if (!line.blank) {
+    el.addEventListener('click', () => selectLine(line.num));
+  }
+  codeBody.appendChild(el);
+});
+
+// Multi-line groupings
+const lineGroups = {
+  1: [1,2,3], 2: [1,2,3], 3: [1,2,3],
+  11: [11,12,13,14], 12: [11,12,13,14], 13: [11,12,13,14], 14: [11,12,13,14],
+  16: [16,17,18,19], 18: [16,17,18,19], 19: [16,17,18,19],
+  21: [21,22,23,24], 22: [21,22,23,24], 23: [21,22,23,24], 24: [21,22,23,24],
+  26: [26,27,28,29,30], 27: [26,27,28,29,30], 29: [26,27,28,29,30], 30: [26,27,28,29,30],
+  32: [32,33], 33: [32,33],
+  35: [35,36,37,38],
+  40: [40,41,42,43], 41: [40,41,42,43], 42: [40,41,42,43], 43: [40,41,42,43],
+  45: [45,46], 46: [45,46],
+};
+
+const lineKeyMap = {
+  2:1, 3:1,
+  12:11, 13:11, 14:11,
+  18:16, 19:16,
+  22:21, 23:21, 24:21,
+  27:26, 29:26, 30:26,
+  33:32,
+  41:40, 42:40, 43:40,
+  46:45,
+};
+
+let activeLine = null;
+const defaultPrompt = document.getElementById('defaultPrompt');
+const explainCard = document.getElementById('explainCard');
+const cardLabel = document.getElementById('cardLabel');
+const cardTitle = document.getElementById('cardTitle');
+const cardExplain = document.getElementById('cardExplain');
+const cardDetail = document.getElementById('cardDetail');
+const cardGuard = document.getElementById('cardGuard');
+
+function selectLine(num) {
+  if (activeLine === num) return;
+
+  document.querySelectorAll('.code-line.active').forEach(el => el.classList.remove('active'));
+
+  const group = lineGroups[num];
+  if (group) {
+    group.forEach(n => {
+      const el = document.querySelector('.code-line[data-num="' + n + '"]');
+      if (el) el.classList.add('active');
+    });
+  } else {
+    const el = document.querySelector('.code-line[data-num="' + num + '"]');
+    if (el) el.classList.add('active');
+  }
+
+  activeLine = num;
+  const key = lineKeyMap[num] || num;
+  const data = explanations[key];
+  if (!data) return;
+
+  defaultPrompt.style.display = 'none';
+
+  explainCard.classList.remove('visible');
+  requestAnimationFrame(() => {
+    explainCard.style.transition = 'none';
+    explainCard.style.opacity = '0';
+    explainCard.style.transform = 'translateY(12px)';
+    void explainCard.offsetHeight;
+    explainCard.style.transition = '';
+    explainCard.style.opacity = '';
+    explainCard.style.transform = '';
+
+    cardLabel.innerHTML = data.label;
+    cardTitle.textContent = data.title;
+    cardExplain.textContent = data.explain;
+    cardDetail.innerHTML = data.detail;
+    cardGuard.innerHTML = data.guard;
+    explainCard.classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

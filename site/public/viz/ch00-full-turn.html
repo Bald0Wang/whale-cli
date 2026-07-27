@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>一次完整的 agent turn · 全景回放</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main:    #1c1816;
+      --bg-panel:   #231f1c;
+      --bg-elev:    #2e2824;
+      --bg-accent:  #3a342f;
+      --border:     #332d28;
+      --border-strong: #5a4f47;
+      --text-main:  #ebe0d2;
+      --text-dim:   #9a8f82;
+      --text-muted: #6a6058;
+      --orange:     #D77757;
+      --orange-dim: #a85a3f;
+      --blue:       #6477e0;
+      --yellow:     #e8b863;
+      --green:      #7ec384;
+      --red:        #e06464;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px 24px 16px;
+      height: 85vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elev);
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Header */
+    .header { margin-bottom: 12px; flex-shrink: 0; }
+    .header .breadcrumb { color: var(--text-muted); font-size: 10px; margin-bottom: 3px; }
+    .header h1 { font-size: 17px; font-weight: 600; margin: 0 0 3px; color: var(--text-main); }
+    .header p { color: var(--text-dim); font-size: 11.5px; margin: 0; max-width: 900px; line-height: 1.55; }
+
+    /* Step indicator */
+    .step-indicator {
+      display: flex; align-items: center; gap: 3px;
+      margin-bottom: 8px;
+      padding: 7px 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+    .step-dot {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 600;
+      transition: all 0.3s; cursor: pointer; flex-shrink: 0;
+      background: var(--bg-elev); color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .step-dot.past { background: var(--orange-dim); color: var(--text-main); border-color: var(--orange-dim); }
+    .step-dot.current { background: var(--orange); color: #1c1816; border-color: var(--orange); transform: scale(1.15); box-shadow: 0 0 0 3px rgba(215,119,87,0.25); }
+    .step-line { flex: 1; height: 1px; background: var(--border); min-width: 4px; }
+    .step-line.passed { background: var(--orange-dim); }
+
+    /* Step description (compact, above main grid) */
+    .step-desc-bar {
+      padding: 8px 14px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .step-desc-bar .step-meta {
+      font-size: 9px; color: var(--orange); font-weight: 700;
+      letter-spacing: 0.06em; white-space: nowrap;
+    }
+    .step-desc-bar h2 {
+      font-size: 14px; font-weight: 600; margin: 0;
+      color: var(--text-main); white-space: nowrap;
+    }
+    .step-desc-bar .desc {
+      color: var(--text-dim); font-size: 11.5px; line-height: 1.5;
+    }
+
+    /* Main layout: sidebar + session */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ============ LEFT SIDEBAR: Component Pipeline ============ */
+    .pipeline-pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .pipeline-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 10px 10px 12px;
+    }
+    .pipe-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.3;
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid transparent;
+      cursor: default;
+      position: relative;
+    }
+    .pipe-node .pipe-icon {
+      font-size: 8px;
+      flex-shrink: 0;
+      width: 14px;
+      text-align: center;
+    }
+    .pipe-node .pipe-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pipe-node.idle {
+      color: var(--text-muted);
+    }
+    .pipe-node.idle .pipe-icon { color: var(--text-muted); }
+    .pipe-node.passed {
+      color: var(--text-dim);
+    }
+    .pipe-node.passed .pipe-icon { color: var(--orange-dim); }
+    .pipe-node.active {
+      background: rgba(215,119,87,0.12);
+      color: var(--text-main);
+      border-color: var(--orange);
+      font-weight: 500;
+      box-shadow: 0 0 12px rgba(215,119,87,0.15);
+    }
+    .pipe-node.active .pipe-icon { color: var(--orange); }
+
+    /* Tooltip on hover */
+    .pipe-node .pipe-tip {
+      display: none;
+      position: absolute;
+      left: calc(100% + 8px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--bg-elev);
+      border: 1px solid var(--border-strong);
+      border-radius: 5px;
+      padding: 5px 10px;
+      font-size: 10px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .pipe-node:hover .pipe-tip { display: block; }
+
+    /* Arrow between nodes */
+    .pipe-arrow {
+      display: flex;
+      justify-content: center;
+      padding: 1px 0;
+      color: var(--border);
+      font-size: 10px;
+      line-height: 1;
+      transition: color 0.3s;
+    }
+    .pipe-arrow.passed { color: var(--orange-dim); }
+    .pipe-arrow.active { color: var(--orange); }
+
+    /* Pipeline legend */
+    .pipe-legend {
+      padding: 8px 12px;
+      border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 3px;
+      font-size: 10px; color: var(--text-muted);
+    }
+    .pipe-legend-row { display: flex; align-items: center; gap: 5px; }
+
+    /* ============ RIGHT: Session Viewer ============ */
+    .session-pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg-main);
+      border: 1px solid var(--border);
+    }
+    .session-titlebar {
+      padding: 7px 14px;
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+    .session-dots { display: flex; gap: 5px; }
+    .session-dots .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .session-dots .dot.r { background: #ce5151; }
+    .session-dots .dot.y { background: #d8a64f; }
+    .session-dots .dot.g { background: #7ec384; }
+
+    .session-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      scroll-behavior: smooth;
+    }
+
+    /* Message cards */
+    .msg-card {
+      margin-bottom: 10px;
+      border-radius: 6px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--border);
+      overflow: hidden;
+      animation: cardIn 0.4s ease;
+    }
+    .msg-card.past-msg { opacity: 0.5; }
+    .msg-card.current-msg { opacity: 1; }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .msg-card.user-card { border-left-color: var(--blue); }
+    .msg-card.system-card { border-left-color: var(--text-muted); }
+    .msg-card.thinking-card { border-left-color: var(--yellow); }
+    .msg-card.assistant-card { border-left-color: var(--orange); }
+    .msg-card.tool-card { border-left-color: var(--green); }
+
+    .msg-card-header {
+      padding: 7px 11px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .msg-badge {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 2px 7px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .badge-user { background: rgba(100,119,224,0.15); color: var(--blue); }
+    .badge-system { background: rgba(106,96,88,0.2); color: var(--text-dim); }
+    .badge-thinking { background: rgba(232,184,99,0.15); color: var(--yellow); }
+    .badge-assistant { background: rgba(215,119,87,0.15); color: var(--orange); }
+    .badge-tool { background: rgba(126,195,132,0.15); color: var(--green); }
+
+    .msg-card-body {
+      padding: 0 11px 9px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-main);
+    }
+    .msg-card-body .msg-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Tool call card inside assistant message */
+    .tool-call-inner {
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .tool-call-header {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 4px;
+    }
+    .tool-call-icon { color: var(--orange); font-size: 9px; }
+    .tool-call-name { font-weight: 700; font-size: 11.5px; color: var(--text-main); }
+    .tool-call-args {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .tool-call-args .arg-key { color: var(--text-muted); }
+    .tool-call-args .arg-val { color: var(--yellow); }
+
+    /* Tool result expandable */
+    .tool-result-preview {
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .tool-result-preview:hover { color: var(--text-main); }
+    .tool-result-preview .expand-arrow {
+      font-size: 7px;
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+    .tool-result-preview .expand-arrow.open { transform: rotate(90deg); }
+    .tool-result-preview .ok-text { color: var(--green); }
+    .tool-result-preview .preview-text { color: var(--text-dim); }
+    .tool-result-preview .click-hint { color: var(--text-muted); font-size: 9px; }
+
+    .tool-result-expanded {
+      display: none;
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    .tool-result-expanded.open { display: block; animation: cardIn 0.3s ease; }
+    .tool-result-expanded pre {
+      margin: 0;
+      font-size: 10.5px;
+      line-height: 1.55;
+      color: var(--text-main);
+      white-space: pre;
+    }
+    .result-line {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+    }
+    .result-lineno {
+      color: var(--text-muted);
+      text-align: right;
+      padding-right: 8px;
+      font-size: 9px;
+      user-select: none;
+    }
+    .result-code { color: var(--text-main); }
+    .result-code .r-kw { color: #c084e8; }
+    .result-code .r-str { color: var(--yellow); }
+    .result-code .r-cmt { color: var(--text-muted); font-style: italic; }
+    .result-code .r-bug { color: var(--red); font-weight: 600; }
+    .result-code .r-fn { color: var(--blue); }
+
+    /* Context info bar */
+    .context-bar {
+      margin-bottom: 10px;
+      padding: 5px 10px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 9.5px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .context-bar .ctx-item { display: flex; align-items: center; gap: 3px; }
+    .context-bar .ctx-label { color: var(--text-muted); }
+    .context-bar .ctx-val { color: var(--text-dim); font-weight: 600; }
+
+    /* Cursor */
+    .session-cursor {
+      display: inline-block; width: 7px; height: 13px;
+      background: var(--orange); margin-left: 2px;
+      vertical-align: text-bottom; animation: blink 1s steps(2) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    /* Session footer */
+    .session-footer {
+      padding: 5px 14px;
+      background: var(--bg-elev);
+      border-top: 1px solid var(--border);
+      font-size: 9px;
+      color: var(--text-muted);
+      display: flex; justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    /* Controls */
+    .controls {
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      margin-top: 8px;
+    }
+    .ctrl-btn {
+      padding: 5px 11px;
+      border-radius: 5px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      transition: all 0.2s;
+      cursor: pointer;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+    }
+    .ctrl-btn:hover:not(:disabled) { background: var(--bg-accent); border-color: var(--border-strong); }
+    .ctrl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .ctrl-btn.primary { background: var(--orange); color: #1c1816; border-color: var(--orange); }
+    .ctrl-btn.primary:hover { background: #e08967; border-color: #e08967; }
+    .speed-btn.active { background: var(--orange); color: #1c1816; border-color: var(--orange); }
+    .controls .spacer { flex: 1; }
+    .controls .label { color: var(--text-muted); font-size: 9px; margin-right: 3px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="header">
+      <div class="breadcrumb">Whale CLI 教程 / 第 0 章 · 开篇</div>
+      <h1>一次完整的 agent turn &middot; 全景回放</h1>
+      <p>一条用户消息进入后，经过 12 个组件、11 个步骤，最终变成终端里的回答。左边看组件流转，右边看 session 里实际发生了什么。</p>
+    </header>
+
+    <div id="step-indicator" class="step-indicator"></div>
+
+    <div class="panel step-desc-bar">
+      <span class="step-meta">STEP <span id="step-num"></span>/11</span>
+      <h2 id="step-title"></h2>
+      <span class="desc" id="step-desc"></span>
+    </div>
+
+    <div class="main-layout">
+
+      <!-- Left: Component Pipeline -->
+      <div class="panel pipeline-pane">
+        <div class="panel-header">
+          <span>组件流水线</span>
+          <span style="color: var(--text-muted)">pipeline</span>
+        </div>
+        <div id="pipeline" class="pipeline-scroll"></div>
+        <div class="pipe-legend">
+          <div class="pipe-legend-row"><span style="color: var(--orange);">&#9644;</span> 当前活跃</div>
+          <div class="pipe-legend-row"><span style="color: var(--orange-dim);">&#9644;</span> 已经历</div>
+          <div class="pipe-legend-row"><span style="color: var(--text-muted);">&#9644;</span> 尚未触发</div>
+        </div>
+      </div>
+
+      <!-- Right: Session Viewer -->
+      <div class="session-pane">
+        <div class="session-titlebar">
+          <div class="session-dots">
+            <span class="dot r"></span>
+            <span class="dot y"></span>
+            <span class="dot g"></span>
+          </div>
+          <span>whale-cli &middot; ~/projects/myapp &middot; feat/auth-flow</span>
+          <span id="session-model" style="color: var(--text-muted)">claude-opus-4-5 &middot; 待机</span>
+        </div>
+        <div id="session-content" class="session-content"></div>
+        <div class="session-footer">
+          <span>&larr; &rarr; 切步骤 &middot; Space 播放 &middot; <strong style="color:var(--orange)">O</strong> 展开/折叠工具输出</span>
+          <span id="session-status">等待开始</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="panel controls">
+      <button id="prev-btn" class="ctrl-btn">&larr; 上一步</button>
+      <button id="play-btn" class="ctrl-btn primary">&#9654; 播放</button>
+      <button id="next-btn" class="ctrl-btn">下一步 &rarr;</button>
+      <button id="reset-btn" class="ctrl-btn">&#8634; 重置</button>
+      <span class="spacer"></span>
+      <span class="label">速度</span>
+      <button class="speed-btn ctrl-btn" data-speed="0.5">0.5&times;</button>
+      <button class="speed-btn ctrl-btn active" data-speed="1">1&times;</button>
+      <button class="speed-btn ctrl-btn" data-speed="2">2&times;</button>
+    </div>
+
+  </div>
+
+  <script>
+    /* ========== PIPELINE COMPONENTS ========== */
+    const PIPELINE = [
+      { id: 'input',          label: 'user input',        tip: '接收用户输入，转为 user message' },
+      { id: 'context-loader', label: 'context loader',    tip: '加载 CLAUDE.md 链、git 状态、项目记忆' },
+      { id: 'sys-prompt',     label: 'system prompt',     tip: '拼装角色定义 + 工具 schema + 现场' },
+      { id: 'api-client',     label: 'api client',        tip: '发 HTTP 请求给 LLM，管 cache 和 retry' },
+      { id: 'model',          label: 'model',             tip: 'LLM 推理，输出 thinking + tool_calls 或文本' },
+      { id: 'approval',       label: 'approval + hooks',  tip: '批准闸门 + PreToolUse/PostToolUse hook' },
+      { id: 'tool-runner',    label: 'tool runner',       tip: '并行执行被批准的工具调用' },
+      { id: 'context-mgr',    label: 'context manager',   tip: '检查 token 用量，需要时压缩老消息' },
+      { id: 'api-client-2',   label: 'api client (2nd)',  tip: '第二次 LLM 调用，带上工具结果' },
+      { id: 'model-final',    label: 'model (final)',     tip: '模型基于工具结果给出最终答案' },
+      { id: 'render',         label: 'render + persist',  tip: '流式渲染 + Stop hook + session 持久化' },
+    ];
+
+    /* ========== SESSION DATA ========== */
+    const TASK = '项目里 user signup 的流程，登出后再登录会丢 cookie。帮我查一下哪儿写错了。';
+
+    const THINKING_TEXT = '用户报告 cookie 在登出后再登录时丢失。这通常涉及 logout 没正确清掉 cookie / login 覆盖逻辑错误 / set-cookie header 配置问题。我应该并行查 auth 目录结构、grep cookie 操作、读 logout 文件——三件事可以同时做，节省往返。';
+
+    const FINAL_ANSWER = '找到了。logout.ts:47 的 clearCookie("session") 没传 path 参数。浏览器默认 path 跟 set 时（login.ts:23 用 path="/")不一致，所以旧 cookie 没被覆盖。改成 res.clearCookie("session", { path: "/" }) 即可。要我改并跑测试吗？';
+
+    const GLOB_PREVIEW = '4 files: session.ts, login.ts, logout.ts, middleware.ts';
+    const GLOB_FULL =
+`Found 4 files matching "src/auth/**/*.ts":
+
+  src/auth/session.ts        (132 lines)
+  src/auth/login.ts          ( 89 lines)
+  src/auth/logout.ts         ( 87 lines)
+  src/auth/middleware.ts     ( 54 lines)
+
+执行耗时: 12ms`;
+
+    const GREP_PREVIEW = '6 matches; key: logout.ts:47 clearCookie 缺 path';
+    const GREP_FULL =
+`6 matches in 2 files for /clearCookie|setCookie/
+
+src/auth/login.ts
+  23:   res.setCookie("session", token, { path: "/", httpOnly: true })
+  47:   setCookie("refresh", refresh, { path: "/", httpOnly: true })
+
+src/auth/logout.ts
+  47:   res.clearCookie("session")              // ← path 没传！
+  52:   res.clearCookie("refresh")              // ← 同上
+  58:   setCookie("logout-flag", "1", { path: "/" })
+  63:   return res.json({ ok: true })
+
+执行耗时: 38ms (并行)`;
+
+    const READ_PREVIEW = 'src/auth/logout.ts (87 lines)';
+    const READ_FULL =
+`src/auth/logout.ts (87 lines)
+
+30  export async function logout(req, res) {
+31    const token = req.cookies.session
+32    if (!token) {
+33      return res.status(401).json({ error: "Not logged in" })
+34    }
+35
+36    // Invalidate the session in DB
+37    await db.session.delete({ where: { token } })
+38    await audit.log({ user: req.user.id, action: "logout" })
+39
+40    // Clear refresh token from store
+41    if (req.cookies.refresh) {
+42      await db.refreshToken.delete({ where: { token: req.cookies.refresh } })
+43    }
+44
+45
+46    // Clear cookies
+47    res.clearCookie("session")           // ← BUG: 没传 path 选项！
+48    res.clearCookie("refresh")           // ← 同样的问题
+49
+50    return res.json({ ok: true })
+51  }`;
+
+    const CONTEXT_ITEMS = [
+      '~/.claude/CLAUDE.md (全局偏好, ~120 字)',
+      '~/projects/CLAUDE.md (团队约定, ~80 字)',
+      '~/projects/myapp/CLAUDE.md (项目约定, ~340 字)',
+      'session-prev.json (上次 todo 残留 3 条)',
+      'cwd: ~/projects/myapp',
+      'branch: feat/auth-flow',
+      '近 5 次 commit: a3f2 fix login redirect / b8c1 add 2fa stub / ...',
+    ];
+
+    /* ========== 11 STEPS ========== */
+    const STEPS = [
+      {
+        title: '用户输入接收',
+        desc: '用户在终端键入一句话，转为 user message 进入 messages 数组。',
+        activeComps: ['input'],
+        msgCount: 1, tokens: '~120', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK }
+        ]
+      },
+      {
+        title: '加载 CLAUDE.md 链 + 项目记忆',
+        desc: '沿 cwd 向上找所有 CLAUDE.md 全部 concatenate，加上 git 状态、上次 session 残留。',
+        activeComps: ['context-loader'],
+        msgCount: 1, tokens: '~680', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'sys-ctx', type: 'system', content: CONTEXT_ITEMS.join('\n') }
+        ]
+      },
+      {
+        title: '拼装 system prompt',
+        desc: '组装 system prompt: 角色定义 + 14 个工具 schema + skills 索引 + 项目现场。约 3500 tokens，缓存复用。',
+        activeComps: ['sys-prompt'],
+        msgCount: 1, tokens: '~3,500', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'sys-ctx', type: 'system', content: CONTEXT_ITEMS.join('\n') }
+        ]
+      },
+      {
+        title: '第一次 LLM 调用',
+        desc: 'system + messages + tools schema + cache markers 发给 LLM。缓存命中省 90% input cost。',
+        activeComps: ['api-client'],
+        msgCount: 1, tokens: '~5,550', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'sys-ctx', type: 'system', content: CONTEXT_ITEMS.join('\n') }
+        ]
+      },
+      {
+        title: '模型 thinking + 多工具决定',
+        desc: '模型先内部 think（reasoning 可见），然后输出 3 个并行 tool_calls: Glob + Grep + Read。',
+        activeComps: ['model'],
+        msgCount: 2, tokens: '~6,350', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: THINKING_TEXT },
+          { id: 'asst-1', type: 'assistant-tool', content: '', toolCalls: [
+            { name: 'Glob', args: { pattern: 'src/auth/**/*.ts' } },
+            { name: 'Grep', args: { pattern: 'clearCookie|setCookie', path: 'src/auth' } },
+            { name: 'Read', args: { path: 'src/auth/logout.ts' } },
+          ] }
+        ]
+      },
+      {
+        title: '批准闸门 + PreToolUse hook',
+        desc: '每个 tool_call 过批准闸门。Glob/Grep/Read 都是 read-only，自动放行。',
+        activeComps: ['approval'],
+        msgCount: 2, tokens: '~6,350', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: THINKING_TEXT },
+          { id: 'asst-1', type: 'assistant-tool', content: '', toolCalls: [
+            { name: 'Glob', args: { pattern: 'src/auth/**/*.ts' } },
+            { name: 'Grep', args: { pattern: 'clearCookie|setCookie', path: 'src/auth' } },
+            { name: 'Read', args: { path: 'src/auth/logout.ts' } },
+          ] },
+          { id: 'approve-info', type: 'system', content: 'Glob  src/auth/**/*.ts          → auto-approve (read-only) ✓\nGrep  clearCookie|setCookie   → auto-approve (read-only) ✓\nRead  src/auth/logout.ts      → auto-approve (read-only) ✓' }
+        ]
+      },
+      {
+        title: '并行执行工具',
+        desc: '三个工具同时跑 (Promise.all)，read-only 相互独立。约 38ms 全部回来。',
+        activeComps: ['tool-runner'],
+        msgCount: 5, tokens: '~7,200', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: THINKING_TEXT },
+          { id: 'asst-1', type: 'assistant-tool', content: '', toolCalls: [
+            { name: 'Glob', args: { pattern: 'src/auth/**/*.ts' } },
+            { name: 'Grep', args: { pattern: 'clearCookie|setCookie', path: 'src/auth' } },
+            { name: 'Read', args: { path: 'src/auth/logout.ts' } },
+          ] },
+          { id: 'tool-glob', type: 'tool-result', toolName: 'Glob', preview: GLOB_PREVIEW, fullContent: GLOB_FULL, status: 'success' },
+          { id: 'tool-grep', type: 'tool-result', toolName: 'Grep', preview: GREP_PREVIEW, fullContent: GREP_FULL, status: 'success' },
+          { id: 'tool-read', type: 'tool-result', toolName: 'Read', preview: READ_PREVIEW, fullContent: READ_FULL, status: 'success' },
+        ]
+      },
+      {
+        title: '工具结果回灌 + PostToolUse hook',
+        desc: '三个 tool result 以 role="tool" 推入 messages。每个工具完成时 PostToolUse hook 触发。',
+        activeComps: ['tool-runner', 'approval'],
+        msgCount: 5, tokens: '~7,850', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: THINKING_TEXT },
+          { id: 'asst-1', type: 'assistant-tool', content: '', toolCalls: [
+            { name: 'Glob', args: { pattern: 'src/auth/**/*.ts' } },
+            { name: 'Grep', args: { pattern: 'clearCookie|setCookie', path: 'src/auth' } },
+            { name: 'Read', args: { path: 'src/auth/logout.ts' } },
+          ] },
+          { id: 'tool-glob', type: 'tool-result', toolName: 'Glob', preview: GLOB_PREVIEW, fullContent: GLOB_FULL, status: 'success' },
+          { id: 'tool-grep', type: 'tool-result', toolName: 'Grep', preview: GREP_PREVIEW, fullContent: GREP_FULL, status: 'success' },
+          { id: 'tool-read', type: 'tool-result', toolName: 'Read', preview: READ_PREVIEW, fullContent: READ_FULL, status: 'success' },
+          { id: 'hook-info', type: 'system', content: 'PostToolUse hook: 3 个工具全部完成 (38ms 并行)\nmessages 新增 3 条 tool result' }
+        ]
+      },
+      {
+        title: '上下文管理 + 可选压缩',
+        desc: '检查 token 用量: 7,850 / 200,000 (3.9%)。远未到 limit，不触发压缩。',
+        activeComps: ['context-mgr'],
+        msgCount: 5, tokens: '~7,850', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: THINKING_TEXT },
+          { id: 'asst-1', type: 'assistant-tool', content: '', toolCalls: [
+            { name: 'Glob', args: { pattern: 'src/auth/**/*.ts' } },
+            { name: 'Grep', args: { pattern: 'clearCookie|setCookie', path: 'src/auth' } },
+            { name: 'Read', args: { path: 'src/auth/logout.ts' } },
+          ] },
+          { id: 'tool-glob', type: 'tool-result', toolName: 'Glob', preview: GLOB_PREVIEW, fullContent: GLOB_FULL, status: 'success' },
+          { id: 'tool-grep', type: 'tool-result', toolName: 'Grep', preview: GREP_PREVIEW, fullContent: GREP_FULL, status: 'success' },
+          { id: 'tool-read', type: 'tool-result', toolName: 'Read', preview: READ_PREVIEW, fullContent: READ_FULL, status: 'success' },
+          { id: 'ctx-info', type: 'system', content: 'context check: 7,850 / 200,000 tokens (3.9%)\n✓ 无需压缩，继续下一次 LLM 调用' }
+        ]
+      },
+      {
+        title: '第二次 LLM 调用 + 最终答案',
+        desc: '带上工具结果再调一次 LLM。模型看到所有线索，直接给出最终答案。',
+        activeComps: ['api-client-2', 'model-final'],
+        msgCount: 6, tokens: '~9,200', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: THINKING_TEXT },
+          { id: 'asst-1', type: 'assistant-tool', content: '', toolCalls: [
+            { name: 'Glob', args: { pattern: 'src/auth/**/*.ts' } },
+            { name: 'Grep', args: { pattern: 'clearCookie|setCookie', path: 'src/auth' } },
+            { name: 'Read', args: { path: 'src/auth/logout.ts' } },
+          ] },
+          { id: 'tool-glob', type: 'tool-result', toolName: 'Glob', preview: GLOB_PREVIEW, fullContent: GLOB_FULL, status: 'success' },
+          { id: 'tool-grep', type: 'tool-result', toolName: 'Grep', preview: GREP_PREVIEW, fullContent: GREP_FULL, status: 'success' },
+          { id: 'tool-read', type: 'tool-result', toolName: 'Read', preview: READ_PREVIEW, fullContent: READ_FULL, status: 'success' },
+          { id: 'asst-final', type: 'assistant-final', content: FINAL_ANSWER }
+        ]
+      },
+      {
+        title: '流式输出 + Stop hook + 持久化',
+        desc: '流式渲染到终端。Stop hook 触发。session 持久化到 ~/.whale/sessions/，可 resume。',
+        activeComps: ['render'],
+        msgCount: 6, tokens: '~9,200', turn: 1,
+        cards: [
+          { id: 'user-1', type: 'user', content: TASK },
+          { id: 'thinking-1', type: 'thinking', content: THINKING_TEXT },
+          { id: 'asst-1', type: 'assistant-tool', content: '', toolCalls: [
+            { name: 'Glob', args: { pattern: 'src/auth/**/*.ts' } },
+            { name: 'Grep', args: { pattern: 'clearCookie|setCookie', path: 'src/auth' } },
+            { name: 'Read', args: { path: 'src/auth/logout.ts' } },
+          ] },
+          { id: 'tool-glob', type: 'tool-result', toolName: 'Glob', preview: GLOB_PREVIEW, fullContent: GLOB_FULL, status: 'success' },
+          { id: 'tool-grep', type: 'tool-result', toolName: 'Grep', preview: GREP_PREVIEW, fullContent: GREP_FULL, status: 'success' },
+          { id: 'tool-read', type: 'tool-result', toolName: 'Read', preview: READ_PREVIEW, fullContent: READ_FULL, status: 'success' },
+          { id: 'asst-final', type: 'assistant-final', content: FINAL_ANSWER },
+          { id: 'persist-info', type: 'system', content: 'Stop hook ✓ · session 已持久化到 ~/.whale/sessions/2026-04-27-15-32.json\n控制权交回用户，等待下一条输入' }
+        ]
+      }
+    ];
+
+    /* ========== STATE ========== */
+    let currentStep = 1;
+    let playing = false;
+    let playTimer = null;
+    let speedMultiplier = 1;
+    const BASE_INTERVAL_MS = 4000;
+    const expandedSet = new Set();
+
+    /* ========== UTILS ========== */
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+
+    /* ========== RENDER: PIPELINE ========== */
+    function renderPipeline(activeIds, stepN) {
+      const el = document.getElementById('pipeline');
+      // Collect all previously visited component ids
+      const visitedIds = new Set();
+      for (let i = 0; i < stepN - 1; i++) {
+        STEPS[i].activeComps.forEach(id => visitedIds.add(id));
+      }
+      const activeSet = new Set(activeIds);
+
+      let html = '';
+      PIPELINE.forEach((comp, idx) => {
+        // Determine state
+        let state = 'idle';
+        if (activeSet.has(comp.id)) state = 'active';
+        else if (visitedIds.has(comp.id)) state = 'passed';
+
+        const icon = state === 'active' ? '◉' : (state === 'passed' ? '◉' : '○');
+
+        html += `<div class="pipe-node ${state}">
+          <span class="pipe-icon">${icon}</span>
+          <span class="pipe-label">${comp.label}</span>
+          <span class="pipe-tip">${comp.tip}</span>
+        </div>`;
+
+        // Arrow between nodes
+        if (idx < PIPELINE.length - 1) {
+          let arrowState = '';
+          if (state === 'active') arrowState = 'active';
+          else if (state === 'passed') arrowState = 'passed';
+          html += `<div class="pipe-arrow ${arrowState}">↓</div>`;
+        }
+      });
+      el.innerHTML = html;
+    }
+
+    /* ========== RENDER: SESSION CARDS ========== */
+    function highlightCodeLine(line) {
+      // Highlight code in tool results
+      if (/^\s*\/\//.test(line) || /^\s*#/.test(line)) return `<span class="r-cmt">${line}</span>`;
+      if (/BUG|bug|←/.test(line)) return `<span class="r-bug">${line}</span>`;
+      if (/\b(export|async|function|const|let|var|if|return|await|import)\b/.test(line)) {
+        return line.replace(/\b(export|async|function|const|let|var|if|return|await|import)\b/g, '<span class="r-kw">$1</span>');
+      }
+      if (/\b(res|req|db|audit)\b/.test(line)) {
+        return line.replace(/\b(res|req|db|audit)\b/g, '<span class="r-fn">$1</span>');
+      }
+      if (/"[^"]*"/.test(line)) {
+        return line.replace(/"([^"]*)"/g, '<span class="r-str">"$1"</span>');
+      }
+      return line;
+    }
+
+    function renderSessionCard(card, isNew) {
+      const pastClass = isNew ? 'current-msg' : 'past-msg';
+
+      switch (card.type) {
+        case 'user':
+          return `<div class="msg-card user-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header"><span class="msg-badge badge-user">USER</span></div>
+            <div class="msg-card-body"><div class="msg-text">${esc(card.content)}</div></div>
+          </div>`;
+
+        case 'system':
+          return `<div class="msg-card system-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header"><span class="msg-badge badge-system">SYSTEM</span></div>
+            <div class="msg-card-body"><div class="msg-text" style="color: var(--text-dim); font-size: 11px;">${esc(card.content)}</div></div>
+          </div>`;
+
+        case 'thinking':
+          return `<div class="msg-card thinking-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header"><span class="msg-badge badge-thinking">THINKING</span></div>
+            <div class="msg-card-body"><div class="msg-text" style="color: var(--text-dim); font-style: italic;">${esc(card.content)}</div></div>
+          </div>`;
+
+        case 'assistant-tool':
+          return `<div class="msg-card assistant-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header"><span class="msg-badge badge-assistant">ASSISTANT</span></div>
+            <div class="msg-card-body">
+              ${card.content ? `<div class="msg-text" style="margin-bottom: 6px; color: var(--text-dim);">${esc(card.content)}</div>` : ''}
+              ${(card.toolCalls || []).map(tc => `
+                <div class="tool-call-inner">
+                  <div class="tool-call-header">
+                    <span class="tool-call-icon">⏲</span>
+                    <span class="tool-call-name">${esc(tc.name)}</span>
+                  </div>
+                  <div class="tool-call-args">
+                    ${Object.entries(tc.args).map(([k, v]) => `<span class="arg-key">${esc(k)}</span>: <span class="arg-val">"${esc(v)}"</span>`).join('<br>')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+
+        case 'tool-result': {
+          const rid = `result-${card.id}`;
+          const isExpanded = expandedSet.has(rid);
+          const fullLines = (card.fullContent || '').split('\n');
+          const numberedLines = fullLines.map((line, i) =>
+            `<div class="result-line"><span class="result-lineno">${i + 1}</span><span class="result-code">${highlightCodeLine(esc(line))}</span></div>`
+          ).join('');
+
+          return `<div class="msg-card tool-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header">
+              <span class="msg-badge badge-tool">TOOL</span>
+              <span style="color: var(--text-muted); font-size: 9px;">${esc(card.toolName)}</span>
+            </div>
+            <div class="msg-card-body">
+              <div class="tool-result-preview" data-rid="${rid}">
+                <span class="expand-arrow ${isExpanded ? 'open' : ''}">▶</span>
+                <span class="ok-text">✓ 成功</span>
+                <span class="preview-text">${esc(card.preview)}</span>
+                <span class="click-hint">${isExpanded ? '点击收起' : '点击展开'}</span>
+              </div>
+              <div class="tool-result-expanded ${isExpanded ? 'open' : ''}" data-rid="${rid}">
+                <pre>${numberedLines}</pre>
+              </div>
+            </div>
+          </div>`;
+        }
+
+        case 'assistant-final':
+          return `<div class="msg-card assistant-card ${pastClass}" data-card-id="${card.id}">
+            <div class="msg-card-header"><span class="msg-badge badge-assistant">ASSISTANT</span></div>
+            <div class="msg-card-body"><div class="msg-text">${esc(card.content)}</div></div>
+          </div>`;
+      }
+      return '';
+    }
+
+    function renderSession(stepN) {
+      const view = document.getElementById('session-content');
+      const status = document.getElementById('session-status');
+      const modelEl = document.getElementById('session-model');
+      const step = STEPS[stepN - 1];
+      const cards = step.cards;
+
+      // Determine new cards vs previous step
+      const prevCards = stepN > 1 ? STEPS[stepN - 2].cards : [];
+      const prevIds = new Set(prevCards.map(c => c.id));
+
+      // Context bar
+      let html = `<div class="context-bar">
+        <div class="ctx-item"><span class="ctx-label">messages:</span> <span class="ctx-val">${step.msgCount}</span></div>
+        <div class="ctx-item"><span class="ctx-label">tokens:</span> <span class="ctx-val">${step.tokens}</span></div>
+        <div class="ctx-item"><span class="ctx-label">turn:</span> <span class="ctx-val">${step.turn}</span></div>
+      </div>`;
+
+      cards.forEach(card => {
+        const isNew = !prevIds.has(card.id);
+        html += renderSessionCard(card, isNew);
+      });
+
+      // Cursor unless final step
+      if (stepN < 11) {
+        html += `<div style="padding: 3px 0;"><span class="session-cursor"></span></div>`;
+      }
+
+      view.innerHTML = html;
+
+      // Expand/collapse handlers
+      view.querySelectorAll('.tool-result-preview').forEach(el => {
+        el.addEventListener('click', () => {
+          const rid = el.dataset.rid;
+          if (expandedSet.has(rid)) expandedSet.delete(rid);
+          else expandedSet.add(rid);
+          renderSession(stepN);
+        });
+      });
+
+      // Auto-scroll
+      requestAnimationFrame(() => { view.scrollTop = view.scrollHeight; });
+
+      status.textContent = stepN < 11
+        ? `step ${stepN}/11 · 运行中`
+        : 'step 11/11 · 完成';
+
+      modelEl.textContent = stepN < 11
+        ? `claude-opus-4-5 · ${step.tokens} tokens`
+        : `claude-opus-4-5 · ${step.tokens} tokens · done`;
+    }
+
+    /* ========== RENDER: STEP INDICATOR ========== */
+    function renderStepIndicator(n) {
+      const ind = document.getElementById('step-indicator');
+      let html = '';
+      for (let i = 1; i <= 11; i++) {
+        const cls = i < n ? 'past' : (i === n ? 'current' : 'future');
+        html += `<div class="step-dot ${cls}" data-step="${i}">${i}</div>`;
+        if (i < 11) html += `<div class="step-line ${i < n ? 'passed' : ''}"></div>`;
+      }
+      ind.innerHTML = html;
+      ind.querySelectorAll('.step-dot').forEach(dot => {
+        dot.addEventListener('click', () => goTo(parseInt(dot.dataset.step)));
+      });
+    }
+
+    /* ========== RENDER: FULL STEP ========== */
+    function renderStep(n) {
+      const step = STEPS[n - 1];
+      document.getElementById('step-num').textContent = n;
+      document.getElementById('step-title').textContent = step.title;
+      document.getElementById('step-desc').textContent = step.desc;
+      renderPipeline(step.activeComps, n);
+      renderSession(n);
+      renderStepIndicator(n);
+      document.getElementById('prev-btn').disabled = (n === 1);
+      document.getElementById('next-btn').disabled = (n === 11);
+    }
+
+    /* ========== NAVIGATION ========== */
+    function goTo(n) { if (n >= 1 && n <= 11) { currentStep = n; renderStep(n); } }
+    function next() { if (currentStep < 11) goTo(currentStep + 1); }
+    function prev() { if (currentStep > 1) goTo(currentStep - 1); }
+    function reset() { goTo(1); stopPlay(); }
+
+    /* ========== PLAY CONTROLS ========== */
+    function startPlay() {
+      playing = true;
+      document.getElementById('play-btn').innerHTML = '⏸ 暂停';
+      playTimer = setInterval(() => {
+        if (currentStep === 11) { stopPlay(); return; }
+        next();
+      }, BASE_INTERVAL_MS / speedMultiplier);
+    }
+    function stopPlay() {
+      clearInterval(playTimer);
+      playing = false;
+      document.getElementById('play-btn').innerHTML = '▶ 播放';
+    }
+    function togglePlay() {
+      if (playing) stopPlay();
+      else { if (currentStep === 11) goTo(1); startPlay(); }
+    }
+    function setSpeed(s) {
+      speedMultiplier = s;
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.speed) === s));
+      if (playing) { stopPlay(); startPlay(); }
+    }
+
+    /* ========== EXPAND/COLLAPSE ALL ========== */
+    function toggleAllExpansions() {
+      const step = STEPS[currentStep - 1];
+      const toolCards = step.cards.filter(c => c.type === 'tool-result');
+      if (!toolCards.length) return;
+      const rids = toolCards.map(c => `result-${c.id}`);
+      const allExpanded = rids.every(id => expandedSet.has(id));
+      if (allExpanded) rids.forEach(id => expandedSet.delete(id));
+      else rids.forEach(id => expandedSet.add(id));
+      renderSession(currentStep);
+    }
+
+    /* ========== EVENT LISTENERS ========== */
+    document.getElementById('prev-btn').addEventListener('click', prev);
+    document.getElementById('next-btn').addEventListener('click', next);
+    document.getElementById('play-btn').addEventListener('click', togglePlay);
+    document.getElementById('reset-btn').addEventListener('click', reset);
+    document.querySelectorAll('.speed-btn').forEach(btn =>
+      btn.addEventListener('click', () => setSpeed(parseFloat(btn.dataset.speed)))
+    );
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') prev();
+      else if (e.key === 'ArrowRight') next();
+      else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+      else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); toggleAllExpansions(); }
+    });
+
+    /* ========== INIT ========== */
+    renderStep(1);
+  </script>
+</body>
+</html>

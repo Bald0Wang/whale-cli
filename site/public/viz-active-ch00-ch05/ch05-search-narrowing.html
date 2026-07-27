@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>搜索范围收敛实验</title>
+<link rel="stylesheet" href="./viz-foundation.css">
+<style>
+  * { box-sizing:border-box; }
+  :root {
+    --bg:#f5f2ea; --panel:#fffdf8; --panel2:#eee9df; --line:#d9d1c3;
+    --ink:#27231e; --text:#4b443b; --muted:#81776b; --accent:#d66f4e; --teal:#177765; --green:#327552; --purple:#7559b2;
+  }
+  body {
+    min-height:100vh; margin:0; padding:22px; color:var(--text);
+    background:radial-gradient(circle at 50% 0%,#ebe5da,transparent 56%),var(--bg);
+    font:13px/1.55 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  .lab { width:min(980px,100%); margin:auto; }
+  header { display:grid; grid-template-columns:1fr auto; gap:12px 20px; align-items:end; margin-bottom:14px; }
+  .eyebrow { color:var(--accent); font:800 10px/1.3 ui-monospace,Consolas,monospace; letter-spacing:.14em; }
+  h1 { margin:4px 0; color:var(--ink); font-size:20px; line-height:1.25; }
+  .status { min-height:20px; color:var(--muted); }
+  .controls { display:flex; gap:7px; }
+  button {
+    min-height:38px; padding:0 14px; border:1px solid var(--line); border-radius:8px;
+    color:var(--text); background:var(--panel); font:700 12px inherit; cursor:pointer;
+  }
+  button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  button.primary { color:white; border-color:var(--accent); background:var(--accent); }
+  .task {
+    grid-column:1/-1; display:flex; align-items:center; gap:10px; padding:10px 13px;
+    border:1px solid var(--line); border-radius:9px; background:rgba(255,253,248,.7);
+  }
+  .task b { color:var(--accent); font:800 10px ui-monospace,Consolas,monospace; letter-spacing:.08em; }
+  .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px; }
+  .metric { padding:11px 13px; border:1px solid var(--line); border-radius:9px; background:var(--panel); }
+  .metric span { display:block; color:var(--muted); font-size:10px; }
+  .metric strong { color:var(--ink); font:800 21px/1.15 ui-monospace,Consolas,monospace; }
+  .metric small { color:var(--muted); }
+  .workspace {
+    display:grid; grid-template-columns:230px 1fr; min-height:410px; overflow:hidden;
+    border:1px solid var(--line); border-radius:12px; background:var(--panel); box-shadow:0 18px 45px rgba(55,44,31,.1);
+  }
+  .rounds { border-right:1px solid var(--line); background:#f0ebe2; }
+  .round {
+    width:100%; min-height:92px; padding:14px; border:0; border-bottom:1px solid var(--line);
+    border-radius:0; text-align:left; background:transparent; color:var(--muted);
+  }
+  .round:hover { color:var(--ink); border-color:var(--line); }
+  .round.active { color:var(--ink); background:var(--panel); box-shadow:inset 3px 0 var(--accent); }
+  .round.done { color:var(--green); }
+  .round-index { display:block; font:800 10px ui-monospace,Consolas,monospace; letter-spacing:.08em; }
+  .round-title { display:block; margin:5px 0 3px; font-weight:800; }
+  .round-query { display:block; overflow:hidden; text-overflow:ellipsis; font:10px ui-monospace,Consolas,monospace; white-space:nowrap; }
+  .stage { padding:22px; }
+  .reason { min-height:48px; margin-bottom:14px; padding:11px 13px; border-left:3px solid var(--accent); border-radius:0 8px 8px 0; color:var(--muted); background:#f6f1e8; }
+  .reason strong { color:var(--ink); }
+  .call {
+    padding:13px 15px; border:1px solid var(--line); border-radius:9px;
+    background:var(--panel2); font:12px/1.55 ui-monospace,Consolas,monospace; overflow-wrap:anywhere;
+  }
+  .fn { color:var(--accent); font-weight:800; } .arg { color:var(--teal); }
+  .funnel { margin:22px 0 15px; }
+  .funnel-head { display:flex; justify-content:space-between; margin-bottom:7px; color:var(--muted); font-size:11px; }
+  .track { height:42px; padding:5px; overflow:hidden; border-radius:9px; background:#eee8de; }
+  .fill {
+    display:flex; align-items:center; height:100%; min-width:58px; padding:0 10px; border-radius:6px;
+    color:white; background:linear-gradient(90deg,var(--accent),#e59472);
+    font:800 11px ui-monospace,Consolas,monospace; transition:width .55s cubic-bezier(.2,.8,.2,1);
+  }
+  .files { display:flex; flex-wrap:wrap; gap:6px; min-height:31px; }
+  .file { padding:5px 8px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:#faf7f1; font:10px ui-monospace,Consolas,monospace; }
+  .evidence { margin-top:15px; padding:10px 12px; border:1px dashed var(--line); border-radius:8px; color:var(--muted); }
+  .evidence b { color:var(--purple); }
+  .lesson { margin-top:11px; color:var(--muted); font-size:11px; }
+  .lesson strong { color:var(--green); }
+  @media(max-width:700px) {
+    body { padding:14px; }
+    header { grid-template-columns:1fr; }
+    .controls { justify-content:flex-start; }
+    .metrics { grid-template-columns:1fr 1fr; }
+    .workspace { grid-template-columns:1fr; }
+    .rounds { display:grid; grid-template-columns:repeat(3,1fr); border-right:0; border-bottom:1px solid var(--line); }
+    .round { min-height:74px; padding:10px; border-bottom:0; border-right:1px solid var(--line); }
+    .round-query { display:none; }
+    .stage { padding:16px; }
+  }
+</style>
+</head>
+<body>
+<main class="lab">
+  <header>
+    <div>
+      <div class="eyebrow">SEARCH FUNNEL</div>
+      <h1>好的搜索不是一次命中，而是逐轮缩小</h1>
+      <div class="status" id="status">第 1 轮：用宽泛词建立全局地图。</div>
+    </div>
+    <div class="controls">
+      <button id="prevBtn" disabled>上一步</button>
+      <button class="primary" id="nextBtn">下一步</button>
+      <button id="resetBtn">重置</button>
+    </div>
+    <div class="task"><b>TASK</b><span>找到用户消息进入服务端后，实际由哪个函数分发。</span></div>
+  </header>
+
+  <section class="metrics" aria-label="搜索成本">
+    <div class="metric"><span>候选匹配</span><strong id="matches">200+</strong><small> 条</small></div>
+    <div class="metric"><span>需要阅读</span><strong id="reads">18</strong><small> 个文件</small></div>
+    <div class="metric"><span>预计上下文</span><strong id="tokens">24K</strong><small> tokens</small></div>
+  </section>
+
+  <section class="workspace">
+    <nav class="rounds" aria-label="搜索轮次">
+      <button class="round active" data-step="0">
+        <span class="round-index">ROUND 01</span><span class="round-title">宽泛搜索</span><span class="round-query">message · **/*.py</span>
+      </button>
+      <button class="round" data-step="1">
+        <span class="round-index">ROUND 02</span><span class="round-title">目录 + 动词</span><span class="round-query">dispatch · server/**</span>
+      </button>
+      <button class="round" data-step="2">
+        <span class="round-index">ROUND 03</span><span class="round-title">函数名反查</span><span class="round-query">dispatchInboundMessage</span>
+      </button>
+    </nav>
+    <article class="stage">
+      <div class="reason" id="reason"></div>
+      <div class="call" id="call"></div>
+      <div class="funnel">
+        <div class="funnel-head"><span>候选空间</span><span id="ratio"></span></div>
+        <div class="track"><div class="fill" id="fill"></div></div>
+      </div>
+      <div class="files" id="files"></div>
+      <div class="evidence" id="evidence"></div>
+      <div class="lesson"><strong>策略：</strong><span id="lesson"></span></div>
+    </article>
+  </section>
+</main>
+
+<script src="./viz-foundation.js"></script>
+<script>
+  var steps = [
+    {
+      matches:"200+", reads:"18", tokens:"24K", width:"100%", ratio:"200+ 条匹配",
+      status:"第 1 轮：用宽泛词建立全局地图。",
+      reason:"<strong>现在只知道领域词 “message”。</strong>先确认它分布在哪些目录，不急着逐个读取。",
+      call:'<span class="fn">grep</span>(<span class="arg">"message"</span>, <span class="arg">"**/*.py"</span>)',
+      files:["server/","client/","tests/","plugins/","legacy/"],
+      evidence:"得到目录分布：高密度匹配集中在 <b>server/</b>。",
+      lesson:"先看结果的形状，找到下一轮可利用的目录线索。"
+    },
+    {
+      matches:"12", reads:"3", tokens:"4.2K", width:"31%", ratio:"缩小到 12 条",
+      status:"第 2 轮：加入目录范围与动作词。",
+      reason:"<strong>已经知道入口在 server/。</strong>把搜索范围限定到服务端，再换成更接近调用行为的动词 dispatch。",
+      call:'<span class="fn">grep</span>(<span class="arg">"dispatch"</span>, <span class="arg">"server/**/*.py"</span>)',
+      files:["server/dispatch.py","server/handler.py","server/router.py"],
+      evidence:'读取最相关文件后，发现函数名 <b>dispatchInboundMessage</b>。',
+      lesson:"每读一个文件，都要提取下一轮更精确的新线索。"
+    },
+    {
+      matches:"2", reads:"1", tokens:"0.9K", width:"9%", ratio:"最终只剩 2 条",
+      status:"第 3 轮：用唯一函数名反查定义与调用点。",
+      reason:"<strong>函数名几乎是唯一标识。</strong>最后一次搜索同时定位定义和上游调用者，调用链闭合。",
+      call:'<span class="fn">grep</span>(<span class="arg">"dispatchInboundMessage"</span>, <span class="arg">"**/*.py"</span>)',
+      files:["server/dispatch.py:84","server/router.py:219"],
+      evidence:"定位完成：<b>router.py:219 → dispatchInboundMessage()</b>。",
+      lesson:"200+ → 12 → 2；搜索的价值是控制读取量与上下文成本。"
+    }
+  ];
+  var current = 0;
+  var matches = document.getElementById("matches");
+  var reads = document.getElementById("reads");
+  var tokens = document.getElementById("tokens");
+  var reason = document.getElementById("reason");
+  var call = document.getElementById("call");
+  var ratio = document.getElementById("ratio");
+  var fill = document.getElementById("fill");
+  var files = document.getElementById("files");
+  var evidence = document.getElementById("evidence");
+  var lesson = document.getElementById("lesson");
+  var statusEl = document.getElementById("status");
+  var prevBtn = document.getElementById("prevBtn");
+  var nextBtn = document.getElementById("nextBtn");
+
+  function render(index) {
+    current = index;
+    var step = steps[index];
+    matches.textContent = step.matches;
+    reads.textContent = step.reads;
+    tokens.textContent = step.tokens;
+    reason.innerHTML = step.reason;
+    call.innerHTML = step.call;
+    ratio.textContent = step.ratio;
+    fill.style.width = step.width;
+    fill.textContent = step.matches;
+    files.innerHTML = step.files.map(function(file){ return '<span class="file">' + file + '</span>'; }).join("");
+    evidence.innerHTML = step.evidence;
+    lesson.textContent = step.lesson;
+    statusEl.textContent = step.status;
+    document.querySelectorAll(".round").forEach(function(button, i){
+      button.classList.toggle("active", i === index);
+      button.classList.toggle("done", i < index);
+    });
+    prevBtn.disabled = index === 0;
+    nextBtn.disabled = index === steps.length - 1;
+    nextBtn.textContent = index === steps.length - 1 ? "已定位" : "下一步";
+  }
+  prevBtn.addEventListener("click", function(){ if(current > 0) render(current - 1); });
+  nextBtn.addEventListener("click", function(){ if(current < steps.length - 1) render(current + 1); });
+  document.getElementById("resetBtn").addEventListener("click", function(){ render(0); });
+  document.querySelectorAll(".round").forEach(function(button){
+    button.addEventListener("click", function(){ render(Number(button.dataset.step)); });
+  });
+  render(0);
+</script>
+</body>
+</html>

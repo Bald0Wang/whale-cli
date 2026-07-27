@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edit 自我修正</title>
+<style>
+:root { --bg:#faf9f7; --surface:#fff; --border:#e8e5e0; --text:#2c2c2c; --text2:#888; --red:#c0392b; --green:#27864a; --amber:#b8860b; --blue:#2563eb; --red-bg:#fef2f2; --green-bg:#f0fdf4; --amber-bg:#fffbeb; --blue-bg:#eff6ff; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:2rem 1rem; }
+.container { max-width:640px; margin:0 auto; }
+h1 { font-size:1.1rem; font-weight:700; margin-bottom:0.2rem; }
+.subtitle { font-size:0.82rem; color:var(--text2); margin-bottom:1.5rem; }
+.timeline { position:relative; padding-left:2rem; }
+.timeline::before { content:''; position:absolute; left:9px; top:0; bottom:0; width:2px; background:var(--border); }
+.step { position:relative; margin-bottom:1.2rem; cursor:pointer; }
+.step .dot { position:absolute; left:-2rem; top:0.55rem; width:20px; height:20px; border-radius:50%; border:2px solid var(--border); background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:var(--text2); transition:all 0.3s; z-index:1; }
+.step.done .dot { border-color:var(--green); background:var(--green); color:#fff; }
+.step.current .dot { border-color:var(--accent); background:var(--accent); color:#fff; }
+.step.pending { opacity:0.35; }
+.step.pending .dot { background:var(--bg); }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; transition:border-color 0.3s, box-shadow 0.3s; }
+.step.current .card { border-color:color-mix(in srgb, var(--accent) 50%, var(--border)); box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.card-label { font-size:0.72rem; font-weight:600; margin-bottom:0.3rem; }
+.card-body { font-family:'SF Mono','Fira Code','Cascadia Code',monospace; font-size:0.72rem; line-height:1.7; color:#555; white-space:pre-wrap; }
+.hl-red { background:var(--red-bg); color:var(--red); padding:1px 3px; border-radius:2px; }
+.hl-green { background:var(--green-bg); color:var(--green); padding:1px 3px; border-radius:2px; }
+.hl-blue { color:var(--blue); }
+.hl-amber { color:var(--amber); }
+.controls { display:flex; gap:0.5rem; margin-bottom:1.2rem; }
+.btn { padding:0.35rem 1rem; background:var(--surface); border:1px solid var(--border); border-radius:6px; font-size:0.8rem; cursor:pointer; color:var(--text); transition:all 0.15s; }
+.btn:hover { border-color:var(--blue); color:var(--blue); }
+.btn:disabled { opacity:0.4; cursor:default; }
+.insight { background:var(--amber-bg); border-left:3px solid var(--amber); border-radius:0 8px 8px 0; padding:0.7rem 1rem; margin-top:1.2rem; font-size:0.8rem; line-height:1.6; opacity:0; transition:opacity 0.5s; }
+.insight.show { opacity:1; }
+.insight strong { color:var(--amber); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Edit 失败后，模型怎样自我修正</h1>
+  <p class="subtitle">点击"下一步"逐步推进，观察错误信息的质量如何决定修正效率</p>
+
+  <div class="controls">
+    <button class="btn" onclick="next()" id="btn-next">下一步 →</button>
+    <button class="btn" onclick="reset()">重置</button>
+  </div>
+
+  <div class="timeline">
+    <div class="step current" style="--accent:var(--blue)" id="s0">
+      <div class="dot">1</div>
+      <div class="card">
+        <div class="card-label" style="color:var(--blue)">模型发起 Edit</div>
+        <div class="card-body">⏺ edit_file({
+     path: "src/tools/execution.ts",
+     old_string: <span class="hl-red">"return `core.${ref.executorId}`;"</span>,
+     new_string: "return `core/${ref.executorId}`;"
+   })</div>
+      </div>
+    </div>
+
+    <div class="step pending" style="--accent:var(--red)" id="s1">
+      <div class="dot">2</div>
+      <div class="card">
+        <div class="card-label" style="color:var(--red)">匹配失败 — 错误信息带了真实内容</div>
+        <div class="card-body">✗ old_string not found in execution.ts
+
+<span class="hl-blue">最接近的匹配（第 8 行）:</span>
+    7 │  case "core":
+    8 │    <span class="hl-green">return `core:${ref.executorId}`;</span>
+    9 │  case "plugin":
+
+你给的: <span class="hl-red">core.${ref.executorId}</span>  ← 用了点号
+实际是: <span class="hl-green">core:${ref.executorId}</span>  ← 实际是冒号</div>
+      </div>
+    </div>
+
+    <div class="step pending" style="--accent:var(--amber)" id="s2">
+      <div class="dot">3</div>
+      <div class="card">
+        <div class="card-label" style="color:var(--amber)">模型看到了正确内容</div>
+        <div class="card-body"><span class="hl-amber">模型的判断：</span>
+"我记成了 core.，但实际分隔符是 core:。
+ 用文件里真正的内容作为 old_string 重试。"</div>
+      </div>
+    </div>
+
+    <div class="step pending" style="--accent:var(--green)" id="s3">
+      <div class="dot">4</div>
+      <div class="card">
+        <div class="card-label" style="color:var(--green)">第二次 Edit — 成功</div>
+        <div class="card-body">⏺ edit_file({
+     old_string: <span class="hl-green">"return `core:${ref.executorId}`;"</span>,
+     new_string: "return `core/${ref.executorId}`;"
+   })
+<span class="hl-green">✓ Applied edit to execution.ts</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight" id="insight">
+    <strong>关键不在重试次数，在错误信息的质量。</strong>如果只返回 "Error: not found"，模型会盲目换写法重试。但我们的实现把文件中最接近的代码也返回了——模型一看就知道自己把 <code>:</code> 记成了 <code>.</code>，一次修正就对了。
+  </div>
+</div>
+
+<script>
+let current = 0;
+const ids = ['s0','s1','s2','s3'];
+
+function next() {
+  if (current >= ids.length - 1) return;
+  document.getElementById(ids[current]).classList.remove('current');
+  document.getElementById(ids[current]).classList.add('done');
+  current++;
+  const el = document.getElementById(ids[current]);
+  el.classList.remove('pending');
+  el.classList.add('current');
+  if (current >= ids.length - 1) {
+    document.getElementById('btn-next').disabled = true;
+    document.getElementById('insight').classList.add('show');
+  }
+}
+
+function reset() {
+  current = 0;
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('done','current','pending');
+    el.classList.add(i === 0 ? 'current' : 'pending');
+  });
+  document.getElementById('btn-next').disabled = false;
+  document.getElementById('insight').classList.remove('show');
+}
+</script>
+</body>
+</html>

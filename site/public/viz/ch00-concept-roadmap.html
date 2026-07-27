@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>入门篇概念路线图</title>
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f5f0e8; --card:#ffffff;
+  --border:#e6dfd8; --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --teal:#0e7c66;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+  background: var(--bg0);
+  color: var(--ink);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+/* Header */
+.header {
+  margin-bottom: 24px;
+}
+.header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.header .subtitle {
+  font-size: 13px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 32px;
+  font-size: 12px;
+  color: var(--text2);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.legend-dot.tools { background: var(--accent); }
+.legend-dot.mechanisms { background: var(--teal); }
+
+/* Node list */
+.node-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+}
+
+/* The vertical line connecting nodes */
+.node-list::before {
+  content: '';
+  position: absolute;
+  left: 23px;
+  top: 20px;
+  bottom: 20px;
+  width: 1px;
+  background: var(--border);
+}
+
+/* Group divider */
+.group-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0 8px 48px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  position: relative;
+}
+.group-divider.tool-group { color: var(--accent); }
+.group-divider.mechanism-group { color: var(--teal); }
+.group-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Node row */
+.node-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  cursor: pointer;
+  position: relative;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+.node-row:hover {
+  background: var(--bg1);
+}
+
+/* The dot on the vertical line */
+.node-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--card);
+  flex-shrink: 0;
+  margin-left: 17px;
+  position: relative;
+  z-index: 1;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.node-row.tool .node-dot { border-color: var(--accent); }
+.node-row.mechanism .node-dot { border-color: var(--teal); }
+.node-row.active .node-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.15);
+}
+.node-row.active.mechanism .node-dot {
+  background: var(--teal);
+  border-color: var(--teal);
+}
+
+/* Chapter number */
+.node-ch {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  color: var(--text3);
+  width: 32px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.node-row.active .node-ch {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Concept name */
+.node-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  transition: color 0.15s ease;
+}
+.node-row.active .node-name {
+  color: var(--ink);
+  font-weight: 600;
+}
+.node-row.dim .node-name {
+  color: var(--text2);
+}
+.node-row.dim .node-ch {
+  color: var(--text3);
+}
+.node-row.dim .node-dot {
+  border-color: var(--border);
+  border-style: dashed;
+}
+
+/* Status tag for active nodes */
+.node-status {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+.node-status.current {
+  color: var(--accent);
+  background: rgba(217,119,87,0.08);
+}
+
+/* Expand arrow */
+.node-arrow {
+  font-size: 10px;
+  color: var(--text3);
+  flex-shrink: 0;
+  margin-right: 8px;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.node-row.expanded .node-arrow {
+  transform: rotate(90deg);
+  color: var(--text2);
+}
+
+/* Expanded description */
+.node-desc {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease;
+  padding: 0 12px 0 62px;
+  opacity: 0;
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+.node-row.expanded + .node-desc {
+  max-height: 60px;
+  padding: 2px 12px 10px 62px;
+  opacity: 1;
+}
+
+/* Fade-in animation */
+.node-row, .node-desc {
+  animation: rowFadeIn 0.35s ease-out both;
+}
+@keyframes rowFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .container { padding: 24px 16px 40px; }
+  .header h1 { font-size: 18px; }
+  .node-name { font-size: 13px; }
+  .node-ch { font-size: 10px; width: 28px; }
+  .node-desc { padding-left: 56px; }
+  .node-row.expanded + .node-desc { padding-left: 56px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>入门篇 概念路线图</h1>
+    <div class="subtitle">12 个核心概念，从工具到机制</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot tools"></div>
+      <span>工具层 Ch01-06</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot mechanisms"></div>
+      <span>机制层 Ch07-12</span>
+    </div>
+  </div>
+
+  <div class="node-list" id="nodeList"></div>
+</div>
+
+<script>
+const concepts = [
+  { id:1,  name:"工具调用",        ch:"01", desc:"模型返回一段 JSON，程序执行对应的函数",              group:"tool" },
+  { id:2,  name:"Agent Loop",      ch:"01", desc:"模型调工具、看结果、再调工具，循环直到完成",         group:"tool" },
+  { id:3,  name:"工具 Schema",     ch:"02", desc:"告诉模型有哪些工具可用、参数怎么填",                 group:"tool" },
+  { id:4,  name:"Read / Write / Edit", ch:"03", desc:"读文件、写文件、局部修改——Agent 操作代码的基本动作", group:"tool" },
+  { id:5,  name:"Glob / Grep",     ch:"04", desc:"在数万个文件中定位目标，不用逐个打开",               group:"tool" },
+  { id:6,  name:"Bash",            ch:"05", desc:"执行 shell 命令：跑测试、装依赖、查进程",            group:"tool" },
+  { id:7,  name:"TodoWrite",       ch:"06", desc:"把复杂任务拆成清单，逐个完成",                       group:"mechanism" },
+  { id:8,  name:"项目上下文",      ch:"07", desc:"启动时读取 CLAUDE.md 等规则，了解项目约定",          group:"mechanism" },
+  { id:9,  name:"Prompt 组装",     ch:"08", desc:"system prompt + 工具 + 历史，每一轮都重新拼好发出去",group:"mechanism" },
+  { id:10, name:"Session 持久化",  ch:"09", desc:"把工具调用记录存到文件，下次继续",                   group:"mechanism" },
+  { id:11, name:"上下文压缩",      ch:"10", desc:"历史太长时，浓缩成摘要保留关键信息",                 group:"mechanism" },
+  { id:12, name:"权限控制",        ch:"11", desc:"危险操作要用户确认，读文件可以直接执行",              group:"mechanism" },
+];
+
+const list = document.getElementById('nodeList');
+let expandedId = null;
+
+// Insert group dividers
+const toolGroup = document.createElement('div');
+toolGroup.className = 'group-divider tool-group';
+toolGroup.textContent = '工具层';
+list.appendChild(toolGroup);
+
+concepts.forEach((c, i) => {
+  // Insert mechanism group divider before first mechanism concept
+  if (i === 6) {
+    const mechGroup = document.createElement('div');
+    mechGroup.className = 'group-divider mechanism-group';
+    mechGroup.textContent = '机制层';
+    list.appendChild(mechGroup);
+  }
+
+  const isActive = i < 3;
+  const isDim = i >= 3;
+  const isMech = c.group === 'mechanism';
+
+  // Node row
+  const row = document.createElement('div');
+  let classes = 'node-row ' + c.group;
+  if (isActive) classes += ' active';
+  if (isDim) classes += ' dim';
+  row.className = classes;
+  row.style.animationDelay = (i * 0.04 + 0.1) + 's';
+  row.dataset.id = c.id;
+
+  let statusHtml = '';
+  if (isActive) {
+    statusHtml = '<span class="node-status current">已发布</span>';
+  }
+
+  row.innerHTML = `
+    <div class="node-dot"></div>
+    <span class="node-ch">${c.ch}</span>
+    <span class="node-name">${c.name}</span>
+    ${statusHtml}
+    <span class="node-arrow">&#9654;</span>
+  `;
+
+  // Description panel
+  const desc = document.createElement('div');
+  desc.className = 'node-desc';
+  desc.textContent = c.desc;
+  desc.style.animationDelay = (i * 0.04 + 0.12) + 's';
+
+  row.addEventListener('click', () => {
+    if (expandedId === c.id) {
+      row.classList.remove('expanded');
+      expandedId = null;
+    } else {
+      // Collapse previous
+      const prev = list.querySelector('.node-row.expanded');
+      if (prev) prev.classList.remove('expanded');
+      row.classList.add('expanded');
+      expandedId = c.id;
+    }
+  });
+
+  list.appendChild(row);
+  list.appendChild(desc);
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@tool Decorator Registration Animation</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #faf9f5;
+  color: #ebe0d2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container {
+  width: 100%;
+  max-width: 1100px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbar-label {
+  color: #6a6058;
+  font-size: 12px;
+  margin-right: 4px;
+}
+
+.register-btn {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  color: #ebe0d2;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.register-btn:hover:not(:disabled) {
+  border-color: #D77757;
+  color: #D77757;
+  background: #2a2320;
+}
+
+.register-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.counter {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6a6058;
+}
+
+.counter span {
+  color: #7ec384;
+  font-weight: 600;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  height: 450px;
+}
+
+.panel {
+  background: #0f0e0c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 10px 16px;
+  border-bottom: 1px solid #332d28;
+  font-size: 11px;
+  color: #6a6058;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.panel-header .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #332d28;
+}
+
+.panel-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Code panel */
+.code-block {
+  margin-bottom: 16px;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.4s, transform 0.4s;
+}
+
+.code-block.entering {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.code-block.highlight {
+  position: relative;
+}
+
+.code-block.highlight::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #D77757;
+  border-radius: 2px;
+  animation: pulse-bar 1s ease-in-out;
+}
+
+@keyframes pulse-bar {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.kw { color: #D77757; }
+.fn-name { color: #6477e0; }
+.str { color: #7ec384; }
+.param { color: #ebe0d2; }
+.comment { color: #6a6058; }
+.decorator { color: #D77757; }
+.type { color: #6477e0; }
+
+pre {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+/* Registry panel */
+.registry-card {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  transition: all 0.4s;
+}
+
+.registry-card.entering {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.registry-card.active {
+  opacity: 1;
+  transform: translateX(0);
+  border-color: #D77757;
+  box-shadow: 0 0 12px rgba(215, 119, 87, 0.15);
+}
+
+.registry-card.settled {
+  border-color: #332d28;
+  box-shadow: none;
+}
+
+.card-key {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7ec384;
+  margin-bottom: 6px;
+}
+
+.card-body {
+  font-size: 10.5px;
+  color: #6a6058;
+  line-height: 1.5;
+}
+
+.card-body .label {
+  color: #6477e0;
+}
+
+.card-body .value {
+  color: #ebe0d2;
+}
+
+/* Arrow animation overlay */
+.arrow-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.arrow-particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #D77757;
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow: 0 0 8px #D77757;
+}
+
+.arrow-particle.animate {
+  animation: fly-right 0.6s ease-in-out forwards;
+}
+
+@keyframes fly-right {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 0; transform: scale(0.5) translateX(100px); }
+}
+
+/* Insight bar */
+.insight {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #6a6058;
+  line-height: 1.6;
+}
+
+.insight strong {
+  color: #D77757;
+  font-weight: 600;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="toolbar">
+    <span class="toolbar-label">注册新工具:</span>
+    <button class="register-btn" data-tool="write_file" onclick="registerTool('write_file')">+ write_file</button>
+    <button class="register-btn" data-tool="edit_file" onclick="registerTool('edit_file')">+ edit_file</button>
+    <button class="register-btn" data-tool="glob" onclick="registerTool('glob')">+ glob</button>
+    <div class="counter">已注册 <span id="count">1</span>/4 个工具</div>
+  </div>
+
+  <div class="main">
+    <div class="panel" id="code-panel">
+      <div class="panel-header">
+        <span class="dot"></span>
+        tools.py
+      </div>
+      <div class="panel-body" id="code-body">
+        <div class="code-block" id="code-init">
+<pre><span class="comment"># 工具注册表</span>
+<span class="kw">_TOOLS</span>: <span class="type">dict</span> = {}</pre>
+        </div>
+        <div class="code-block" id="code-read_file">
+<pre><span class="decorator">@tool</span>(
+    <span class="param">name</span>=<span class="str">"read_file"</span>,
+    <span class="param">description</span>=<span class="str">"读取文件"</span>,
+    <span class="param">parameters</span>={...}
+)
+<span class="kw">def</span> <span class="fn-name">read_file</span>(<span class="param">path</span>: <span class="type">str</span>) -> <span class="type">str</span>:
+    <span class="kw">return</span> Path(path).read_text()</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="registry-panel">
+      <div class="panel-header">
+        <span class="dot"></span>
+        _TOOLS 注册表状态
+      </div>
+      <div class="panel-body" id="registry-body">
+        <div class="registry-card settled" id="card-read_file">
+          <div class="card-key">"read_file"</div>
+          <div class="card-body">
+            <span class="label">schema:</span> <span class="value">{ name, description, parameters }</span><br>
+            <span class="label">fn:</span> <span class="value">read_file</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <strong>Key insight:</strong> 加工具只需要写函数 + 加 @tool 装饰器。_TOOLS 字典自动更新，主循环一行不用改。
+  </div>
+</div>
+
+<div class="arrow-overlay" id="arrow-overlay"></div>
+
+<script>
+const toolDefs = {
+  write_file: {
+    code: `<span class="decorator">@tool</span>(
+    <span class="param">name</span>=<span class="str">"write_file"</span>,
+    <span class="param">description</span>=<span class="str">"写入文件"</span>,
+    <span class="param">parameters</span>={...}
+)
+<span class="kw">def</span> <span class="fn-name">write_file</span>(<span class="param">path</span>: <span class="type">str</span>, <span class="param">content</span>: <span class="type">str</span>) -> <span class="type">str</span>:
+    Path(path).write_text(content)
+    <span class="kw">return</span> <span class="str">"ok"</span>`,
+    card: {
+      key: '"write_file"',
+      schema: '{ name, description, parameters }',
+      fn: 'write_file'
+    }
+  },
+  edit_file: {
+    code: `<span class="decorator">@tool</span>(
+    <span class="param">name</span>=<span class="str">"edit_file"</span>,
+    <span class="param">description</span>=<span class="str">"编辑文件"</span>,
+    <span class="param">parameters</span>={...}
+)
+<span class="kw">def</span> <span class="fn-name">edit_file</span>(<span class="param">path</span>: <span class="type">str</span>, <span class="param">diff</span>: <span class="type">str</span>) -> <span class="type">str</span>:
+    apply_diff(path, diff)
+    <span class="kw">return</span> <span class="str">"applied"</span>`,
+    card: {
+      key: '"edit_file"',
+      schema: '{ name, description, parameters }',
+      fn: 'edit_file'
+    }
+  },
+  glob: {
+    code: `<span class="decorator">@tool</span>(
+    <span class="param">name</span>=<span class="str">"glob"</span>,
+    <span class="param">description</span>=<span class="str">"搜索文件"</span>,
+    <span class="param">parameters</span>={...}
+)
+<span class="kw">def</span> <span class="fn-name">glob</span>(<span class="param">pattern</span>: <span class="type">str</span>) -> <span class="type">list</span>:
+    <span class="kw">return</span> list(Path(<span class="str">"."</span>).glob(pattern))`,
+    card: {
+      key: '"glob"',
+      schema: '{ name, description, parameters }',
+      fn: 'glob'
+    }
+  }
+};
+
+let registered = 1;
+
+function registerTool(name) {
+  const btn = document.querySelector(`[data-tool="${name}"]`);
+  if (btn.disabled) return;
+  btn.disabled = true;
+
+  const def = toolDefs[name];
+  const codeBody = document.getElementById('code-body');
+  const registryBody = document.getElementById('registry-body');
+
+  // Create code block
+  const codeBlock = document.createElement('div');
+  codeBlock.className = 'code-block entering';
+  codeBlock.innerHTML = `<pre>${def.code}</pre>`;
+  codeBody.appendChild(codeBlock);
+
+  // Animate code in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      codeBlock.classList.remove('entering');
+      codeBlock.classList.add('highlight');
+      codeBody.scrollTop = codeBody.scrollHeight;
+    });
+  });
+
+  // Arrow animation after code appears
+  setTimeout(() => {
+    fireArrow(codeBlock);
+  }, 500);
+
+  // Add registry card
+  setTimeout(() => {
+    const card = document.createElement('div');
+    card.className = 'registry-card entering';
+    card.innerHTML = `
+      <div class="card-key">${def.card.key}</div>
+      <div class="card-body">
+        <span class="label">schema:</span> <span class="value">${def.card.schema}</span><br>
+        <span class="label">fn:</span> <span class="value">${def.card.fn}</span>
+      </div>
+    `;
+    registryBody.appendChild(card);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        card.classList.remove('entering');
+        card.classList.add('active');
+        registryBody.scrollTop = registryBody.scrollHeight;
+      });
+    });
+
+    // Settle card border
+    setTimeout(() => {
+      card.classList.remove('active');
+      card.classList.add('settled');
+    }, 1200);
+
+    // Update counter
+    registered++;
+    document.getElementById('count').textContent = registered;
+
+    // Remove highlight from code
+    setTimeout(() => {
+      codeBlock.classList.remove('highlight');
+    }, 800);
+  }, 900);
+}
+
+function fireArrow(sourceEl) {
+  const overlay = document.getElementById('arrow-overlay');
+  const rect = sourceEl.getBoundingClientRect();
+
+  const particle = document.createElement('div');
+  particle.className = 'arrow-particle';
+  particle.style.left = (rect.right - 20) + 'px';
+  particle.style.top = (rect.top + rect.height / 2) + 'px';
+  overlay.appendChild(particle);
+
+  requestAnimationFrame(() => {
+    particle.classList.add('animate');
+  });
+
+  setTimeout(() => {
+    particle.remove();
+  }, 700);
+}
+</script>
+</body>
+</html>

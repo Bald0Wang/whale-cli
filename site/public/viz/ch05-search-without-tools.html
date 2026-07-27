@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>没有搜索工具时，模型怎样寻找文件</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f4f2ea; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e8e4d8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:-apple-system,'Inter',system-ui,sans-serif;
+  background:radial-gradient(1100px 700px at 25% -8%, #fefdf9 0%, var(--bg0) 60%);
+  color:var(--text); min-height:100vh; padding:2.4rem 1rem 3rem;
+}
+.wrap { max-width:880px; margin:0 auto; }
+h1 {
+  font-family:Georgia,'Songti SC','Times New Roman',serif;
+  font-size:1.45rem; font-weight:600; color:var(--ink); text-align:center;
+  letter-spacing:0.01em;
+}
+.subtitle {
+  text-align:center; font-size:0.82rem; color:var(--text2);
+  margin:0.45rem 0 1.8rem;
+}
+
+/* ── columns ── */
+.columns { display:flex; gap:1rem; margin-bottom:1.2rem; }
+.col { flex:1; min-width:0; }
+
+/* ── column headers ── */
+.col-header {
+  display:flex; align-items:center; gap:0.5rem;
+  padding:0.65rem 0.9rem; border-radius:12px 12px 0 0;
+  font-size:0.82rem; font-weight:600;
+}
+.col-header.bad { background:rgba(194,64,42,0.07); color:var(--red); border:1px solid rgba(194,64,42,0.18); border-bottom:none; }
+.col-header.good { background:rgba(14,124,102,0.07); color:var(--teal); border:1px solid rgba(14,124,102,0.18); border-bottom:none; }
+.col-header .icon { font-size:1rem; }
+
+/* ── step list ── */
+.step-list {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:0 0 12px 12px; padding:0.6rem;
+  min-height:320px; box-shadow:var(--shadow-sm);
+}
+.col-header.bad + .step-list { border-color:rgba(194,64,42,0.18); }
+.col-header.good + .step-list { border-color:rgba(14,124,102,0.18); }
+
+/* ── step card ── */
+.step {
+  opacity:0; transform:translateY(8px);
+  transition:opacity 0.3s ease, transform 0.3s ease;
+  margin-bottom:0.45rem;
+}
+.step.visible { opacity:1; transform:translateY(0); }
+.step-inner {
+  display:flex; flex-direction:column; gap:0.25rem;
+  padding:0.5rem 0.7rem; border-radius:8px;
+  background:var(--card2); border:1px solid var(--border);
+  font-size:0.75rem;
+}
+.step-label {
+  font-size:0.68rem; color:var(--text2); font-weight:600;
+  display:flex; align-items:center; gap:0.35rem;
+}
+.step-label .num {
+  width:18px; height:18px; border-radius:50%; display:inline-flex;
+  align-items:center; justify-content:center; font-size:0.62rem;
+  color:#fff; flex-shrink:0;
+}
+.step.fail .step-label .num { background:var(--red); }
+.step.success .step-label .num { background:var(--green); }
+.step.search .step-label .num { background:var(--teal); }
+
+.step-call {
+  font-family:'JetBrains Mono',monospace; font-size:0.72rem;
+  color:var(--ink); word-break:break-all; line-height:1.45;
+}
+.step-call .fn { color:#2563a8; }
+.step-call .str { color:#b35c2a; }
+.step-result {
+  font-size:0.7rem; padding:0.2rem 0.5rem; border-radius:5px;
+  display:inline-block; margin-top:0.1rem; width:fit-content;
+}
+.step.fail .step-result { background:rgba(194,64,42,0.08); color:var(--red); }
+.step.success .step-result { background:rgba(46,125,79,0.08); color:var(--green); }
+.step.search .step-result { background:rgba(14,124,102,0.08); color:var(--teal); }
+
+/* ── counters ── */
+.counters {
+  display:flex; gap:0.6rem; margin-top:0.6rem; padding:0.5rem 0.7rem;
+  background:var(--bg1); border-radius:8px; font-size:0.75rem;
+}
+.counter {
+  display:flex; align-items:center; gap:0.3rem;
+  opacity:0; transition:opacity 0.4s ease;
+}
+.counter.visible { opacity:1; }
+.counter .val {
+  font-family:'JetBrains Mono',monospace; font-weight:600;
+  font-size:0.85rem; min-width:1.4em; text-align:center;
+}
+.counter.bad .val { color:var(--red); }
+.counter.good .val { color:var(--teal); }
+
+/* ── replay button ── */
+.btn-row { text-align:center; margin:1.2rem 0 1rem; }
+.replay-btn {
+  font-family:inherit; font-size:0.8rem; font-weight:600;
+  color:var(--accent); background:rgba(217,119,87,0.08);
+  border:1px solid rgba(217,119,87,0.25); border-radius:8px;
+  padding:0.5rem 1.4rem; cursor:pointer;
+  transition:background 0.2s, border-color 0.2s, transform 0.15s;
+}
+.replay-btn:hover { background:rgba(217,119,87,0.15); border-color:rgba(217,119,87,0.4); transform:translateY(-1px); }
+.replay-btn:active { transform:translateY(0); }
+
+/* ── footer note ── */
+.note {
+  text-align:center; font-size:0.78rem; color:var(--text2);
+  max-width:560px; margin:0 auto; line-height:1.55;
+  padding:0.8rem 1rem; background:var(--card);
+  border:1px solid var(--border); border-radius:10px;
+  box-shadow:var(--shadow-sm);
+}
+.note b { color:var(--ink); font-weight:600; }
+
+/* ── responsive ── */
+@media (max-width:640px) {
+  .columns { flex-direction:column; }
+  h1 { font-size:1.2rem; }
+  .step-list { min-height:auto; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>没有搜索工具时，模型怎样寻找文件</h1>
+  <p class="subtitle">对比两种策略的效率差异</p>
+
+  <div class="columns">
+    <!-- LEFT: no tools -->
+    <div class="col">
+      <div class="col-header bad">
+        <span class="icon">✕</span> 没有 Glob/Grep
+      </div>
+      <div class="step-list" id="left-steps"></div>
+      <div class="counters" id="left-counters">
+        <div class="counter bad" id="c-guess">
+          <span>猜测次数:</span><span class="val" id="v-guess">0</span>
+        </div>
+        <div class="counter bad" id="c-invalid">
+          <span>无效 Read:</span><span class="val" id="v-invalid">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: with tools -->
+    <div class="col">
+      <div class="col-header good">
+        <span class="icon">✓</span> 有 Grep 工具
+      </div>
+      <div class="step-list" id="right-steps"></div>
+      <div class="counters" id="right-counters">
+        <div class="counter good" id="c-search">
+          <span>搜索次数:</span><span class="val" id="v-search">0</span>
+        </div>
+        <div class="counter good" id="c-precise">
+          <span>精确 Read:</span><span class="val" id="v-precise">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="replay-btn" id="replay">▶ 重新播放</button>
+  </div>
+
+  <div class="note">
+    搜索工具把「<b>猜</b>」变成了「<b>查</b>」——模型不再需要靠运气找文件。
+  </div>
+</div>
+
+<script>
+const leftData = [
+  { label:'猜路径', call:'read_file', arg:'"src/message.py"', result:'文件不存在', type:'fail' },
+  { label:'再猜',   call:'read_file', arg:'"lib/messages.py"', result:'文件不存在', type:'fail' },
+  { label:'继续猜', call:'read_file', arg:'"core/msg.py"', result:'文件不存在', type:'fail' },
+  { label:'换目录', call:'read_file', arg:'"app/message_handler.py"', result:'文件不存在', type:'fail' },
+  { label:'终于找到', call:'read_file', arg:'"server/dispatch.py"', result:'找到了!', type:'success' },
+];
+
+const rightData = [
+  { label:'精确搜索', call:'grep', arg:'"dispatch.*message", "**/*.py"', result:'命中 2 个文件', type:'search' },
+  { label:'直接读取', call:'read_file', arg:'"server/dispatch.py"', result:'直接读取成功', type:'success' },
+];
+
+function buildStepHTML(d, idx) {
+  return `<div class="step ${d.type}" id="${d._id}">
+    <div class="step-inner">
+      <div class="step-label"><span class="num">${idx + 1}</span>${d.label}</div>
+      <div class="step-call"><span class="fn">${d.call}</span>(<span class="str">${d.arg}</span>)</div>
+      <div class="step-result">${d.result}</div>
+    </div>
+  </div>`;
+}
+
+function renderAll() {
+  const leftEl = document.getElementById('left-steps');
+  const rightEl = document.getElementById('right-steps');
+  leftEl.innerHTML = leftData.map((d, i) => { d._id = 'L' + i; return buildStepHTML(d, i); }).join('');
+  rightEl.innerHTML = rightData.map((d, i) => { d._id = 'R' + i; return buildStepHTML(d, i); }).join('');
+}
+
+let timer = null;
+
+function reset() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('visible'));
+  document.querySelectorAll('.counter').forEach(c => c.classList.remove('visible'));
+  document.getElementById('v-guess').textContent = '0';
+  document.getElementById('v-invalid').textContent = '0';
+  document.getElementById('v-search').textContent = '0';
+  document.getElementById('v-precise').textContent = '0';
+}
+
+function animate() {
+  reset();
+  const delay = 380;
+  let t = 400;
+
+  // Left column steps
+  leftData.forEach((d, i) => {
+    timer = setTimeout(() => {
+      document.getElementById(d._id).classList.add('visible');
+      document.getElementById('v-guess').textContent = i + 1;
+      if (d.type === 'fail') {
+        document.getElementById('v-invalid').textContent = i + 1;
+      }
+      // Show left counters after all left steps
+      if (i === leftData.length - 1) {
+        document.getElementById('c-guess').classList.add('visible');
+        document.getElementById('c-invalid').classList.add('visible');
+      }
+    }, t);
+    t += delay;
+  });
+
+  // Pause between columns
+  t += 500;
+
+  // Right column steps
+  rightData.forEach((d, i) => {
+    timer = setTimeout(() => {
+      document.getElementById(d._id).classList.add('visible');
+      if (d.type === 'search') {
+        document.getElementById('v-search').textContent = 1;
+      }
+      if (d.type === 'success') {
+        document.getElementById('v-precise').textContent = 1;
+      }
+      // Show right counters after all right steps
+      if (i === rightData.length - 1) {
+        document.getElementById('c-search').classList.add('visible');
+        document.getElementById('c-precise').classList.add('visible');
+      }
+    }, t);
+    t += delay;
+  });
+}
+
+document.getElementById('replay').addEventListener('click', () => {
+  renderAll();
+  animate();
+});
+
+// Initial render and auto-play
+renderAll();
+setTimeout(animate, 300);
+</script>
+</body>
+</html>

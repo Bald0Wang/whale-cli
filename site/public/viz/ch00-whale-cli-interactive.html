@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale CLI - Interactive Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: #1c1816;
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .terminal {
+    width: 100%;
+    max-width: 780px;
+    background: #0f0e0c;
+    border: 1px solid #332d28;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    max-height: calc(100vh - 100px);
+    overflow: hidden;
+  }
+
+  .title-bar {
+    background: #231f1c;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    border-radius: 8px 8px 0 0;
+    flex-shrink: 0;
+    border-bottom: 1px solid #332d28;
+  }
+
+  .dots {
+    display: flex;
+    gap: 8px;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .dot-red { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green { background: #28c840; }
+
+  .title-text {
+    flex: 1;
+    text-align: center;
+    color: #6a6058;
+    font-size: 13px;
+    margin-right: 52px;
+  }
+
+  .terminal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: #332d28 transparent;
+    position: relative;
+  }
+
+  .terminal-body::-webkit-scrollbar { width: 6px; }
+  .terminal-body::-webkit-scrollbar-track { background: transparent; }
+  .terminal-body::-webkit-scrollbar-thumb { background: #332d28; border-radius: 3px; }
+
+  .line {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #ebe0d2;
+    white-space: pre;
+    min-height: 1.7em;
+  }
+
+  .prompt { color: #6477e0; font-weight: 700; }
+  .cmd-text { color: #ebe0d2; }
+  .tool-marker { color: #D77757; }
+  .tool-name { color: #D77757; }
+  .result-marker { color: #7ec384; }
+  .check-mark { color: #7ec384; }
+  .dim { color: #6a6058; }
+  .summary-dot { color: #D77757; }
+  .red { color: #e06464; }
+
+  .fade-in {
+    animation: fadeIn 0.35s ease-out forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background: #ebe0d2;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* Prompt input area */
+  .prompt-line {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #ebe0d2;
+    white-space: pre;
+    position: relative;
+    display: inline;
+  }
+
+  .prompt-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ebe0d2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    caret-color: #ebe0d2;
+    width: 300px;
+  }
+
+  /* Preset buttons */
+  .presets {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 20px;
+    max-width: 780px;
+    width: 100%;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .preset-btn {
+    padding: 6px 16px;
+    background: #231f1c;
+    border: 1px solid #332d28;
+    border-radius: 16px;
+    color: #6a6058;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+  .preset-btn:hover {
+    border-color: #D77757;
+    color: #D77757;
+  }
+
+  .preset-btn.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  /* Slash menu */
+  .slash-menu {
+    display: none;
+    position: fixed;
+    background: #231f1c;
+    border: 1px solid #332d28;
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 300px;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+
+  .slash-menu.visible { display: block; }
+
+  .slash-item {
+    padding: 8px 14px;
+    color: #ebe0d2;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.15s ease;
+  }
+
+  .slash-item:hover,
+  .slash-item.active {
+    background: #332d28;
+  }
+
+  .slash-item:hover .slash-cmd,
+  .slash-item.active .slash-cmd {
+    color: #D77757;
+  }
+
+  .slash-cmd {
+    color: #6a6058;
+    min-width: 60px;
+    transition: color 0.15s ease;
+  }
+
+  .slash-desc {
+    color: #6a6058;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="terminal">
+  <div class="title-bar">
+    <div class="dots">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+    <div class="title-text">whale</div>
+  </div>
+  <div class="terminal-body" id="output">
+    <div class="slash-menu" id="slashMenu"></div>
+  </div>
+</div>
+
+<div class="presets" id="presets">
+  <button class="preset-btn" onclick="runScenario('read')">/read</button>
+  <button class="preset-btn" onclick="runScenario('edit')">/edit</button>
+  <button class="preset-btn" onclick="runScenario('search')">/search</button>
+  <button class="preset-btn" onclick="runScenario('bash')">/bash</button>
+  <button class="preset-btn" onclick="runScenario('fix')">/fix</button>
+</div>
+
+<script>
+const output = document.getElementById('output');
+const slashMenu = document.getElementById('slashMenu');
+const presets = document.getElementById('presets');
+
+let playing = false;
+let promptEl = null;
+let inputEl = null;
+let menuVisible = false;
+let menuIndex = 0;
+
+const menuItems = [
+  { cmd: '/read', desc: '读取文件内容' },
+  { cmd: '/edit', desc: '编辑文件' },
+  { cmd: '/search', desc: '搜索文件和内容' },
+  { cmd: '/bash', desc: '执行 shell 命令' },
+  { cmd: '/fix', desc: '定位并修复问题' },
+];
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+function scrollToBottom() {
+  output.scrollTop = output.scrollHeight;
+}
+
+function addLine(html, cls) {
+  const div = document.createElement('div');
+  div.className = 'line' + (cls ? ' ' + cls : '');
+  div.innerHTML = html;
+  output.insertBefore(div, slashMenu);
+  scrollToBottom();
+  return div;
+}
+
+async function typeCommand(promptHtml, text) {
+  const line = addLine(promptHtml);
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  line.appendChild(cursor);
+  await sleep(300);
+
+  const span = document.createElement('span');
+  span.className = 'cmd-text';
+  line.insertBefore(span, cursor);
+
+  for (let i = 0; i < text.length; i++) {
+    span.textContent += text[i];
+    scrollToBottom();
+    await sleep(30);
+  }
+  cursor.remove();
+  await sleep(400);
+}
+
+async function fadeLines(lines) {
+  for (const html of lines) {
+    addLine(html, 'fade-in');
+    await sleep(80);
+  }
+  await sleep(200);
+}
+
+function setButtonsDisabled(disabled) {
+  const btns = presets.querySelectorAll('.preset-btn');
+  btns.forEach(b => {
+    if (disabled) b.classList.add('disabled');
+    else b.classList.remove('disabled');
+  });
+}
+
+function showPrompt() {
+  const container = document.createElement('div');
+  container.className = 'line';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+
+  container.innerHTML = '<span class="prompt">$ </span>';
+
+  inputEl = document.createElement('input');
+  inputEl.className = 'prompt-input';
+  inputEl.setAttribute('type', 'text');
+  inputEl.setAttribute('spellcheck', 'false');
+  inputEl.setAttribute('autocomplete', 'off');
+  container.appendChild(inputEl);
+
+  output.insertBefore(container, slashMenu);
+  promptEl = container;
+  scrollToBottom();
+
+  inputEl.focus();
+  inputEl.addEventListener('input', onInput);
+  inputEl.addEventListener('keydown', onKeydown);
+}
+
+function onInput() {
+  const val = inputEl.value;
+  if (val === '/') {
+    showSlashMenu();
+  } else if (val.startsWith('/')) {
+    showSlashMenu(val);
+  } else {
+    hideSlashMenu();
+  }
+}
+
+function onKeydown(e) {
+  if (menuVisible) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      menuIndex = (menuIndex + 1) % filteredItems.length;
+      renderMenu();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      menuIndex = (menuIndex - 1 + filteredItems.length) % filteredItems.length;
+      renderMenu();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredItems.length > 0) {
+        selectMenuItem(filteredItems[menuIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      hideSlashMenu();
+      inputEl.value = '';
+    }
+  } else {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = inputEl.value.trim();
+      const key = val.replace('/', '');
+      if (scenarios[key]) {
+        selectMenuItem(menuItems.find(m => m.cmd === '/' + key));
+      }
+    }
+  }
+}
+
+let filteredItems = [...menuItems];
+
+function showSlashMenu(filter) {
+  const query = filter ? filter.slice(1).toLowerCase() : '';
+  filteredItems = menuItems.filter(m =>
+    m.cmd.toLowerCase().includes(query) || m.desc.includes(query)
+  );
+  if (filteredItems.length === 0) {
+    hideSlashMenu();
+    return;
+  }
+  menuIndex = 0;
+  menuVisible = true;
+  renderMenu();
+  slashMenu.classList.add('visible');
+  // Position menu just above the input line
+  if (inputEl) {
+    const rect = inputEl.getBoundingClientRect();
+    slashMenu.style.left = rect.left + 'px';
+    slashMenu.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  }
+}
+
+function renderMenu() {
+  slashMenu.innerHTML = '';
+  filteredItems.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'slash-item' + (i === menuIndex ? ' active' : '');
+    div.innerHTML = '<span class="slash-cmd">' + item.cmd + '</span><span class="slash-desc">' + item.desc + '</span>';
+    div.addEventListener('mousedown', (e) => { e.preventDefault(); selectMenuItem(item); });
+    div.addEventListener('mouseenter', () => {
+      menuIndex = i;
+      renderMenu();
+    });
+    slashMenu.appendChild(div);
+  });
+}
+
+function hideSlashMenu() {
+  menuVisible = false;
+  slashMenu.classList.remove('visible');
+  slashMenu.innerHTML = '';
+}
+
+function selectMenuItem(item) {
+  hideSlashMenu();
+  const key = item.cmd.replace('/', '');
+  runScenario(key);
+}
+
+function removePrompt() {
+  if (promptEl) {
+    promptEl.remove();
+    promptEl = null;
+    inputEl = null;
+  }
+}
+
+async function runScenario(key) {
+  if (playing) return;
+  playing = true;
+  setButtonsDisabled(true);
+  removePrompt();
+  hideSlashMenu();
+
+  const scenario = scenarios[key];
+  if (!scenario) { playing = false; return; }
+
+  await scenario();
+
+  addLine('');
+  showPrompt();
+  playing = false;
+  setButtonsDisabled(false);
+}
+
+// ---- Scenarios ----
+
+const scenarios = {
+  read: async () => {
+    await typeCommand('<span class="prompt">$ </span><span class="cmd-text">whale </span>', '"读一下 src/auth/login.ts 的前 20 行"');
+    addLine('');
+
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">read_file</span>(<span class="dim">{path: "src/auth/login.ts", start_line: 1, end_line: 20}</span>)',
+      '<span class="result-marker">  ⎿</span> <span class="dim"># src/auth/login.ts (89 lines, showing 1-20)</span>',
+      '<span class="dim">       1</span>  import { Request, Response } from \'express\'',
+      '<span class="dim">       2</span>  import bcrypt from \'bcrypt\'',
+      '<span class="dim">       3</span>  import jwt from \'jsonwebtoken\'',
+      '<span class="dim">       ...</span>',
+      '<span class="dim">      20</span>  }',
+    ]);
+
+    addLine('');
+    await fadeLines([
+      '这是一个 Express 登录处理函数，用 bcrypt 验证密码，jwt 签发 token。',
+    ]);
+  },
+
+  edit: async () => {
+    await typeCommand('<span class="prompt">$ </span><span class="cmd-text">whale </span>', '"把 logout.ts 第 47 行的 clearCookie 加上 path 参数"');
+    addLine('');
+
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">edit_file</span>(<span class="dim">{</span>',
+      '<span class="dim">    path: "src/auth/logout.ts",</span>',
+      '<span class="dim">    old_string: "res.clearCookie(\\"session\\")",</span>',
+      '<span class="dim">    new_string: "res.clearCookie(\\"session\\", { path: \\"/\\" })"</span>',
+      '<span class="dim">  }</span>)',
+      '<span class="result-marker">  ⎿</span> <span class="check-mark">✓</span> Applied',
+    ]);
+
+    addLine('');
+    await fadeLines([
+      'Done. clearCookie 现在指定了 path: "/"，跟 login.ts 的 setCookie 一致了。',
+    ]);
+  },
+
+  search: async () => {
+    await typeCommand('<span class="prompt">$ </span><span class="cmd-text">whale </span>', '"找到所有处理 cookie 的文件"');
+    addLine('');
+
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">glob</span>(<span class="dim">{pattern: "src/**/*.ts"}</span>)',
+      '<span class="result-marker">  ⎿</span> Found 47 files',
+    ]);
+
+    addLine('');
+
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">grep</span>(<span class="dim">{pattern: "clearCookie|setCookie", path: "src"}</span>)',
+      '<span class="result-marker">  ⎿</span> src/auth/login.ts:23:  res.setCookie("session", token, { path: "/" })',
+      '    src/auth/logout.ts:47: res.clearCookie("session")',
+      '    src/auth/logout.ts:48: res.clearCookie("refresh")',
+    ]);
+
+    addLine('');
+    await fadeLines([
+      '3 处匹配，分布在 2 个文件里。logout.ts 的 clearCookie 没传 path。',
+    ]);
+  },
+
+  bash: async () => {
+    await typeCommand('<span class="prompt">$ </span><span class="cmd-text">whale </span>', '"跑一下测试看看有没有问题"');
+    addLine('');
+
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">bash</span>(<span class="dim">{command: "python -m pytest tests/ -v --tb=short"}</span>)',
+      '<span class="result-marker">  ⎿</span> exit_code: 1',
+      '    tests/test_auth.py::test_login <span class="check-mark">PASSED</span>',
+      '    tests/test_auth.py::test_logout <span class="check-mark">PASSED</span>',
+      '    tests/test_api.py::test_create_user <span class="check-mark">PASSED</span>',
+      '    tests/test_api.py::test_delete_user <span class="red">FAILED</span>',
+      '    <span class="red">FAILED</span> tests/test_api.py::test_delete_user - AssertionError',
+    ]);
+
+    addLine('');
+    await fadeLines([
+      '4 passed, 1 failed. test_delete_user 失败了，我来看看。',
+    ]);
+  },
+
+  fix: async () => {
+    await typeCommand('<span class="prompt">$ </span><span class="cmd-text">whale </span>', '"tests/test_api.py 里有个测试失败了，帮我修"');
+    addLine('');
+
+    // Step 1: run tests
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">bash</span>(<span class="dim">{command: "python -m pytest tests/test_api.py -v --tb=short"}</span>)',
+      '<span class="result-marker">  ⎿</span> exit_code: 1',
+      '    <span class="red">FAILED</span> test_delete_user - AssertionError: expected 200, got 403',
+    ]);
+
+    addLine('');
+
+    // Step 2: read test
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">read_file</span>(<span class="dim">{path: "tests/test_api.py", start_line: 45, end_line: 55}</span>)',
+      '<span class="result-marker">  ⎿</span><span class="dim">      45</span>  def test_delete_user():',
+      '<span class="dim">         46</span>      resp = client.delete("/api/users/1")',
+      '<span class="dim">         47</span>      assert resp.status_code == 200',
+    ]);
+
+    addLine('');
+
+    // Step 3: grep
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">grep</span>(<span class="dim">{pattern: "delete.*user|DELETE", path: "src/api"}</span>)',
+      '<span class="result-marker">  ⎿</span> src/api/users.ts:34: router.delete("/:id", requireAdmin, deleteUser)',
+    ]);
+
+    addLine('');
+
+    // Step 4: read source
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">read_file</span>(<span class="dim">{path: "src/api/users.ts", start_line: 30, end_line: 40}</span>)',
+      '<span class="result-marker">  ⎿</span><span class="dim">      34</span>  router.delete("/:id", requireAdmin, deleteUser)',
+    ]);
+
+    addLine('');
+
+    // Analysis
+    await fadeLines([
+      '测试没带 admin token，但接口要求 requireAdmin。',
+    ]);
+
+    addLine('');
+
+    // Step 5: edit
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">edit_file</span>(<span class="dim">{</span>',
+      '<span class="dim">    path: "tests/test_api.py",</span>',
+      '<span class="dim">    old_string: "resp = client.delete(\\"/api/users/1\\")",</span>',
+      '<span class="dim">    new_string: "resp = client.delete(\\"/api/users/1\\", headers={\\"Authorization\\": f\\"Bearer {admin_token}\\"})"</span>',
+      '<span class="dim">  }</span>)',
+      '<span class="result-marker">  ⎿</span> <span class="check-mark">✓</span> Applied',
+    ]);
+
+    addLine('');
+
+    // Step 6: re-run
+    await fadeLines([
+      '<span class="tool-marker">⏺</span> <span class="tool-name">bash</span>(<span class="dim">{command: "python -m pytest tests/test_api.py::test_delete_user -v"}</span>)',
+      '<span class="result-marker">  ⎿</span> exit_code: 0',
+      '    <span class="check-mark">PASSED</span> test_delete_user',
+    ]);
+
+    addLine('');
+    await fadeLines([
+      '修好了。问题是测试没带 admin token，加上就通过了。',
+    ]);
+  },
+};
+
+// Initialize with prompt
+showPrompt();
+</script>
+</body>
+</html>

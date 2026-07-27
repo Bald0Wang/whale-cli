@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>删一行试试 — Agent Loop 破坏性学习</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+:root {
+  --bg:#faf9f5; --bg1:#f5f0e8; --card:#ffffff; --border:#e6dfd8;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-bg:rgba(217,119,87,0.08); --accent-dim:rgba(217,119,87,0.35);
+  --teal:#0e7c66; --teal-bg:rgba(14,124,102,0.07);
+  --green:#2e7d4f; --purple:#8a63c9; --blue:#4a5eb8;
+  --red:#c0392b; --red-bg:rgba(192,57,43,0.06); --red-dim:rgba(192,57,43,0.12);
+  --mono:'JetBrains Mono','SF Mono','Fira Code',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding:1.5rem 1rem;}
+.wrap{max-width:1060px;margin:0 auto;}
+
+/* header */
+.header{margin-bottom:1.4rem;}
+h1{font-size:1.25rem;font-weight:700;letter-spacing:-0.01em;}
+h1 .accent{color:var(--accent);}
+.subtitle{font-size:0.82rem;color:var(--text2);margin-top:0.25rem;line-height:1.5;}
+
+/* layout */
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start;}
+@media(max-width:800px){.layout{grid-template-columns:1fr;}}
+
+/* code panel */
+.code-panel{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;position:sticky;top:1rem;}
+.code-header{padding:0.5rem 0.9rem;background:#2c2b28;border-bottom:1px solid #3a3935;font-size:0.72rem;color:#9e9a90;display:flex;align-items:center;gap:6px;}
+.code-header .dot{width:9px;height:9px;border-radius:50%;}
+.dot-r{background:#ec6a5e;} .dot-y{background:#f4bf4f;} .dot-g{background:#61c554;}
+.code-header .filename{margin-left:6px;font-family:var(--mono);font-size:0.72rem;}
+.code-body{background:#1e1d1a;padding:0.7rem 0;font-family:var(--mono);font-size:0.78rem;line-height:2.05;}
+
+.code-line{display:flex;align-items:center;padding:0 0.4rem 0 0;transition:background 0.15s;min-height:1.9em;position:relative;}
+.code-line.blank{height:0.7em;min-height:0;}
+.code-line:not(.blank):hover{background:rgba(255,255,255,0.03);}
+.code-line.disabled{background:var(--red-dim);}
+.code-line.disabled .code{opacity:0.35;text-decoration:line-through;text-decoration-color:var(--red);}
+.code-line .ln{width:2.8ch;text-align:right;color:#5a5750;margin-right:0.6ch;flex-shrink:0;font-size:0.72rem;user-select:none;}
+.code-line .code{flex:1;white-space:pre;color:#d4d0c8;}
+.code-line .toggle-zone{width:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity 0.15s;}
+.code-line:not(.blank):hover .toggle-zone,.code-line.disabled .toggle-zone{opacity:1;}
+
+/* toggle switch */
+.toggle{width:22px;height:12px;border-radius:6px;background:#5a8;position:relative;transition:background 0.2s;cursor:pointer;}
+.toggle::after{content:'';position:absolute;width:8px;height:8px;border-radius:50%;background:#fff;top:2px;left:12px;transition:left 0.2s;}
+.toggle.off{background:#c0392b;}
+.toggle.off::after{left:2px;}
+
+/* syntax for dark bg */
+.kw{color:#c59bff;font-weight:600;} .fn{color:#7eb6ff;} .str{color:#73dbc4;} .cm{color:#6a6760;font-style:italic;} .var{color:#f0a882;} .num{color:#f4bf4f;}
+
+/* counter badge */
+.counter{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:20px;padding:0.35rem 1rem;font-size:0.78rem;color:var(--text);box-shadow:0 2px 12px rgba(0,0,0,0.08);z-index:10;display:flex;align-items:center;gap:0.6rem;transition:transform 0.3s,opacity 0.3s;}
+.counter .count{font-weight:700;color:var(--accent);font-family:var(--mono);}
+.counter .reset-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:0.7rem;color:var(--text2);cursor:pointer;font-family:inherit;transition:border-color 0.15s,color 0.15s;}
+.counter .reset-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* result panel */
+.result-panel{min-height:400px;}
+.result-card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(41,38,31,0.07);transition:opacity 0.3s,transform 0.3s;}
+.result-card.entering{animation:slideIn 0.35s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.result-header{padding:0.6rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.5rem;}
+.result-header .badge{font-size:0.65rem;font-weight:700;letter-spacing:0.06em;padding:2px 8px;border-radius:4px;}
+.badge-error{background:var(--red-bg);color:var(--red);}
+.badge-ok{background:var(--teal-bg);color:var(--teal);}
+.result-header .line-ref{font-size:0.75rem;color:var(--text2);font-family:var(--mono);}
+.result-body{padding:1rem 1.1rem;}
+.result-body h3{font-size:0.92rem;font-weight:700;margin-bottom:0.5rem;color:var(--ink);}
+.result-body p{font-size:0.82rem;line-height:1.7;color:var(--text);margin-bottom:0.7rem;}
+.result-body p:last-child{margin-bottom:0;}
+.result-body code{font-family:var(--mono);font-size:0.74rem;background:var(--bg1);padding:1px 5px;border-radius:3px;}
+.result-body .insight{font-size:0.78rem;color:var(--teal);font-weight:600;margin-top:0.6rem;padding:0.5rem 0.7rem;background:var(--teal-bg);border-radius:6px;line-height:1.6;}
+
+/* terminal sim */
+.terminal{background:#1a1917;border-radius:8px;padding:0.7rem 0.9rem;margin:0.7rem 0;font-family:var(--mono);font-size:0.74rem;line-height:1.8;overflow-x:auto;}
+.terminal .prompt{color:#73dbc4;}
+.terminal .output{color:#d4d0c8;}
+.terminal .error{color:#e74c3c;}
+.terminal .warn{color:#f39c12;}
+.terminal .dim{color:#6a6760;}
+.terminal .cursor{display:inline-block;width:7px;height:14px;background:#73dbc4;animation:blink 1s step-end infinite;vertical-align:middle;margin-left:2px;}
+@keyframes blink{50%{opacity:0;}}
+
+/* message array viz */
+.msg-array{margin:0.7rem 0;display:flex;flex-direction:column;gap:4px;}
+.msg-item{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:5px;font-size:0.72rem;font-family:var(--mono);transition:all 0.3s;}
+.msg-item .role{font-weight:700;width:5.5ch;}
+.msg-item.user{background:rgba(74,94,184,0.08);color:var(--blue);}
+.msg-item.assistant{background:rgba(138,99,201,0.08);color:var(--purple);}
+.msg-item.tool{background:rgba(14,124,102,0.08);color:var(--teal);}
+.msg-item.missing{background:var(--red-bg);color:var(--red);text-decoration:line-through;opacity:0.5;}
+.msg-item.ghost{border:1px dashed var(--red);background:transparent;color:var(--red);opacity:0.6;}
+
+/* tangled lines viz */
+.tangle-viz{margin:0.8rem auto;position:relative;width:100%;max-width:320px;}
+.tangle-viz svg{width:100%;height:auto;}
+
+/* infinite loop viz */
+.loop-viz{margin:0.7rem 0;padding:0.6rem 0.8rem;background:#1a1917;border-radius:8px;font-family:var(--mono);font-size:0.72rem;color:#d4d0c8;line-height:1.7;max-height:180px;overflow:hidden;position:relative;}
+.loop-viz::after{content:'';position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,#1a1917);}
+.loop-counter{color:var(--accent);font-weight:700;}
+
+/* placeholder */
+.placeholder-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:2rem;}
+.placeholder-panel .icon{font-size:2.5rem;margin-bottom:0.8rem;opacity:0.3;}
+.placeholder-panel .text{font-size:0.88rem;color:var(--text3);line-height:1.6;}
+.placeholder-panel .hint{font-size:0.78rem;color:var(--text3);opacity:0.6;margin-top:0.4rem;}
+
+/* multi-failure summary */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:0.7rem 0;}
+.summary-item{padding:0.5rem 0.6rem;background:var(--bg1);border-radius:6px;font-size:0.72rem;line-height:1.5;}
+.summary-item .label{font-weight:700;color:var(--accent);font-family:var(--mono);display:block;margin-bottom:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1><span class="accent">删一行试试</span> -- 破坏性理解 Agent Loop</h1>
+    <p class="subtitle">每一行代码都有它的职责。关掉它，看循环怎么崩。</p>
+  </div>
+
+  <div class="layout">
+    <div class="code-panel">
+      <div class="code-header">
+        <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+        <span class="filename">agent_loop.py</span>
+      </div>
+      <div class="code-body" id="code"></div>
+    </div>
+    <div class="result-panel" id="resultPanel"></div>
+  </div>
+</div>
+
+<div class="counter" id="counter" style="opacity:0;pointer-events:none;">
+  已关闭 <span class="count" id="offCount">0</span> 行
+  <button class="reset-btn" id="resetBtn">全部恢复</button>
+</div>
+
+<script>
+// ============================================================
+// DATA: each toggleable line and its failure scenario
+// ============================================================
+const LINES = [
+  // 0 - messages init
+  { id:'messages_init',
+    code:'<span class="var">messages</span> = [{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: task}]',
+    indent: 0,
+    title:'messages 消失了',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "读一下 README"'},
+      {type:'error',text:'NameError: name \'messages\' is not defined'},
+      {type:'dim',text:'Traceback: line 4, in <module>'},
+    ],
+    explain:'<code>messages</code> 是整个循环的记忆。没有它，模型不知道用户要求了什么，后续所有 <code>append</code> 也全部报错。',
+    insight:'Agent 的"记忆"不是魔法，就是一个普通的 Python list。删掉它，Agent 立刻失忆。',
+  },
+  // 1 - blank
+  { id:'blank1', blank:true },
+  // 2 - while True
+  { id:'while_true',
+    code:'<span class="kw">while</span> <span class="kw">True</span>:',
+    indent: 0,
+    title:'只执行一次就停了',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "项目里有哪些 Python 文件？"'},
+      {type:'output',text:'[tool_call] list_files(path=".")'},
+      {type:'dim',text:'... 程序直接结束，没有第二次调用 ...'},
+    ],
+    explain:'没有循环，代码只执行一次。模型发出工具调用后，没人把结果拿回去让它继续思考。它发出了请求，但永远看不到结果。',
+    insight:'Agent 和普通 chatbot 的本质区别：chatbot 调一次 API 就结束，Agent 需要循环把工具结果喂回去。',
+  },
+  // 3 - blank
+  { id:'blank2', blank:true },
+  // 4 - response = llm.chat(messages, tools=TOOLS)
+  // Toggle has TWO modes: off=去掉整行(空循环), alt=去掉tools参数(退化chatbot)
+  { id:'llm_chat',
+    code:'    <span class="var">response</span> = <span class="fn">llm.chat</span>(<span class="var">messages</span>, <span class="var">tools</span>=TOOLS)',
+    altCode:'    <span class="var">response</span> = <span class="fn">llm.chat</span>(<span class="var">messages</span>)  <span class="cm"># 没传 tools</span>',
+    indent: 1,
+    title:'去掉 tools 参数',
+    altTitle:'循环体空了',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "读一下 README.md"'},
+      {type:'output',text:''},
+      {type:'output',text:'很抱歉，我无法直接读取文件。请你把 README.md'},
+      {type:'output',text:'的内容粘贴给我，我来帮你分析。'},
+    ],
+    altTerminal:[
+      {type:'prompt',text:'$ python agent_loop.py "读一下 README"'},
+      {type:'warn',text:'[循环 #1] 没有 response...'},
+      {type:'warn',text:'[循环 #2] 没有 response...'},
+      {type:'error',text:'... 无限空循环，CPU 100% ...'},
+    ],
+    explain:'不传 <code>tools</code> 参数，模型不知道有工具可用，退化成普通 chatbot。',
+    altExplain:'循环里没有了向模型提问的那一步。程序原地空转。',
+    insight:'工具不是模型"学会"的技能，而是每次 API 调用时传进去的菜单。不给菜单，模型只能用嘴回答。',
+  },
+  // 5 - tools=TOOLS (merged into line 4 as alt state, not a separate visible line)
+  { id:'tools_param', hidden:true },
+  // 6 - blank
+  { id:'blank3', blank:true },
+  // 7 - messages.append(response)
+  { id:'append_response',
+    code:'    <span class="var">messages</span>.<span class="fn">append</span>(<span class="var">response</span>)',
+    indent: 1,
+    title:'模型失忆了',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "README 和 CHANGELOG 各有多少行？"'},
+      {type:'output',text:'[Round 1] tool_call: count_lines("README.md") -> 42'},
+      {type:'output',text:'[Round 2] tool_call: count_lines("README.md") -> 42'},
+      {type:'output',text:'[Round 3] tool_call: count_lines("README.md") -> 42'},
+      {type:'error',text:'... 模型反复调同一个工具，永远到不了 CHANGELOG ...'},
+    ],
+    explain:'模型的回复没有被存入 <code>messages</code>。下一轮它看到的对话历史里没有自己上一轮的决策，所以它不知道自己已经请求过这个工具了——于是重复请求。',
+    insight:'API 是无状态的。模型看到的只是你传入的 messages 数组。不 append，它就像金鱼一样每 7 秒重新开始。',
+    showArray: 'amnesia',
+  },
+  // 8 - blank
+  { id:'blank4', blank:true },
+  // 9 - if not response.tool_calls
+  { id:'exit_check',
+    code:'    <span class="kw">if not</span> <span class="var">response</span>.tool_calls:',
+    indent: 1,
+    title:'无法停下来',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "1+1 等于几？"'},
+      {type:'output',text:'[Round 1] response: "1+1 等于 2。"'},
+      {type:'warn',text:'[Round 2] response: "我已经回答了，1+1=2。"'},
+      {type:'warn',text:'[Round 3] response: "请问还有其他问题吗？"'},
+      {type:'error',text:'[Round 4] response: "..."'},
+      {type:'error',text:'... 模型已经没话说了，但循环不会停 ...'},
+    ],
+    explain:'没有了 <code>if not tool_calls: break</code> 这个出口判断，即使模型已经给出了最终答案，循环也不知道该停了。它会一直调用 API，模型越来越困惑。',
+    insight:'while True 循环必须有退出条件。Agent 的退出条件是"模型没有请求工具"——这意味着它认为任务完成了。',
+    showLoop:true,
+  },
+  // 10 - print
+  { id:'print_resp',
+    code:'        <span class="fn">print</span>(<span class="var">response</span>.content)',
+    indent: 2,
+    title:'用户看不到回答',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "README 有多少行？"'},
+      {type:'dim',text:'... (模型内部得出了答案，但没人 print) ...'},
+      {type:'prompt',text:'$'},
+      {type:'dim',text:'# 程序沉默退出，终端回到命令行'},
+    ],
+    explain:'模型正常运行、工具正常执行、循环正常退出——但最后一步把结果展示给用户的 <code>print</code> 被删了。所有工作白做了。',
+    insight:'这行看起来最不重要，但它是 Agent 和用户之间唯一的连接。后端一切正常，前端无声无息。',
+  },
+  // 11 - break
+  { id:'break_stmt',
+    code:'        <span class="kw">break</span>',
+    indent: 2,
+    title:'回答了但不停',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "1+1=？"'},
+      {type:'output',text:'1+1 等于 2。'},
+      {type:'warn',text:'[Round 2] "我刚才已经说过了..."'},
+      {type:'output',text:'1+1 等于 2。'},
+      {type:'warn',text:'[Round 3] "请问您还有别的问题吗？"'},
+      {type:'output',text:'请问您还有别的问题吗？'},
+      {type:'error',text:'... print 在执行但 break 不在，不会停 ...'},
+    ],
+    explain:'<code>if not tool_calls</code> 判断通过了，也 print 了，但没有 <code>break</code> 跳出循环。于是下一轮继续调 API，模型又回答一遍——每次都是最终回答，但永远无法终结。',
+    insight:'if 判断和 break 必须配对。判断找到了出口，break 才真正走出去。',
+    showLoop:true,
+  },
+  // 12 - blank
+  { id:'blank5', blank:true },
+  // 13 - for call in response.tool_calls
+  { id:'for_calls',
+    code:'    <span class="kw">for</span> <span class="var">call</span> <span class="kw">in</span> <span class="var">response</span>.tool_calls:',
+    indent: 1,
+    title:'工具调用被忽略',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "README 有多少行？"'},
+      {type:'output',text:'[Round 1] 模型请求: count_lines("README.md")'},
+      {type:'error',text:'         -> 但没有人执行这个请求'},
+      {type:'output',text:'[Round 2] 模型再次请求: count_lines("README.md")'},
+      {type:'error',text:'         -> 仍然没有人执行'},
+      {type:'error',text:'... 模型不断请求，但永远等不到结果 ...'},
+    ],
+    explain:'模型发出了工具调用请求，但 <code>for</code> 循环被删了——没有人去遍历这些请求、执行工具、返回结果。模型像是在对空气说"帮我查一下"。',
+    insight:'模型只是发出"请帮我调用 X 工具"的请求，真正执行工具的是你的代码。删掉这个 for，请求就变成了自言自语。',
+  },
+  // 14 - result = run_tool(...)
+  { id:'run_tool',
+    code:'        <span class="var">result</span> = <span class="fn">run_tool</span>(<span class="var">call</span>.name, <span class="var">call</span>.args)',
+    indent: 2,
+    title:'工具不会被执行',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "读一下 README"'},
+      {type:'output',text:'[Round 1] 模型请求: read_file("README.md")'},
+      {type:'dim',text:'         -> call 对象存在，但没有执行 run_tool'},
+      {type:'error',text:'         -> messages 追加了一条空结果: ""'},
+      {type:'output',text:'[Round 2] 模型: "文件内容好像是空的，我再试试"'},
+      {type:'error',text:'... 模型反复重试，每次都得到空结果 ...'},
+    ],
+    explain:'<code>for call</code> 遍历了请求，但没有 <code>run_tool</code> 去真正执行。就像餐厅服务员把点菜单递给了空气——菜单有了，但后厨不存在。',
+    insight:'模型说的是"名字+参数"，run_tool 负责翻译成真正的 Python 函数调用。这是 Agent 从"会说话"变成"会做事"的关键一步。',
+  },
+  // 15 - messages.append(tool result)
+  { id:'append_tool',
+    code:'        <span class="var">messages</span>.<span class="fn">append</span>({<span class="str">"role"</span>: <span class="str">"tool"</span>, <span class="str">"tool_call_id"</span>: <span class="var">call</span>.id, ...})',
+    indent: 2,
+    title:'执行了但模型看不到',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "README 有多少行？"'},
+      {type:'output',text:'[Round 1] 执行 count_lines("README.md") -> 42'},
+      {type:'error',text:'         -> 结果没有追加到 messages'},
+      {type:'error',text:'API Error: tool_use result must follow tool_use block'},
+      {type:'dim',text:'# API 要求: 有 tool_call 就必须有 tool_result'},
+    ],
+    explain:'工具执行成功了，结果是 42——但这个结果没有追加到 <code>messages</code>。API 协议要求每个 <code>tool_use</code> 后面必须跟一个 <code>tool_result</code>，否则直接报错。',
+    insight:'这不只是"模型看不到结果"——API 会直接拒绝你的请求。tool_use 和 tool_result 是强制配对的协议要求。',
+    showArray:'missing_tool',
+  },
+  // 16 - tool_call_id (merged into append_tool, hidden as separate line)
+  { id:'tool_call_id', hidden:true,
+    code:'',
+    indent: 2,
+    title:'结果对不上请求',
+    terminal:[
+      {type:'prompt',text:'$ python agent_loop.py "对比 README 和 CHANGELOG 的行数"'},
+      {type:'output',text:'[tool_call #a1] count_lines("README.md") -> 42'},
+      {type:'output',text:'[tool_call #b2] count_lines("CHANGELOG.md") -> 128'},
+      {type:'error',text:'-> 结果回传时没有 id，模型分不清哪个是哪个'},
+      {type:'warn',text:'模型: "README 有 128 行，CHANGELOG 有 42 行"'},
+      {type:'dim',text:'# 数字反了——模型猜错了对应关系'},
+    ],
+    explain:'模型一次请求了两个工具调用，每个有唯一 id。结果回传时如果不带 <code>tool_call_id</code>，模型无法分辨"42"对应的是哪个请求。',
+    insight:'tool_call_id 就像快递单号。你同时点了两个外卖，骑手送到门口不说哪个是哪个——你只能猜。',
+    showArray:'tangled',
+  },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+const disabledSet = new Set();
+const lineNumberMap = {};
+
+// ============================================================
+// RENDER CODE PANEL
+// ============================================================
+const codeEl = document.getElementById('code');
+const resultPanel = document.getElementById('resultPanel');
+const counterEl = document.getElementById('counter');
+const offCountEl = document.getElementById('offCount');
+const resetBtn = document.getElementById('resetBtn');
+
+// Track running loop animation timers so we can cancel them on re-render
+let loopTimers = [];
+
+let lineNum = 0;
+LINES.forEach((line, i) => {
+  if (line.hidden) return;
+  const div = document.createElement('div');
+  div.className = 'code-line' + (line.blank ? ' blank' : '');
+  div.dataset.idx = i;
+  if (line.blank) {
+    div.innerHTML = '';
+    codeEl.appendChild(div);
+    return;
+  }
+  lineNum++;
+  lineNumberMap[i] = lineNum;
+  const hasToggle = !!line.title;
+  div.innerHTML =
+    (hasToggle ? '<div class="toggle-zone" data-idx="' + i + '"><div class="toggle" data-idx="' + i + '"></div></div>' : '<div style="width:28px;flex-shrink:0"></div>') +
+    '<span class="ln">' + lineNum + '</span>' +
+    '<span class="code">' + line.code + '</span>';
+  codeEl.appendChild(div);
+});
+
+// ============================================================
+// TOGGLE LOGIC
+// ============================================================
+codeEl.addEventListener('click', function(e) {
+  var toggleEl = e.target.closest('.toggle') || e.target.closest('.toggle-zone');
+  if (!toggleEl) return;
+  var idx = parseInt(toggleEl.dataset.idx);
+  var line = LINES[idx];
+  if (!line || !line.title) return;
+
+  if (disabledSet.has(idx)) {
+    disabledSet.delete(idx);
+  } else {
+    disabledSet.add(idx);
+  }
+  updateUI();
+});
+
+resetBtn.addEventListener('click', function() {
+  disabledSet.clear();
+  updateUI();
+});
+
+function updateUI() {
+  // Update code lines visual state
+  document.querySelectorAll('.code-line').forEach(function(div) {
+    var idx = parseInt(div.dataset.idx);
+    var toggle = div.querySelector('.toggle');
+    var line = LINES[idx];
+    var codeSpan = div.querySelector('.code');
+    if (disabledSet.has(idx)) {
+      div.classList.add('disabled');
+      if (toggle) toggle.classList.add('off');
+      if (line && line.altCode && codeSpan) codeSpan.innerHTML = line.altCode;
+    } else {
+      div.classList.remove('disabled');
+      if (toggle) toggle.classList.remove('off');
+      if (line && line.altCode && codeSpan) codeSpan.innerHTML = line.code;
+    }
+  });
+
+  // Update counter
+  var count = disabledSet.size;
+  if (count > 0) {
+    counterEl.style.opacity = '1';
+    counterEl.style.pointerEvents = 'auto';
+    offCountEl.textContent = count;
+  } else {
+    counterEl.style.opacity = '0';
+    counterEl.style.pointerEvents = 'none';
+  }
+
+  // Update result panel
+  renderResult();
+}
+
+// ============================================================
+// RENDER RESULT PANEL
+// ============================================================
+function renderResult() {
+  // Clear any running loop animation timers
+  loopTimers.forEach(function(t) { clearTimeout(t); });
+  loopTimers = [];
+
+  var disabled = Array.from(disabledSet).sort(function(a, b) { return a - b; });
+
+  if (disabled.length === 0) {
+    resultPanel.innerHTML = renderPlaceholder();
+    return;
+  }
+
+  if (disabled.length === 1) {
+    resultPanel.innerHTML = renderSingleFailure(disabled[0]);
+  } else {
+    resultPanel.innerHTML = renderMultipleFailures(disabled);
+  }
+
+  // Trigger enter animation
+  var card = resultPanel.querySelector('.result-card');
+  if (card) {
+    card.classList.remove('entering');
+    void card.offsetWidth;
+    card.classList.add('entering');
+  }
+
+  // Animate loops if needed
+  animateLoops();
+}
+
+function renderPlaceholder() {
+  return '<div class="placeholder-panel">' +
+    '<div class="icon">' +
+      '<svg width="48" height="48" viewBox="0 0 48 48" fill="none">' +
+        '<rect x="8" y="8" width="32" height="32" rx="6" stroke="#b3ac9d" stroke-width="2" fill="none"/>' +
+        '<line x1="16" y1="18" x2="32" y2="18" stroke="#b3ac9d" stroke-width="2" stroke-linecap="round"/>' +
+        '<line x1="16" y1="24" x2="28" y2="24" stroke="#b3ac9d" stroke-width="2" stroke-linecap="round"/>' +
+        '<line x1="16" y1="30" x2="24" y2="30" stroke="#b3ac9d" stroke-width="2" stroke-linecap="round"/>' +
+        '<circle cx="36" cy="36" r="9" fill="#faf9f5" stroke="#d97757" stroke-width="2"/>' +
+        '<line x1="33" y1="36" x2="39" y2="36" stroke="#d97757" stroke-width="2" stroke-linecap="round"/>' +
+      '</svg>' +
+    '</div>' +
+    '<div class="text">点击代码行左边的开关，关掉一行试试</div>' +
+    '<div class="hint">每一行都有不同的崩溃方式</div>' +
+  '</div>';
+}
+
+function renderSingleFailure(idx) {
+  var line = LINES[idx];
+  var ln = lineNumberMap[idx];
+  return '<div class="result-card">' +
+    '<div class="result-header">' +
+      '<span class="badge badge-error">BROKEN</span>' +
+      '<span class="line-ref">Line ' + ln + ' 已关闭</span>' +
+    '</div>' +
+    '<div class="result-body">' +
+      '<h3>' + line.title + '</h3>' +
+      renderTerminal(line.terminal) +
+      '<p>' + line.explain + '</p>' +
+      (line.showArray ? renderArrayViz(line.showArray) : '') +
+      (line.showLoop ? renderLoopViz(idx) : '') +
+      '<div class="insight">' + line.insight + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderMultipleFailures(indices) {
+  // Show the first failure in detail
+  var first = indices[0];
+  var line = LINES[first];
+  var ln = lineNumberMap[first];
+
+  var othersHtml = '';
+  for (var k = 1; k < indices.length; k++) {
+    var l = LINES[indices[k]];
+    var n = lineNumberMap[indices[k]];
+    othersHtml += '<div class="summary-item"><span class="label">Line ' + n + '</span>' + l.title + '</div>';
+  }
+
+  return '<div class="result-card">' +
+    '<div class="result-header">' +
+      '<span class="badge badge-error">BROKEN x' + indices.length + '</span>' +
+      '<span class="line-ref">' + indices.length + ' 行已关闭</span>' +
+    '</div>' +
+    '<div class="result-body">' +
+      '<p style="font-size:0.82rem;color:var(--text);margin-bottom:0.5rem;">同时关掉 ' + indices.length + ' 行时，最先崩溃的是：</p>' +
+      '<h3>Line ' + ln + ': ' + line.title + '</h3>' +
+      renderTerminal(line.terminal) +
+      '<p>' + line.explain + '</p>' +
+      (line.showArray ? renderArrayViz(line.showArray) : '') +
+      (line.showLoop ? renderLoopViz(first) : '') +
+      '<div class="insight">' + line.insight + '</div>' +
+      '<p style="margin-top:0.8rem;font-size:0.78rem;color:var(--text2);">其他关闭的行：</p>' +
+      '<div class="summary-grid">' + othersHtml + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderTerminal(entries) {
+  if (!entries || entries.length === 0) return '';
+  var lines = '';
+  for (var i = 0; i < entries.length; i++) {
+    lines += '<div class="' + entries[i].type + '">' + entries[i].text + '</div>';
+  }
+  return '<div class="terminal">' + lines + '<span class="cursor"></span></div>';
+}
+
+function renderArrayViz(type) {
+  if (type === 'amnesia') {
+    return '<div class="msg-array">' +
+      '<div style="font-size:0.7rem;color:var(--text2);margin-bottom:2px;font-weight:600;">messages 数组状态：</div>' +
+      '<div class="msg-item user"><span class="role">user</span> "README 和 CHANGELOG 各有多少行？"</div>' +
+      '<div class="msg-item ghost"><span class="role">asst</span> (模型的回复没有被保存!)</div>' +
+      '<div class="msg-item tool"><span class="role">tool</span> count_lines -> 42</div>' +
+      '<div class="msg-item ghost"><span class="role">asst</span> (第二轮回复也没被保存!)</div>' +
+      '<div class="msg-item tool"><span class="role">tool</span> count_lines -> 42 (又是同一个)</div>' +
+      '<div style="font-size:0.68rem;color:var(--red);margin-top:4px;">模型看不到自己的历史决策 -> 每轮都像第一轮</div>' +
+    '</div>';
+  }
+  if (type === 'missing_tool') {
+    return '<div class="msg-array">' +
+      '<div style="font-size:0.7rem;color:var(--text2);margin-bottom:2px;font-weight:600;">messages 数组状态：</div>' +
+      '<div class="msg-item user"><span class="role">user</span> "README 有多少行？"</div>' +
+      '<div class="msg-item assistant"><span class="role">asst</span> tool_use: count_lines("README.md")</div>' +
+      '<div class="msg-item missing"><span class="role">tool</span> (缺失! API 要求必须有这条)</div>' +
+      '<div style="font-size:0.68rem;color:var(--red);margin-top:4px;">API 协议: tool_use 后面必须紧跟 tool_result</div>' +
+    '</div>';
+  }
+  if (type === 'tangled') {
+    return '<div class="tangle-viz">' +
+      '<svg viewBox="0 0 320 150" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<text x="10" y="16" font-size="11" fill="#7d766a" font-family="Inter,system-ui,sans-serif" font-weight="600">tool_call 请求</text>' +
+        '<rect x="10" y="25" width="120" height="28" rx="5" fill="rgba(138,99,201,0.08)" stroke="#8a63c9" stroke-width="1"/>' +
+        '<text x="20" y="44" font-size="10" fill="#8a63c9" font-family="JetBrains Mono,monospace">#a1 README</text>' +
+        '<rect x="10" y="60" width="120" height="28" rx="5" fill="rgba(138,99,201,0.08)" stroke="#8a63c9" stroke-width="1"/>' +
+        '<text x="20" y="79" font-size="10" fill="#8a63c9" font-family="JetBrains Mono,monospace">#b2 CHANGELOG</text>' +
+        '<text x="195" y="16" font-size="11" fill="#7d766a" font-family="Inter,system-ui,sans-serif" font-weight="600">tool_result 结果</text>' +
+        '<rect x="190" y="25" width="120" height="28" rx="5" fill="rgba(14,124,102,0.08)" stroke="#0e7c66" stroke-width="1"/>' +
+        '<text x="200" y="44" font-size="10" fill="#0e7c66" font-family="JetBrains Mono,monospace">42 行</text>' +
+        '<rect x="190" y="60" width="120" height="28" rx="5" fill="rgba(14,124,102,0.08)" stroke="#0e7c66" stroke-width="1"/>' +
+        '<text x="200" y="79" font-size="10" fill="#0e7c66" font-family="JetBrains Mono,monospace">128 行</text>' +
+        '<path d="M130 39 Q160 39 160 55 Q160 74 190 74" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+        '<path d="M130 74 Q160 74 160 55 Q160 39 190 39" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+        '<circle cx="160" cy="55" r="8" fill="rgba(192,57,43,0.1)" stroke="#c0392b" stroke-width="1.5"/>' +
+        '<text x="156" y="59" font-size="10" fill="#c0392b" font-weight="700">?</text>' +
+        '<text x="10" y="115" font-size="10" fill="#c0392b" font-family="Inter,system-ui,sans-serif">没有 tool_call_id，模型不知道哪个结果</text>' +
+        '<text x="10" y="130" font-size="10" fill="#c0392b" font-family="Inter,system-ui,sans-serif">对应哪个请求 -> 张冠李戴</text>' +
+      '</svg>' +
+    '</div>';
+  }
+  return '';
+}
+
+function renderLoopViz(idx) {
+  return '<div class="loop-viz" id="loopViz-' + idx + '"></div>';
+}
+
+function animateLoops() {
+  var vizEls = document.querySelectorAll('[id^="loopViz-"]');
+  vizEls.forEach(function(el) {
+    var idx = parseInt(el.id.split('-')[1]);
+    el.innerHTML = '';
+    var count = 0;
+    var maxVisible = 12;
+
+    function addLine() {
+      count++;
+      var div = document.createElement('div');
+
+      if (idx === 4) {
+        // llm.chat removed - empty loop
+        div.innerHTML = '<span class="loop-counter">[循环 #' + count + ']</span> <span style="color:#6a6760">... 空循环，什么也没发生 ...</span>';
+      } else if (idx === 9) {
+        // exit check removed - can't stop
+        if (count <= 2) {
+          div.innerHTML = '<span class="loop-counter">[Round ' + count + ']</span> 模型回复了但循环不停...';
+        } else {
+          div.innerHTML = '<span class="loop-counter">[Round ' + count + ']</span> <span style="color:#e74c3c">API call #' + count + '（token 在燃烧）</span>';
+        }
+      } else if (idx === 11) {
+        // break removed - answer but no exit
+        if (count % 2 === 1) {
+          div.innerHTML = '<span class="loop-counter">[Round ' + count + ']</span> print -> "答案已给出"';
+        } else {
+          div.innerHTML = '<span class="loop-counter">[Round ' + count + ']</span> <span style="color:#f39c12">模型: "我已经回答了..."</span>';
+        }
+      }
+
+      el.appendChild(div);
+      // Keep only recent lines visible
+      while (el.children.length > maxVisible) {
+        el.removeChild(el.firstChild);
+      }
+      el.scrollTop = el.scrollHeight;
+
+      if (count < 30 && document.body.contains(el)) {
+        var timer = setTimeout(addLine, idx === 4 ? 150 : 600);
+        loopTimers.push(timer);
+      }
+    }
+    addLine();
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+renderResult();
+</script>
+</body>
+</html>

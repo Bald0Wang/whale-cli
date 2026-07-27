@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale CLI · 你会好奇的 6 个现象</title>
+<style>
+:root {
+  --bg:#0a0c10; --surface:#12151e; --surface2:#1a1e2e; --border:#252a3a;
+  --text:#c8cdd8; --text2:#6b7394; --text3:#3e4563;
+  --blue:#60a5fa; --green:#34d399; --amber:#fbbf24; --purple:#a78bfa; --pink:#f472b6; --cyan:#22d3ee; --red:#ef4444;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem 1rem;-webkit-font-smoothing:antialiased}
+.container{max-width:900px;margin:0 auto}
+h1{font-size:1.4rem;font-weight:700;color:#f0f2f7;text-align:center;margin-bottom:.3rem}
+.subtitle{text-align:center;font-size:.85rem;color:var(--text2);margin-bottom:2rem}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:700px){.cards{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .2s,transform .15s}
+.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.card-head{padding:1rem 1.2rem .6rem;display:flex;align-items:flex-start;gap:.8rem}
+.card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;font-family:monospace;flex-shrink:0;background:color-mix(in srgb,var(--accent) 15%,transparent)}
+.card-title{font-size:.95rem;font-weight:600;color:#e8ecf2;line-height:1.4}
+.card-phenomenon{padding:0 1.2rem;font-size:.82rem;color:var(--text2);line-height:1.6;margin-bottom:.6rem}
+.card-body{display:none;border-top:1px solid var(--border)}
+.card.open .card-body{display:block}
+.card-arrow{float:right;font-size:.7rem;color:var(--text2);transition:transform .2s}
+.card.open .card-arrow{transform:rotate(180deg)}
+
+/* Mini animations */
+.anim{background:var(--bg);margin:1rem;border-radius:8px;padding:.8rem;overflow:hidden;min-height:120px}
+.anim-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;opacity:0;transform:translateX(-10px);transition:all .4s ease}
+.anim-row.show{opacity:1;transform:translateX(0)}
+.anim-tool{font-family:'SF Mono',monospace;font-size:.72rem;padding:.2rem .5rem;border-radius:4px;white-space:nowrap}
+.anim-arrow{color:var(--text3);font-size:.8rem}
+.anim-result{font-size:.68rem;color:var(--text2);font-family:monospace}
+.anim-bar{height:6px;border-radius:3px;transition:width 1s ease}
+
+/* Card explanation */
+.card-explain{padding:.8rem 1.2rem;font-size:.78rem;color:var(--text);line-height:1.6}
+.card-chapter{display:inline-block;font-size:.65rem;padding:.15rem .5rem;border-radius:99px;margin-right:.3rem;background:color-mix(in srgb,var(--accent) 12%,transparent);color:color-mix(in srgb,var(--accent) 85%,white);border:1px solid color-mix(in srgb,var(--accent) 20%,transparent)}
+.play-btn{display:block;margin:.5rem auto;padding:.3rem 1rem;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.75rem;cursor:pointer}
+.play-btn:hover{border-color:var(--accent)}
+.footer{text-align:center;margin-top:2rem;font-size:.75rem;color:var(--text2)}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Coding Agent 的 6 个日常现象</h1>
+<p class="subtitle">点击展开看原理</p>
+
+<div class="cards">
+
+<!-- Card 1: 工具链 -->
+<div class="card" style="--accent:var(--blue)" onclick="this.classList.toggle('open');if(this.classList.contains('open'))playChain()">
+  <div class="card-head">
+    <div class="card-icon">01</div>
+    <div><div class="card-title">它为什么先搜再改，不直接改？ <span class="card-arrow">▾</span></div></div>
+  </div>
+  <div class="card-phenomenon">你说"把 clearCookie 加个 path 参数"，它先 Glob 扫文件，再 Grep 搜关键词，找到了才去 Edit。</div>
+  <div class="card-body">
+    <div class="anim" id="anim-chain">
+      <div class="anim-row" id="chain-1"><span class="anim-tool" style="background:rgba(99,102,241,.2);color:#818cf8">Glob</span><span class="anim-result">src/**/*.ts → 47 files</span></div>
+      <div class="anim-row" id="chain-2"><span class="anim-arrow">↓</span></div>
+      <div class="anim-row" id="chain-3"><span class="anim-tool" style="background:rgba(167,139,250,.2);color:#a78bfa">Grep</span><span class="anim-result">"clearCookie" → 3 matches in 2 files</span></div>
+      <div class="anim-row" id="chain-4"><span class="anim-arrow">↓</span></div>
+      <div class="anim-row" id="chain-5"><span class="anim-tool" style="background:rgba(96,165,250,.2);color:#60a5fa">Read</span><span class="anim-result">logout.ts lines 40-60</span></div>
+      <div class="anim-row" id="chain-6"><span class="anim-arrow">↓</span></div>
+      <div class="anim-row" id="chain-7"><span class="anim-tool" style="background:rgba(52,211,153,.2);color:#34d399">Edit</span><span class="anim-result">clearCookie("session") → clearCookie("session", {path:"/"})</span></div>
+    </div>
+    <div class="card-explain">
+      <span class="card-chapter">Ch05</span> <span class="card-chapter">Ch04</span>
+      模型不知道代码在哪个文件。它从 tool schema 里看到有 Glob 和 Grep，自己决定先缩小范围再动手。这条 glob → grep → read → edit 链不是硬编码的，是模型根据 description 自己选的。
+    </div>
+  </div>
+</div>
+
+<!-- Card 2: 自纠错 -->
+<div class="card" style="--accent:var(--amber)" onclick="this.classList.toggle('open');if(this.classList.contains('open'))playCorrect()">
+  <div class="card-head">
+    <div class="card-icon">02</div>
+    <div><div class="card-title">改错了它怎么自己修好的？ <span class="card-arrow">▾</span></div></div>
+  </div>
+  <div class="card-phenomenon">Edit 失败冒出红字，模型停了一拍，重新 Read 了文件，换了写法再试，成功了。</div>
+  <div class="card-body">
+    <div class="anim" id="anim-correct">
+      <div class="anim-row" id="corr-1"><span class="anim-tool" style="background:rgba(96,165,250,.2);color:#60a5fa">Edit</span><span class="anim-result">old: <span style="color:var(--red)">result = data * 2</span></span></div>
+      <div class="anim-row" id="corr-2"><span style="color:var(--red);font-size:.75rem">✗ not found</span><span class="anim-result" style="color:var(--amber)"> — 实际第47行: result = transform(data)</span></div>
+      <div class="anim-row" id="corr-3"><span style="color:var(--text2);font-size:.7rem">💭 模型看到了正确内容，重新构造 old_string</span></div>
+      <div class="anim-row" id="corr-4"><span class="anim-tool" style="background:rgba(52,211,153,.2);color:#34d399">Edit</span><span class="anim-result">old: <span style="color:var(--green)">result = transform(data)</span> ✓</span></div>
+    </div>
+    <div class="card-explain">
+      <span class="card-chapter">Ch04</span>
+      关键在错误信息的质量。我们不返回干巴巴的 "not found"，而是把实际文件内容一起返回。模型看到"你写的是 data * 2，实际是 transform(data)"，一次就能改对。
+    </div>
+  </div>
+</div>
+
+<!-- Card 3: Todo -->
+<div class="card" style="--accent:var(--purple)" onclick="this.classList.toggle('open');if(this.classList.contains('open'))playTodo()">
+  <div class="card-head">
+    <div class="card-icon">03</div>
+    <div><div class="card-title">复杂任务它为什么先列计划？ <span class="card-arrow">▾</span></div></div>
+  </div>
+  <div class="card-phenomenon">你说"把日志从 print 换成 logging"，它第一件事是列了个 4 步计划，每做完一步回来打勾。</div>
+  <div class="card-body">
+    <div class="anim" id="anim-todo" style="font-family:'SF Mono',monospace;font-size:.75rem;line-height:1.8">
+      <div id="todo-1" class="anim-row"><span style="color:var(--amber)">[>]</span> Grep 搜索所有 print() 调用</div>
+      <div id="todo-2" class="anim-row"><span style="color:var(--text3)">[ ]</span> 替换为 logging 调用</div>
+      <div id="todo-3" class="anim-row"><span style="color:var(--text3)">[ ]</span> 加 import logging</div>
+      <div id="todo-4" class="anim-row"><span style="color:var(--text3)">[ ]</span> 跑测试确认通过</div>
+      <div id="todo-counter" class="anim-row" style="color:var(--text2);font-size:.68rem;margin-top:.3rem">(0/4 completed)</div>
+    </div>
+    <div class="card-explain">
+      <span class="card-chapter">Ch07</span>
+      没有 todo 的模型在长任务里容易丢步骤——原始计划被工具返回值往后推，注意力分散了。TodoWrite 每隔几轮把完整计划刷新回 context，模型随时知道自己做到哪了。
+    </div>
+  </div>
+</div>
+
+<!-- Card 4: Context 压缩 -->
+<div class="card" style="--accent:var(--pink)" onclick="this.classList.toggle('open');if(this.classList.contains('open'))playContext()">
+  <div class="card-head">
+    <div class="card-icon">04</div>
+    <div><div class="card-title">聊了 20 轮之后它怎么还没撑爆？ <span class="card-arrow">▾</span></div></div>
+  </div>
+  <div class="card-phenomenon">30 多轮重构任务，读了十几个文件、改了 5 个、跑了 3 次测试。按理说 context 早满了。</div>
+  <div class="card-body">
+    <div class="anim" id="anim-context">
+      <div style="display:flex;gap:.3rem;align-items:flex-end;height:80px;margin-bottom:.4rem">
+        <div id="ctx-l1" class="ctx-layer" style="background:#60a5fa;width:14%;height:0;transition:height .5s;border-radius:3px 3px 0 0"></div>
+        <div id="ctx-l2" class="ctx-layer" style="background:#818cf8;width:14%;height:0;transition:height .5s .1s;border-radius:3px 3px 0 0"></div>
+        <div id="ctx-l3" class="ctx-layer" style="background:#a78bfa;width:14%;height:0;transition:height .5s .2s;border-radius:3px 3px 0 0"></div>
+        <div id="ctx-l4" class="ctx-layer" style="background:#f472b6;width:14%;height:0;transition:height .5s .3s;border-radius:3px 3px 0 0"></div>
+        <div id="ctx-l5" class="ctx-layer" style="background:#fbbf24;width:14%;height:0;transition:height .5s .4s;border-radius:3px 3px 0 0"></div>
+        <div id="ctx-l6" class="ctx-layer" style="background:#34d399;width:14%;height:0;transition:height .5s .5s;border-radius:3px 3px 0 0"></div>
+      </div>
+      <div style="display:flex;gap:.3rem;font-size:.55rem;color:var(--text2);text-align:center">
+        <div style="width:14%">System</div><div style="width:14%">Tools</div><div style="width:14%">Workspace</div>
+        <div style="width:14%">Todo</div><div style="width:14%">History</div><div style="width:14%">Current</div>
+      </div>
+      <div id="ctx-status" style="font-size:.7rem;color:var(--text2);text-align:center;margin-top:.5rem"></div>
+    </div>
+    <div class="card-explain">
+      <span class="card-chapter">Ch09</span> <span class="card-chapter">Ch10</span>
+      Prompt 按变化速率分 6 层。前两层（system + tools）从不变，API 可以缓存。History 涨得最快，快满了用 /compact 让模型把老对话压缩成摘要——从 85K token 压到 8K。
+    </div>
+  </div>
+</div>
+
+<!-- Card 5: 安全 -->
+<div class="card" style="--accent:var(--green)" onclick="this.classList.toggle('open');if(this.classList.contains('open'))playSafety()">
+  <div class="card-head">
+    <div class="card-icon">05</div>
+    <div><div class="card-title">它跑 rm -rf 之前为什么会先问你？ <span class="card-arrow">▾</span></div></div>
+  </div>
+  <div class="card-phenomenon">跑 ls、pytest 不会问，但 rm 和 git push --force 会弹确认框。</div>
+  <div class="card-body">
+    <div class="anim" id="anim-safety">
+      <div class="anim-row" id="safe-1"><span class="anim-tool" style="background:rgba(52,211,153,.15);color:var(--green)">pytest tests/ -v</span><span style="color:var(--green);font-size:.75rem">→ 自动执行 ✓</span></div>
+      <div class="anim-row" id="safe-2"><span class="anim-tool" style="background:rgba(251,191,36,.15);color:var(--amber)">rm old_tests.py</span><span style="color:var(--amber);font-size:.75rem">→ ⚠️ 确认执行？[y/n]</span></div>
+      <div class="anim-row" id="safe-3"><span class="anim-tool" style="background:rgba(239,68,68,.15);color:var(--red)">rm -rf /</span><span style="color:var(--red);font-size:.75rem">→ 🚫 拦截</span></div>
+    </div>
+    <div class="card-explain">
+      <span class="card-chapter">Ch06</span> <span class="card-chapter">Ch10</span>
+      三档处理：只读操作自动放行，写操作弹确认，高危命令直接拦。Claude Code 内部有 23 种安全检查，我们从正则黑名单 + 二档 approval 开始做。
+    </div>
+  </div>
+</div>
+
+<!-- Card 6: Workspace -->
+<div class="card" style="--accent:var(--cyan)" onclick="this.classList.toggle('open');if(this.classList.contains('open'))playWorkspace()">
+  <div class="card-head">
+    <div class="card-icon">06</div>
+    <div><div class="card-title">它怎么知道这是个 Python 项目？ <span class="card-arrow">▾</span></div></div>
+  </div>
+  <div class="card-phenomenon">你说"跑一下测试"，它直接 pytest。没告诉它用什么，但它就是知道。</div>
+  <div class="card-body">
+    <div class="anim" id="anim-workspace" style="font-family:'SF Mono',monospace;font-size:.7rem;line-height:1.7">
+      <div class="anim-row" id="ws-1"><span style="color:var(--cyan)">cwd:</span> /home/user/my-project</div>
+      <div class="anim-row" id="ws-2"><span style="color:var(--green)">git:</span> feature/auth (3 files changed)</div>
+      <div class="anim-row" id="ws-3"><span style="color:var(--amber)">stack:</span> Python 3.11 + pytest + FastAPI</div>
+      <div class="anim-row" id="ws-4"><span style="color:var(--purple)">AGENTS.md:</span> "测试用 pytest tests/ -x"</div>
+      <div class="anim-row" id="ws-5" style="color:var(--text2);margin-top:.3rem;font-size:.65rem">→ 全部塞进 system prompt，模型从第一轮就知道</div>
+    </div>
+    <div class="card-explain">
+      <span class="card-chapter">Ch08</span>
+      启动时自动收集：当前目录、git 分支、最近 commit、README、配置文件、AGENTS.md。这些塞进 prompt 后，模型第一轮就知道该用 pytest 而不是 npm test。没有这些，它每次都要先花几步自己去摸索。
+    </div>
+  </div>
+</div>
+
+</div>
+<div class="footer">点击任意卡片展开动画 · 这些机制在入门篇 Ch01-Ch10 里一个个拆解</div>
+</div>
+
+<script>
+function animateRows(prefix, count, delay=300) {
+  for(let i=1;i<=count;i++) {
+    const el = document.getElementById(prefix+i);
+    if(el) { el.classList.remove('show'); setTimeout(()=>el.classList.add('show'), i*delay); }
+  }
+}
+function playChain() { animateRows('chain-', 7, 350); }
+function playCorrect() { animateRows('corr-', 4, 800); }
+function playTodo() {
+  animateRows('todo-', 5, 200);
+  const items = ['todo-1','todo-2','todo-3','todo-4'];
+  const counter = document.getElementById('todo-counter');
+  let done = 0;
+  items.forEach((id, i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (i < done) return;
+      if (i === 0) { el.innerHTML = '<span style="color:var(--green)">[x]</span> Grep 搜索所有 print() 调用'; done++; }
+      if (i === 1) { setTimeout(()=>{el.innerHTML='<span style="color:var(--amber)">[>]</span> 替换为 logging 调用';},200); }
+      counter.textContent = `(${Math.min(i,4)}/4 completed)`;
+    }, 1500 + i * 1200);
+  });
+  setTimeout(()=>{
+    document.getElementById('todo-2').innerHTML='<span style="color:var(--green)">[x]</span> 替换为 logging 调用';
+    document.getElementById('todo-3').innerHTML='<span style="color:var(--amber)">[>]</span> 加 import logging';
+    counter.textContent='(2/4 completed)';
+  }, 5000);
+  setTimeout(()=>{
+    document.getElementById('todo-3').innerHTML='<span style="color:var(--green)">[x]</span> 加 import logging';
+    document.getElementById('todo-4').innerHTML='<span style="color:var(--green)">[x]</span> 跑测试确认通过';
+    counter.textContent='(4/4 completed) ✓';
+  }, 6500);
+}
+function playContext() {
+  const heights = ['8%','30%','10%','3%','0%','5%'];
+  const layers = ['ctx-l1','ctx-l2','ctx-l3','ctx-l4','ctx-l5','ctx-l6'];
+  const status = document.getElementById('ctx-status');
+  layers.forEach(id => document.getElementById(id).style.height = '0');
+  status.textContent = '';
+  setTimeout(()=>{
+    heights.forEach((h,i) => document.getElementById(layers[i]).style.height = h);
+    status.textContent = '启动时 ~3500 token（前3层缓存命中）';
+  }, 300);
+  setTimeout(()=>{
+    document.getElementById('ctx-l5').style.height = '70%';
+    document.getElementById('ctx-l6').style.height = '8%';
+    status.textContent = '20 轮后 History 涨到 80K token...';
+    status.style.color = 'var(--amber)';
+  }, 2500);
+  setTimeout(()=>{
+    document.getElementById('ctx-l5').style.height = '12%';
+    status.textContent = '/compact → History 从 85K 压到 8K ✓';
+    status.style.color = 'var(--green)';
+  }, 4500);
+}
+function playSafety() { animateRows('safe-', 3, 700); }
+function playWorkspace() { animateRows('ws-', 5, 400); }
+</script>
+</body>
+</html>

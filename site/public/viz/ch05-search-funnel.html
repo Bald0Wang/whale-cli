@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search Funnel: OpenClaw 消息处理调用链</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: #1c1816; color: #ebe0d2;
+    font-family: 'JetBrains Mono', monospace;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .header { text-align: center; padding: 16px 20px 4px; width: 100%; max-width: 880px; flex-shrink: 0; }
+  .header h1 { font-size: 15px; font-weight: 600; color: #8a7e72; }
+  .header h1 em { font-style: normal; color: #ebe0d2; }
+  .header .task { font-size: 12px; color: #6a6058; margin-top: 3px; line-height: 1.5; }
+  .header .task span { color: #D77757; }
+  .funnel { width: 100%; max-width: 880px; flex: 1; min-height: 0; overflow-y: auto; padding: 10px 20px 0; }
+  .funnel::-webkit-scrollbar { width: 5px; }
+  .funnel::-webkit-scrollbar-track { background: transparent; }
+  .funnel::-webkit-scrollbar-thumb { background: #2a2420; border-radius: 3px; }
+  .stage {
+    display: flex; align-items: flex-start; gap: 14px; margin-bottom: 6px;
+    opacity: 0; transform: translateY(12px);
+    transition: opacity 0.6s ease, transform 0.6s ease; cursor: pointer;
+  }
+  .stage.visible { opacity: 1; transform: translateY(0); }
+  .stage:hover .bar { filter: brightness(1.15); }
+  .stage:hover .stage-name { filter: brightness(1.2); }
+  .stage-label { width: 120px; min-width: 120px; padding-top: 10px; text-align: right; }
+  .stage-num { font-size: 10px; color: #5a5048; text-transform: uppercase; letter-spacing: 1px; }
+  .stage-name { font-size: 13px; font-weight: 600; margin-top: 1px; }
+  .stage-tool { font-size: 10px; color: #5a5048; margin-top: 2px; }
+  .bar-wrap { flex: 1; min-width: 0; padding-top: 8px; }
+  .bar {
+    height: 32px; border-radius: 4px; position: relative; overflow: hidden;
+    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .bar-inner { width: 100%; height: 100%; border-radius: 4px; opacity: 0.85; }
+  .bar-text {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.9); white-space: nowrap;
+  }
+  .bar-text-left {
+    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.7); white-space: nowrap;
+  }
+  .token-col { width: 100px; min-width: 100px; padding-top: 10px; text-align: right; }
+  .token-val { font-size: 14px; font-weight: 600; color: #D77757; }
+  .token-label { font-size: 10px; color: #5a5048; }
+  .token-cumul { font-size: 10px; color: #D77757; opacity: 0.6; margin-top: 1px; }
+  .detail {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.4s ease; margin: 0 0 4px 134px;
+    background: #141110; border-radius: 6px; border: 1px solid transparent;
+  }
+  .detail.open { max-height: 260px; border-color: #2a2420; overflow-y: auto; }
+  .detail::-webkit-scrollbar { width: 4px; }
+  .detail::-webkit-scrollbar-thumb { background: #2a2420; border-radius: 2px; }
+  .detail-inner { padding: 10px 14px; }
+  .detail-row {
+    font-size: 11px; line-height: 20px; color: #6a6058;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .detail-row .cmd { color: #8a7e72; }
+  .detail-row .path { color: #c4b8a8; }
+  .detail-row .result { color: #5a5048; }
+  .detail-row .arrow { color: #D77757; margin: 0 4px; }
+  .detail-section {
+    font-size: 10px; color: #5a5048; text-transform: uppercase;
+    letter-spacing: 1px; margin-top: 8px; margin-bottom: 2px;
+  }
+  .detail-section:first-child { margin-top: 0; }
+  .connector { margin-left: 170px; width: 2px; height: 8px; background: #2a2420; opacity: 0; transition: opacity 0.4s ease; }
+  .connector.visible { opacity: 1; }
+  .summary {
+    width: 100%; max-width: 880px; padding: 8px 20px 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    opacity: 0; transform: translateY(8px); transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .summary.visible { opacity: 1; transform: translateY(0); }
+  .sum-item { text-align: center; }
+  .sum-val { font-size: 18px; font-weight: 700; color: #D77757; }
+  .sum-label { font-size: 10px; color: #5a5048; margin-top: 1px; }
+  .sum-divider { width: 1px; height: 28px; background: #2a2420; }
+  .clr-find { color: #9b7ed8; }
+  .clr-ls { color: #6a6058; }
+  .clr-grep { color: #e0c864; }
+  .clr-read { color: #6477e0; }
+  .bg-find { background: linear-gradient(90deg, #7b5eb8, #9b7ed8); }
+  .bg-ls { background: linear-gradient(90deg, #4a4038, #6a6058); }
+  .bg-grep { background: linear-gradient(90deg, #b8a040, #e0c864); }
+  .bg-read { background: linear-gradient(90deg, #4457b0, #6477e0); }
+  .click-hint {
+    font-size: 10px; color: #3a3430; text-align: center;
+    padding: 2px 0 6px; flex-shrink: 0; opacity: 0; transition: opacity 0.6s ease;
+  }
+  .click-hint.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Search Funnel: <em>15,000+ 文件 到 18 个精准定位</em></h1>
+  <div class="task">任务: <span>追踪 OpenClaw 消息处理调用链 -- 从接收消息到最终回复</span></div>
+</div>
+<div class="funnel" id="funnel"></div>
+<div class="click-hint" id="click-hint">点击任意阶段查看详情</div>
+<div class="summary" id="summary">
+  <div class="sum-item"><div class="sum-val" id="s-calls">0</div><div class="sum-label">次工具调用</div></div>
+  <div class="sum-divider"></div>
+  <div class="sum-item"><div class="sum-val" id="s-files">0</div><div class="sum-label">个文件</div></div>
+  <div class="sum-divider"></div>
+  <div class="sum-item"><div class="sum-val" id="s-tokens">0</div><div class="sum-label">tokens</div></div>
+  <div class="sum-divider"></div>
+  <div class="sum-item"><div class="sum-val" id="s-time">0s</div><div class="sum-label">耗时</div></div>
+</div>
+<script>
+const stages = [
+  { num: "Stage 1", name: "项目扫描", tool: "18 find + 2 ls", color: "find",
+    barWidth: 100, barLabel: "~200 个 .ts 文件", barLeftLabel: 'find src -type f "*.ts"',
+    tokens: 7930, cumulTokens: 7930,
+    details: [
+      { title: "find 命令 (18 次)", rows: [
+        ["find", 'src -type f -name "*.ts"', "全量 .ts 文件列表"],
+        ["find", "src/gateway -type f", "网关模块结构"],
+        ["find", "src/channels -type f", "频道模块结构"],
+        ["find", "src/routing -type f", "路由模块结构"],
+        ["find", "src/auto-reply -type f", "自动回复模块"],
+        ["find", "src/agents -type f", "智能体模块"],
+        ["find", "src/infra -type f", "基础设施模块"],
+        ["find", "... (另外 11 个目录)", "排除无关模块"],
+      ]},
+      { title: "ls 命令 (2 次)", rows: [
+        ["ls", "src/", "20+ 顶层目录"],
+        ["ls", "src/gateway/server-methods/", "server 子方法"],
+      ]},
+    ]},
+  { num: "Stage 2", name: "目录探索", tool: "锁定 6 个关键目录", color: "ls",
+    barWidth: 30, barLabel: "6 个关键目录", barLeftLabel: "gateway / channels / routing",
+    tokens: 0, cumulTokens: 7930,
+    details: [
+      { title: "锁定的关键目录", rows: [
+        ["dir", "src/gateway/", "HTTP 入口 + WebSocket"],
+        ["dir", "src/channels/", "消息收发通道"],
+        ["dir", "src/routing/", "路由分发逻辑"],
+        ["dir", "src/auto-reply/", "自动回复管线"],
+        ["dir", "src/agents/", "Agent 执行器"],
+        ["dir", "src/infra/", "事件系统 + 运行时"],
+      ]},
+      { title: "排除的目录 (14+)", rows: [
+        ["skip", "src/migrations, src/scripts, src/types ...", "与调用链无关"],
+      ]},
+    ]},
+  { num: "Stage 3", name: "精准搜索", tool: "5 次 grep", color: "grep",
+    barWidth: 14, barLabel: "5 次 grep", barLeftLabel: 'grep -r "dispatch|send|emit"',
+    tokens: 2520, cumulTokens: 10450,
+    details: [
+      { title: "grep 搜索 (5 次)", rows: [
+        ["grep", "dispatchInboundMessage|handleInbound|receiveMessage", "3 hits"],
+        ["grep", "sendReply|broadcastReply|deliverReply", "reply chain"],
+        ["grep", "broadcastAgentEvent|emitAgent|sendAgentEvent", "event system"],
+        ["grep", "registerAgentEventListener|onAgentEvent", "event listeners"],
+        ["grep", "createAgentEventHandler", "specific handler"],
+      ]},
+    ]},
+  { num: "Stage 4", name: "定点阅读", tool: "26 次 Read / 18 个文件", color: "read",
+    barWidth: 6, barLabel: "18 个文件", barLeftLabel: "完整调用链还原",
+    tokens: 30140, cumulTokens: 40590,
+    details: [
+      { title: "入口层", rows: [
+        ["Read", "src/index.ts", "应用入口"],
+        ["Read", "src/gateway/server.ts", "HTTP 服务定义"],
+        ["Read", "src/gateway/server.impl.ts", "服务实现"],
+      ]},
+      { title: "网关 -> 路由", rows: [
+        ["Read", "src/gateway/server-methods/chat.ts", "chat 端点"],
+        ["Read", "src/routing/resolve-route.ts", "路由解析"],
+      ]},
+      { title: "自动回复管线", rows: [
+        ["Read", "src/auto-reply/dispatch.ts", "回复分发"],
+        ["Read", "src/auto-reply/get-reply.ts", "回复生成"],
+        ["Read", "src/auto-reply/reply-pipeline.ts", "管线编排"],
+      ]},
+      { title: "Agent 执行", rows: [
+        ["Read", "src/agents/pi-embedded-runner.ts", "Agent 运行器"],
+        ["Read", "src/agents/agent-registry.ts", "Agent 注册表"],
+      ]},
+      { title: "消息通道", rows: [
+        ["Read", "src/channels/message/receive.ts", "消息接收"],
+        ["Read", "src/channels/message/send.ts", "消息发送"],
+      ]},
+      { title: "事件系统 + 运行时", rows: [
+        ["Read", "src/infra/agent-events.ts", "Agent 事件定义"],
+        ["Read", "src/gateway/server-runtime-subscriptions.ts", "运行时订阅"],
+        ["Read", "src/infra/event-bus.ts", "事件总线"],
+        ["Read", "src/infra/logger.ts", "日志系统"],
+        ["Read", "src/gateway/middleware/auth.ts", "认证中间件"],
+        ["Read", "src/gateway/middleware/rate-limit.ts", "限流中间件"],
+      ]},
+    ]},
+];
+
+// -- Build DOM --
+const funnelEl = document.getElementById("funnel");
+const allStages = [], allDetails = [], allConns = [];
+
+stages.forEach((s, i) => {
+  const row = document.createElement("div");
+  row.className = "stage";
+
+  // Label
+  const label = document.createElement("div");
+  label.className = "stage-label";
+  label.innerHTML = '<div class="stage-num">' + s.num + '</div>' +
+    '<div class="stage-name clr-' + s.color + '">' + s.name + '</div>' +
+    '<div class="stage-tool">' + s.tool + '</div>';
+
+  // Bar
+  const bw = document.createElement("div");
+  bw.className = "bar-wrap";
+  const bar = document.createElement("div");
+  bar.className = "bar";
+  bar.style.width = "0%";
+  bar.dataset.target = s.barWidth;
+  bar.innerHTML = '<div class="bar-inner bg-' + s.color + '"></div>' +
+    '<div class="bar-text">' + s.barLabel + '</div>' +
+    (s.barWidth >= 20 ? '<div class="bar-text-left">' + s.barLeftLabel + '</div>' : '');
+  bw.appendChild(bar);
+
+  // Token column
+  const tc = document.createElement("div");
+  tc.className = "token-col";
+  if (s.tokens > 0) {
+    tc.innerHTML = '<div class="token-val">~' + s.tokens.toLocaleString() + '</div>' +
+      '<div class="token-label">tokens</div>' +
+      '<div class="token-cumul">累计 ~' + s.cumulTokens.toLocaleString() + '</div>';
+  } else {
+    tc.innerHTML = '<div class="token-val" style="color:#5a5048">--</div>' +
+      '<div class="token-label">含在 Stage 1</div>' +
+      '<div class="token-cumul">累计 ~' + s.cumulTokens.toLocaleString() + '</div>';
+  }
+
+  row.appendChild(label);
+  row.appendChild(bw);
+  row.appendChild(tc);
+  funnelEl.appendChild(row);
+  allStages.push({ row, bar });
+
+  // Detail panel
+  const detail = document.createElement("div");
+  detail.className = "detail";
+  const inner = document.createElement("div");
+  inner.className = "detail-inner";
+  s.details.forEach(sec => {
+    const st = document.createElement("div");
+    st.className = "detail-section";
+    st.textContent = sec.title;
+    inner.appendChild(st);
+    sec.rows.forEach(r => {
+      const dr = document.createElement("div");
+      dr.className = "detail-row";
+      dr.innerHTML = '<span class="cmd">' + r[0] + '</span> ' +
+        '<span class="path">' + r[1] + '</span>' +
+        '<span class="arrow">-></span>' +
+        '<span class="result">' + r[2] + '</span>';
+      inner.appendChild(dr);
+    });
+  });
+  detail.appendChild(inner);
+  funnelEl.appendChild(detail);
+  allDetails.push(detail);
+
+  // Connector between stages
+  if (i < stages.length - 1) {
+    const conn = document.createElement("div");
+    conn.className = "connector";
+    funnelEl.appendChild(conn);
+    allConns.push(conn);
+  }
+
+  // Click to toggle
+  row.addEventListener("click", () => {
+    const open = detail.classList.contains("open");
+    allDetails.forEach(d => d.classList.remove("open"));
+    if (!open) detail.classList.add("open");
+  });
+});
+
+// -- Animation --
+let revealed = 0;
+
+function revealStage(idx) {
+  if (idx >= stages.length) { showSummary(); return; }
+  const { row, bar } = allStages[idx];
+  row.classList.add("visible");
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    bar.style.width = bar.dataset.target + "%";
+  }));
+  if (idx > 0 && allConns[idx - 1]) allConns[idx - 1].classList.add("visible");
+  revealed = idx + 1;
+}
+
+function showSummary() {
+  document.getElementById("summary").classList.add("visible");
+  document.getElementById("click-hint").classList.add("visible");
+  animNum("s-calls", 51, 800);
+  animNum("s-files", 18, 800);
+  animFmt("s-tokens", 40590, 1000, v => "~" + v.toLocaleString());
+  animFmt("s-time", 109, 800, v => {
+    const m = Math.floor(v / 60), s = v % 60;
+    return m + ":" + String(s).padStart(2, "0");
+  });
+}
+
+function animNum(id, to, dur) {
+  const el = document.getElementById(id), t0 = performance.now();
+  (function tick(now) {
+    const p = Math.min((now - t0) / dur, 1);
+    el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+
+function animFmt(id, to, dur, fmt) {
+  const el = document.getElementById(id), t0 = performance.now();
+  (function tick(now) {
+    const p = Math.min((now - t0) / dur, 1);
+    el.textContent = fmt(Math.round(to * (1 - Math.pow(1 - p, 3))));
+    if (p < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+
+// Auto-play on load
+let timer = null;
+function autoPlay() {
+  if (revealed >= stages.length) { setTimeout(showSummary, 800); return; }
+  revealStage(revealed);
+  timer = setTimeout(autoPlay, 1200);
+}
+setTimeout(autoPlay, 400);
+
+// Keyboard: space/enter to advance manually
+document.addEventListener("keydown", e => {
+  if (e.key === " " || e.key === "Enter") {
+    e.preventDefault();
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (revealed < stages.length) {
+      revealStage(revealed);
+      if (revealed >= stages.length) setTimeout(showSummary, 600);
+    } else showSummary();
+  }
+});
+</script>
+</body>
+</html>

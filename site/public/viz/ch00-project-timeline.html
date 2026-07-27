@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coding Agent 时间轴 · 2023-2026</title>
+<style>
+:root{--bg:#0a0c10;--surface:#12151e;--surface2:#1a1e2e;--border:#252a3a;--text:#c8cdd8;--text2:#6b7394;--text3:#3e4563;--blue:#60a5fa;--green:#34d399;--amber:#fbbf24;--purple:#a78bfa;--pink:#f472b6;--cyan:#22d3ee;--red:#ef4444}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem 1rem}
+.container{max-width:750px;margin:0 auto}
+h1{font-size:1.3rem;font-weight:700;color:#f0f2f7;text-align:center;margin-bottom:.3rem}
+.subtitle{text-align:center;font-size:.8rem;color:var(--text2);margin-bottom:2rem}
+.timeline{position:relative;padding-left:3rem}
+.tl-line{position:absolute;left:calc(1.3rem);top:0;width:2px;height:100%;background:linear-gradient(to bottom,var(--blue),var(--purple),var(--green))}
+.tl-year{font-size:.9rem;font-weight:700;color:var(--blue);margin-top:1.8rem;margin-bottom:.6rem;position:relative}
+.tl-year::before{content:'';position:absolute;left:-1.85rem;top:.35rem;width:12px;height:12px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px color-mix(in srgb,var(--blue) 50%,transparent)}
+.tl-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.7rem 1rem;margin-bottom:.5rem;cursor:pointer;transition:border-color .15s,transform .1s}
+.tl-item:hover{border-color:var(--accent,var(--blue));transform:translateX(3px)}
+.tl-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.tl-icon{font-size:1.1rem}
+.tl-name{font-weight:600;font-size:.88rem;color:#e8ecf2}
+.tl-org{font-size:.68rem;color:var(--text2)}
+.tl-lang{font-size:.6rem;padding:.1rem .4rem;border-radius:3px;background:var(--surface2);color:var(--text2)}
+.tl-date{font-size:.65rem;color:var(--text3);margin-left:auto;font-family:monospace}
+.tl-desc{font-size:.76rem;color:var(--text2);margin-top:.4rem;line-height:1.5;display:none}
+.tl-item.open .tl-desc{display:block}
+.tl-hl{font-size:.72rem;color:var(--amber);margin-top:.3rem;display:none}
+.tl-item.open .tl-hl{display:block}
+.tl-stats{display:none;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+.tl-item.open .tl-stats{display:flex}
+.tl-stat{font-size:.63rem;padding:.12rem .4rem;border-radius:3px;background:var(--surface2);color:var(--text2)}
+.footer{text-align:center;margin-top:2rem;font-size:.7rem;color:var(--text3)}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Coding Agent 时间轴</h1>
+<p class="subtitle">从 Aider 到 Whale CLI · 点击展开详情</p>
+<div class="timeline" id="tl"></div>
+<div class="footer">16 个项目 · 2023-2026</div>
+</div>
+<script>
+const projects = [
+  {name:"Aider",org:"Paul Gauthier",lang:"Python",date:"2023-06",year:2023,desc:"最早的终端 coding agent 之一。纯 CLI，支持多模型，专注 git 集成——每次改动自动 commit。社区活跃，迭代了两年多。",highlight:"最早把 git workflow 和 agent loop 结合的项目",stats:{lines:"~30K",stars:"30K+",tools:"10+"},tags:["开源","CLI","git集成"],color:"var(--green)",icon:"🟢"},
+  {name:"Cursor",org:"Anysphere",lang:"TypeScript",date:"2023-09",year:2023,desc:"AI-first IDE，把聊天和代码库连接起来。底层 agent 逻辑跟 CLI 类似，但包了一层完整的编辑器 UI。",highlight:"让'AI编辑器'这个品类被广泛认知",stats:{stars:"商业产品",tools:"IDE集成"},tags:["商业","IDE"],color:"var(--purple)",icon:"🟣"},
+  {name:"Continue",org:"Continue.dev",lang:"TypeScript",date:"2023-11",year:2023,desc:"开源 IDE 插件，支持 VS Code 和 JetBrains。可以接任意 LLM，包括本地模型。",highlight:"开源 IDE 插件的先行者",stats:{stars:"20K+",tools:"IDE插件"},tags:["开源","IDE插件"],color:"var(--cyan)",icon:"🔵"},
+  {name:"SWE-agent",org:"Princeton NLP",lang:"Python",date:"2024-04",year:2024,desc:"学术项目，核心发现：同一模型换工具接口，分数差很多。提出了 ACI（Agent-Computer Interface）概念。",highlight:"证明了工具接口设计比模型选择更影响性能",stats:{lines:"~15K",stars:"15K+",tools:"ACI"},tags:["学术","评测"],color:"var(--amber)",icon:"🟡"},
+  {name:"OpenHands",org:"UIUC + All Hands AI",lang:"Python",date:"2024-06",year:2024,desc:"原名 OpenDevin。完整 agent 平台，有 Web UI、Docker 沙箱、自己的 SDK。",highlight:"学术界最完整的 coding agent 平台",stats:{lines:"~50K",stars:"50K+",tools:"SDK"},tags:["学术","平台"],color:"var(--blue)",icon:"🔷"},
+  {name:"Cline",org:"社区",lang:"TypeScript",date:"2024-08",year:2024,desc:"VS Code 插件，支持 MCP，可以接浏览器、数据库等外部工具。",highlight:"第一个把 MCP 生态做进 IDE 的",stats:{stars:"25K+",tools:"MCP"},tags:["开源","IDE插件"],color:"var(--pink)",icon:"🩷"},
+  {name:"Claude Code",org:"Anthropic",lang:"TypeScript",date:"2025-02-24",year:2025,desc:"50+ 工具，100 万 token context，三档 approval，auto-compact，子 agent。发布后几个月内成为赛道标杆。",highlight:"第一个大厂正式押注 CLI agent 作为产品主线",stats:{lines:"~80K",stars:"官方产品",tools:"50+"},tags:["商业","CLI","标杆"],color:"var(--blue)",icon:"⚡"},
+  {name:"pi",org:"badlogic",lang:"TypeScript",date:"2025-03",year:2025,desc:"个人开发者做的极简 agent。Extension 系统可插拔，代码非常干净。",highlight:"极简主义典范——默认只给 4 个工具",stats:{lines:"~8K",stars:"5K+",tools:"4+ext"},tags:["开源","CLI","极简"],color:"var(--amber)",icon:"🥧"},
+  {name:"OpenDev",org:"Bui et al.",lang:"Rust",date:"2025-03",year:2025,desc:"Bui 论文的 Rust 实现。9 级 fuzzy 匹配、ratatui TUI。",highlight:"Rust 实现 + 9 级 fuzzy 匹配链",stats:{lines:"~25K",stars:"学术",tools:"~12"},tags:["学术","Rust"],color:"var(--red)",icon:"🦀"},
+  {name:"Codex CLI",org:"OpenAI",lang:"TS+Rust",date:"2025-04",year:2025,desc:"默认开启 OS 级沙箱（Bubblewrap/Seatbelt），安全策略最激进。",highlight:"默认沙箱隔离——安全最激进",stats:{stars:"官方产品",tools:"沙箱"},tags:["商业","CLI","沙箱"],color:"var(--green)",icon:"🟩"},
+  {name:"OpenHarness",org:"HKUDS",lang:"Python",date:"2025-04",year:2025,desc:"港大团队的开源框架。BaseTool + ToolRegistry，跟 Whale CLI 设计思路很像。",highlight:"Python BaseTool 模式跟 Whale CLI 最像",stats:{lines:"~10K",stars:"学术",tools:"~8"},tags:["学术","Python"],color:"var(--pink)",icon:"🔬"},
+  {name:"kimi-cli",org:"MoonshotAI",lang:"Python",date:"2025-05",year:2025,desc:"Kosong SDK 抽象层，Wire 消息总线解耦 UI 和逻辑。有 Explorer subagent。",highlight:"Wire 解耦设计值得学",stats:{lines:"~20K",stars:"开源",tools:"~15"},tags:["开源","CLI","Python"],color:"var(--purple)",icon:"🌙"},
+  {name:"mini-coding-agent",org:"Raschka",lang:"Python",date:"2025-05",year:2025,desc:"配套博客的教学项目。单文件 500 行，跑 Ollama 本地模型。",highlight:"单文件 500 行的教学级实现",stats:{lines:"500",stars:"1K+",tools:"5"},tags:["开源","教学"],color:"var(--green)",icon:"📗"},
+  {name:"Whale CLI",org:"Datawhale",lang:"Python",date:"2025-05",year:2025,desc:"就是我们做的这个。入门篇 ~2000 行，7 个核心工具。",highlight:"你正在学的这个 :)",stats:{lines:"~2K",stars:"教程",tools:"7→14"},tags:["开源","教学","Python"],color:"var(--amber)",icon:"🐳"},
+  {name:"Gemini CLI",org:"Google",lang:"TypeScript",date:"2025-06",year:2025,desc:"200 万 token context 窗口，Gemini 2.5 Pro 驱动。开源。",highlight:"200 万 token——目前最大的 context",stats:{stars:"开源",tools:"200万ctx"},tags:["开源","CLI"],color:"var(--cyan)",icon:"💎"},
+  {name:"learn-claude-code",org:"社区",lang:"Python",date:"2025-06",year:2025,desc:"从 Claude Code 设计中提取核心模式用 Python 重写。有 EventBus 和 nag reminder。",highlight:"nag reminder：3 轮不更新 todo 就提醒",stats:{lines:"~3K",stars:"社区",tools:"~7"},tags:["开源","教学","Python"],color:"var(--cyan)",icon:"📘"},
+];
+
+const byYear={};
+projects.forEach(p=>{if(!byYear[p.year])byYear[p.year]=[];byYear[p.year].push(p)});
+let html='';
+Object.keys(byYear).sort().forEach(year=>{
+  html+=`<div class="tl-year">${year}</div>`;
+  byYear[year].sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>{
+    html+=`<div class="tl-item" style="--accent:${p.color}" onclick="this.classList.toggle('open')">
+      <div class="tl-head">
+        <span class="tl-icon">·</span>
+        <span class="tl-name">${p.name}</span>
+        <span class="tl-org">${p.org}</span>
+        <span class="tl-lang">${p.lang}</span>
+        <span class="tl-date">${p.date}</span>
+      </div>
+      <div class="tl-desc">${p.desc}</div>
+      <div class="tl-hl">💡 ${p.highlight}</div>
+      <div class="tl-stats">
+        ${p.stats.lines?`<span class="tl-stat">${p.stats.lines} 行</span>`:''}
+        ${p.stats.stars?`<span class="tl-stat">⭐ ${p.stats.stars}</span>`:''}
+        ${p.stats.tools?`<span class="tl-stat">🔧 ${p.stats.tools}</span>`:''}
+      </div>
+    </div>`;
+  });
+});
+document.getElementById('tl').innerHTML=html;
+</script>
+</body>
+</html>

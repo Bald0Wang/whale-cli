@@ -1,0 +1,115 @@
+:root {
+  --viz-paper: #f7f3ea;
+  --viz-paper-deep: #eee7d9;
+  --viz-ink: #25231f;
+  --viz-muted: #716b61;
+  --viz-line: rgba(55, 49, 41, 0.16);
+  --viz-coral: #df6f4f;
+  --viz-coral-strong: #bd4d31;
+  --viz-teal: #147d6d;
+  --viz-green: #2f7b52;
+  --viz-red: #bd4035;
+  --viz-focus: #f0b83f;
+  --viz-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --viz-fast: 160ms;
+  --viz-normal: 360ms;
+}
+
+html.viz-foundation-ready {
+  color-scheme: light dark;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.viz-foundation-ready,
+html.viz-foundation-ready body {
+  scrollbar-color: color-mix(in srgb, var(--viz-coral) 48%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+html.viz-foundation-ready body {
+  accent-color: var(--viz-coral);
+}
+
+html.viz-foundation-ready ::selection {
+  background: color-mix(in srgb, var(--viz-coral) 28%, transparent);
+}
+
+html.viz-foundation-ready :is(button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 3px solid var(--viz-focus) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 1px rgba(35, 31, 25, 0.72) !important;
+}
+
+html.viz-foundation-ready button {
+  min-height: 34px;
+  touch-action: manipulation;
+}
+
+html.viz-foundation-ready [aria-live="polite"] {
+  contain: content;
+}
+
+html.viz-foundation-ready body[data-viz-tone="dark"] :is(
+  .dim,
+  .comment,
+  .subtitle,
+  .toolbar-label,
+  .panel-header,
+  .card-body,
+  .insight,
+  .footer,
+  .title-text
+) {
+  color: #aaa198 !important;
+}
+
+html.viz-foundation-ready body[data-viz-tone="dark"] :is(button, input, select, textarea) {
+  color-scheme: dark;
+}
+
+html.viz-foundation-ready body[data-viz-tone="light"] :is(
+  .subtitle,
+  .muted,
+  .hint,
+  .caption
+) {
+  color: #655f55 !important;
+}
+
+@media (max-width: 720px) {
+  html.viz-foundation-ready body {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  html.viz-foundation-ready :is(h1, .hero-title) {
+    text-wrap: balance;
+  }
+
+  html.viz-foundation-ready button {
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.viz-foundation-ready *,
+  html.viz-foundation-ready *::before,
+  html.viz-foundation-ready *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+html[data-viz-reduced-motion="true"] *,
+html[data-viz-reduced-motion="true"] *::before,
+html[data-viz-reduced-motion="true"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+}

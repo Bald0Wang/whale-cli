@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每减少一次人工搬运</title>
+<style>
+:root{--bg:#faf9f5;--card:#fff;--border:#e8e4d8;--ink:#29261f;--text:#3d382e;--text2:#7d766a;--text3:#b3ac9d;--accent:#d97757;--green:#2e7d4f;--red:#c2402a;--teal:#0e7c66}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Inter',sans-serif;background:var(--bg);color:var(--text);padding:1.5rem 1rem}
+.wrap{max-width:720px;margin:0 auto}
+h2{font-size:1.15rem;font-weight:600;color:var(--ink);text-align:center;margin-bottom:1.2rem}
+
+/* 时代标签 */
+.era-bar{display:flex;gap:0;margin-bottom:0.5rem}
+.era-tab{flex:1;text-align:center;padding:0.4rem 0.3rem;font-size:0.7rem;font-family:'JetBrains Mono',monospace;color:var(--text3);cursor:pointer;border-bottom:2px solid var(--border);transition:all 0.2s}
+.era-tab.active{color:var(--accent);border-color:var(--accent);font-weight:600}
+.era-tab.passed{color:var(--text2);border-color:var(--accent)}
+
+/* 滑块 */
+.slider-row{padding:0 0.5rem;margin-bottom:1.5rem}
+.slider-row input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:var(--border);outline:none;cursor:pointer}
+.slider-row input::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--accent);box-shadow:0 2px 6px rgba(217,119,87,0.3);cursor:grab}
+
+/* 产品卡 */
+.product-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(41,38,31,0.05)}
+.product-name{font-size:0.9rem;font-weight:600;color:var(--ink);margin-bottom:0.15rem}
+.product-year{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--text3)}
+.product-desc{font-size:0.8rem;color:var(--text2);margin:0.5rem 0;line-height:1.55}
+.product-gain{font-size:0.78rem;color:var(--green);font-weight:500;margin-top:0.4rem}
+
+/* 任务清单 */
+.task-list{margin-top:0.8rem}
+.task-item{display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;font-size:0.78rem;transition:opacity 0.3s,color 0.3s}
+.task-item .icon{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:0.6rem;flex-shrink:0;transition:all 0.3s}
+.task-item.human .icon{border-color:var(--red);color:var(--red)}
+.task-item.auto .icon{border-color:var(--green);background:var(--green);color:#fff}
+.task-item.auto{color:var(--text3)}
+.task-item.auto .label{text-decoration:line-through}
+
+/* 进度条 */
+.progress{margin-top:0.8rem;display:flex;align-items:center;gap:0.6rem}
+.progress-bar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:var(--green);border-radius:3px;transition:width 0.4s}
+.progress-label{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--green);font-weight:600;min-width:3rem;text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>每减少一次人工搬运，产品形态就往前走一步</h2>
+
+  <div class="era-bar" id="era-bar"></div>
+  <div class="slider-row">
+    <input type="range" id="slider" min="0" max="4" value="0" step="1">
+  </div>
+
+  <div id="card"></div>
+</div>
+
+<script>
+const TASKS = [
+  '决定该看哪个文件',
+  '打开文件、翻到相关代码',
+  '把代码复制给模型',
+  '理解模型的修改建议',
+  '手动修改代码',
+  '运行程序看结果',
+  '把运行结果反馈给模型',
+  '判断是否修复完成',
+];
+
+const STAGES = [
+  {
+    name: '网页 ChatGPT',
+    year: '2022',
+    desc: '模型只能看到你贴进聊天框的内容。每一次它需要新信息,你就得切窗口、找文件、复制、粘贴。',
+    gain: '',
+    auto: [],  // 没有任何自动化
+  },
+  {
+    name: 'Copilot（编辑器补全）',
+    year: '2021–2023',
+    desc: '模型进入编辑器,能看到光标周围的代码,在你写代码的时候给出补全建议。',
+    gain: '当前文件不用再复制了',
+    auto: [1],  // 打开文件
+  },
+  {
+    name: 'Aider（仓库感知 + 自动测试）',
+    year: '2023–2024',
+    desc: '模型进入终端,能为整个仓库建索引,修改后自动跑 lint 和测试。',
+    gain: '搜文件和跑测试不用手动了',
+    auto: [0,1,5],  // 决定看哪个文件、打开文件、运行程序
+  },
+  {
+    name: 'Replit Agent / Aider（执行闭环）',
+    year: '2024',
+    desc: '模型能自己安装依赖、执行代码、读取报错,测试失败时自动继续修。',
+    gain: '修改→测试→再修的循环自动化了',
+    auto: [0,1,4,5,6],  // +手动修改、反馈结果
+  },
+  {
+    name: 'Claude Code / Codex',
+    year: '2025',
+    desc: '用户说一句目标,agent 自己规划步骤并执行。搜索、读取、修改、测试、反馈全在循环里。',
+    gain: '用户只需要提出目标和审查结果',
+    auto: [0,1,2,4,5,6],  // 几乎全部,除了理解建议和判断完成
+  },
+];
+
+const eraBar = document.getElementById('era-bar');
+const slider = document.getElementById('slider');
+const cardEl = document.getElementById('card');
+
+// 渲染 era bar
+eraBar.innerHTML = STAGES.map((s,i) => `<div class="era-tab" data-i="${i}">${s.year}</div>`).join('');
+
+function render(idx) {
+  const s = STAGES[idx];
+  const autoPct = Math.round((s.auto.length / TASKS.length) * 100);
+
+  // era tabs
+  document.querySelectorAll('.era-tab').forEach((el,i) => {
+    el.classList.toggle('active', i === idx);
+    el.classList.toggle('passed', i < idx);
+  });
+
+  // slider fill
+  slider.style.background = `linear-gradient(90deg, var(--accent) ${idx/4*100}%, var(--border) ${idx/4*100}%)`;
+
+  // card
+  cardEl.innerHTML = `
+    <div class="product-card">
+      <div class="product-name">${s.name}</div>
+      <div class="product-year">${s.year}</div>
+      <div class="product-desc">${s.desc}</div>
+      ${s.gain ? `<div class="product-gain">→ ${s.gain}</div>` : ''}
+
+      <div class="task-list">
+        ${TASKS.map((t,i) => {
+          const isAuto = s.auto.includes(i);
+          return `<div class="task-item ${isAuto ? 'auto' : 'human'}">
+            <span class="icon">${isAuto ? '✓' : ''}</span>
+            <span class="label">${t}</span>
+            <span style="margin-left:auto;font-size:0.66rem;font-family:'JetBrains Mono',monospace;color:${isAuto?'var(--green)':'var(--red)'}">${isAuto?'自动':'人工'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div class="progress">
+        <div class="progress-bar"><div class="progress-fill" style="width:${autoPct}%"></div></div>
+        <div class="progress-label">${autoPct}%</div>
+      </div>
+    </div>
+  `;
+}
+
+slider.addEventListener('input', () => render(+slider.value));
+document.querySelectorAll('.era-tab').forEach(el => {
+  el.addEventListener('click', () => { slider.value = el.dataset.i; render(+el.dataset.i); });
+});
+
+render(0);
+</script>
+</body>
+</html>

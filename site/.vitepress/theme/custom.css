@@ -1,0 +1,321 @@
+/* ═══ Whale CLI 教程 · 正文样式 ═══ */
+
+/* 色板覆盖 VitePress 默认值 */
+:root {
+  --vp-c-brand-1: #d97757;
+  --vp-c-brand-2: #c45f3c;
+  --vp-c-brand-3: #b8502e;
+  --vp-c-brand-soft: rgba(217,119,87,0.12);
+  --vp-c-bg: #faf9f5;
+  --vp-c-bg-alt: #f5f0e8;
+  --vp-c-bg-soft: #f5f0e8;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-text-1: #29261f;
+  --vp-c-text-2: #3d382e;
+  --vp-c-text-3: #7d766a;
+  --vp-c-divider: #e6dfd8;
+  --vp-c-gutter: #e6dfd8;
+  --vp-font-family-base: -apple-system, 'Inter', system-ui, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --vp-sidebar-bg-color: #faf9f5;
+  --vp-nav-bg-color: #faf9f5;
+}
+
+/* 隐藏暗色模式切换 */
+.VPSwitchAppearance, .VPNavBarAppearance, .appearance { display: none !important; }
+
+/* ── 正文排版 ── */
+.vp-doc {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--vp-c-text-2);
+}
+
+/* 加粗：更醒目 */
+.vp-doc strong, .vp-doc b {
+  color: var(--vp-c-text-1);
+  font-weight: 700;
+}
+
+/* 斜体 */
+.vp-doc em {
+  color: var(--vp-c-text-1);
+  font-style: italic;
+}
+
+/* 标题：serif 衬线体，更有书卷气 */
+.vp-doc h1, .vp-doc h2, .vp-doc h3 {
+  font-family: Georgia, 'Songti SC', 'Times New Roman', serif;
+  color: var(--vp-c-text-1);
+}
+
+.vp-doc h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border-bottom: 2px solid var(--vp-c-brand-1);
+  padding-bottom: 0.5rem;
+}
+
+.vp-doc h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--vp-c-divider);
+  padding-bottom: 0.4rem;
+  margin-top: 2.5rem;
+}
+
+.vp-doc h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.8rem;
+}
+
+/* 引用块：左边 terracotta 竖线 */
+.vp-doc blockquote {
+  border-left: 3px solid var(--vp-c-brand-1);
+  background: rgba(217,119,87,0.05);
+  padding: 0.6rem 1rem;
+  border-radius: 0 8px 8px 0;
+  color: var(--vp-c-text-2);
+  font-size: 0.95rem;
+}
+
+.vp-doc blockquote p {
+  margin: 0;
+}
+
+/* 行内代码：更醒目 */
+.vp-doc :not(pre) > code {
+  background: rgba(217,119,87,0.08);
+  color: #b8502e;
+  font-size: 0.88em;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* 代码块 */
+.vp-doc div[class*='language-'] {
+  border-radius: 10px;
+  border: 1px solid var(--vp-c-divider);
+  box-shadow: 0 1px 3px rgba(41,38,31,0.06);
+}
+
+/* 链接 */
+.vp-doc a {
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+  text-decoration-color: rgba(217,119,87,0.3);
+  text-underline-offset: 3px;
+  transition: color 0.2s, text-decoration-color 0.2s;
+}
+.vp-doc a:hover {
+  color: var(--vp-c-brand-2);
+  text-decoration-color: var(--vp-c-brand-2);
+}
+
+/* 表格 */
+.vp-doc table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+.vp-doc th {
+  background: var(--vp-c-bg-alt);
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  text-align: left;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 2px solid var(--vp-c-divider);
+}
+.vp-doc td {
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+.vp-doc tr:hover td {
+  background: rgba(217,119,87,0.03);
+}
+
+/* 列表：更宽松的间距 */
+.vp-doc ul, .vp-doc ol {
+  padding-left: 1.5rem;
+}
+.vp-doc li + li {
+  margin-top: 0.4rem;
+}
+
+/* 分割线 */
+.vp-doc hr {
+  border: none;
+  border-top: 1px solid var(--vp-c-divider);
+  margin: 2rem 0;
+}
+
+/* ── 侧边栏 ── */
+.VPSidebar {
+  background: var(--vp-sidebar-bg-color) !important;
+}
+
+.VPSidebarItem .text {
+  font-size: 0.88rem;
+}
+
+/* 侧边栏当前页高亮 */
+.VPSidebarItem.is-active > .item > .link > .text {
+  color: var(--vp-c-brand-1) !important;
+  font-weight: 600;
+}
+
+/* ── 导航栏 ── */
+.VPNavBar {
+  border-bottom: 1px solid var(--vp-c-divider) !important;
+}
+
+/* ── 首页：隐藏侧边栏和导航栏 ── */
+html.is-home .VPSidebar { display: none !important; }
+html.is-home .VPContent { padding-left: 0 !important; }
+html.is-home .VPDoc { padding: 0 !important; }
+html.is-home .VPDoc .container { max-width: none !important; }
+
+/* ── 即将上线章节：浅灰色文字，不可点击 ── */
+.VPSidebarItem .text:not(:has(a)) {
+  color: #bbb5aa;
+}
+
+/* ── 流程步骤图 ── */
+.flow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 1.2rem 0;
+  padding: 0;
+}
+.flow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  position: relative;
+  padding-bottom: 0.2rem;
+}
+.flow-step:not(:last-child) {
+  padding-bottom: 1.2rem;
+}
+.flow-dot-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 22px;
+}
+.flow-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vp-c-brand-1);
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.flow-line {
+  width: 2px;
+  flex: 1;
+  background: var(--vp-c-divider);
+  min-height: 12px;
+}
+.flow-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--vp-c-text-1);
+}
+.flow-text code {
+  font-size: 0.82rem;
+  background: var(--vp-c-bg-soft);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ── code-group 标签栏 ── */
+.vp-code-group .tabs {
+  background: transparent;
+  border-bottom: 1px solid var(--vp-c-divider);
+  padding: 0 0.25rem;
+  gap: 0;
+}
+
+.vp-code-group .tabs label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--vp-c-text-3);
+  padding: 0.5rem 0.9rem;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.vp-code-group .tabs label:hover {
+  color: var(--vp-c-text-2);
+}
+
+.vp-code-group .tabs input:checked + label {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  border-bottom-color: var(--vp-c-brand-1);
+}
+
+/* Chapter IP illustrations: calm editorial framing, shared by Ch00-Ch12. */
+.chapter-figure {
+  margin: 2rem auto 2.25rem;
+  max-width: 980px;
+}
+
+.chapter-figure img {
+  display: block;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+  border-radius: 14px;
+  background: #faf8f2;
+  box-shadow: 0 12px 34px rgba(28, 42, 64, 0.09);
+}
+
+.chapter-figure figcaption {
+  margin: 0.7rem 0.35rem 0;
+  color: var(--vp-c-text-2);
+  font-size: 0.84rem;
+  line-height: 1.65;
+  text-align: center;
+}
+
+.chapter-figure figcaption strong {
+  color: var(--vp-c-text-1);
+  font-weight: 650;
+}
+
+.source-figure img {
+  background: #fff;
+  object-fit: contain;
+}
+
+.source-figure--compact {
+  max-width: 760px;
+}
+
+.source-figure figcaption a {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+}
+
+.dark .chapter-figure img {
+  border-color: rgba(209, 221, 238, 0.18);
+  background: #171b22;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28);
+}
+
+@media (max-width: 640px) {
+  .chapter-figure {
+    margin: 1.5rem -0.25rem 1.8rem;
+  }
+
+  .chapter-figure img {
+    border-radius: 10px;
+  }
+}

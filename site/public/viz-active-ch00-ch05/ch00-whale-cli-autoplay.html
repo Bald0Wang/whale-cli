@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale CLI 运行过程</title>
+<link rel="stylesheet" href="./viz-foundation.css">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #171413;
+    --panel: #0d0c0b;
+    --panel-2: #211d1a;
+    --line: #3a322d;
+    --text: #f4eadf;
+    --muted: #a59689;
+    --accent: #ef8e6d;
+    --blue: #8ca2ff;
+    --green: #8fd19a;
+  }
+  html, body { min-height: 100%; }
+  body {
+    margin: 0;
+    padding: 22px;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 75% 0%, rgba(239,142,109,.10), transparent 34%),
+      var(--bg);
+    font: 13px/1.65 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  }
+  .lab { width: min(900px, 100%); margin: 0 auto; }
+  .hud {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px 18px;
+    align-items: end;
+    margin-bottom: 14px;
+  }
+  .eyebrow { color: var(--accent); font-size: 10px; letter-spacing: .14em; font-weight: 800; }
+  h1 { margin: 3px 0 1px; font: 700 16px/1.35 inherit; }
+  .status { color: var(--muted); font-size: 11px; min-height: 18px; }
+  .controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+  button, select {
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    background: var(--panel-2);
+    font: 700 11px inherit;
+  }
+  button { padding: 0 13px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1b110d; }
+  select { padding: 0 28px 0 10px; }
+  .journey {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .phase {
+    position: relative;
+    padding: 7px 9px 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    color: #776b62;
+    background: rgba(13,12,11,.55);
+    font-size: 10px;
+    transition: .25s ease;
+  }
+  .phase::after {
+    content: "";
+    position: absolute;
+    left: 8px; right: 8px; bottom: -1px;
+    height: 2px; border-radius: 2px;
+    background: transparent;
+  }
+  .phase.done { color: var(--green); border-color: rgba(143,209,154,.35); }
+  .phase.active { color: var(--text); border-color: var(--accent); transform: translateY(-1px); }
+  .phase.active::after { background: var(--accent); }
+  .terminal {
+    overflow: hidden;
+    min-height: 405px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: 0 20px 55px rgba(0,0,0,.36);
+  }
+  .titlebar {
+    display: grid;
+    grid-template-columns: 60px 1fr 60px;
+    align-items: center;
+    height: 42px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #584d45; }
+  .dot:first-child { background: #ef746a; }
+  .dot:nth-child(2) { background: #e8b85d; }
+  .dot:last-child { background: #76c885; }
+  .title { text-align: center; color: var(--muted); font-size: 11px; }
+  .run-state { text-align: right; color: var(--green); font-size: 9px; letter-spacing: .08em; }
+  .output {
+    height: 360px;
+    overflow: auto;
+    padding: 20px 22px 26px;
+    scrollbar-color: var(--line) transparent;
+  }
+  .line { min-height: 1.65em; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .line.enter { animation: enter .24s ease-out both; }
+  .prompt, .tool { color: var(--accent); font-weight: 800; }
+  .argument, .dim { color: var(--muted); }
+  .result { color: var(--green); font-weight: 800; }
+  .answer { color: var(--text); }
+  .bullet { color: var(--blue); }
+  .cursor {
+    display: inline-block; width: 7px; height: 15px;
+    margin-left: 2px; vertical-align: -2px;
+    background: var(--text); animation: blink .9s step-end infinite;
+  }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    margin-top: 11px; color: var(--muted); font-size: 10px;
+  }
+  .legend b { color: var(--text); }
+  @keyframes enter { from { opacity: 0; transform: translateY(5px); } }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (max-width: 640px) {
+    body { padding: 14px; }
+    .hud { grid-template-columns: 1fr; align-items: stretch; }
+    .controls { justify-content: flex-start; }
+    .journey { grid-template-columns: repeat(2, 1fr); }
+    .terminal { min-height: 390px; }
+    .output { height: 345px; padding: 16px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<main class="lab">
+  <header class="hud">
+    <div>
+      <div class="eyebrow">LIVE AGENT TRACE</div>
+      <h1>一条任务，怎样穿过 Agent Loop</h1>
+      <div class="status" id="status">准备运行：观察模型何时决定调用工具。</div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="playBtn">暂停</button>
+      <button id="finishBtn">立即完成</button>
+      <button id="restartBtn">重新运行</button>
+      <label>
+        <span class="sr-only">播放速度</span>
+        <select id="speedSelect" aria-label="播放速度">
+          <option value="1.35">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value=".65">1.5×</option>
+        </select>
+      </label>
+    </div>
+    <div class="journey" aria-label="运行阶段">
+      <div class="phase" data-phase="0">01 用户任务</div>
+      <div class="phase" data-phase="1">02 Glob 定位</div>
+      <div class="phase" data-phase="2">03 Read 取证</div>
+      <div class="phase" data-phase="3">04 汇总回答</div>
+    </div>
+  </header>
+
+  <section class="terminal" aria-label="Whale CLI 运行终端">
+    <div class="titlebar">
+      <div class="dots" aria-hidden="true"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="title">whale · local workspace</div>
+      <div class="run-state" id="runState">RUNNING</div>
+    </div>
+    <div class="output" id="output" role="log" aria-live="polite"></div>
+  </section>
+
+  <div class="legend">
+    <span><b style="color:var(--accent)">橙色</b>：模型发起工具调用</span>
+    <span><b style="color:var(--green)">绿色</b>：本地工具返回结果</span>
+    <span><b style="color:var(--blue)">蓝点</b>：模型基于证据作答</span>
+  </div>
+</main>
+
+<script src="./viz-foundation.js"></script>
+<script>
+  var output = document.getElementById("output");
+  var statusEl = document.getElementById("status");
+  var runState = document.getElementById("runState");
+  var playBtn = document.getElementById("playBtn");
+  var finishBtn = document.getElementById("finishBtn");
+  var restartBtn = document.getElementById("restartBtn");
+  var speedSelect = document.getElementById("speedSelect");
+  var generation = 0;
+  var paused = false;
+  var finishRequested = false;
+
+  var lines = [
+    { phase: 0, wait: 160, html: '<span class="prompt">$ whale </span><span class="answer">"帮我看看 tools/ 目录下有哪些工具，每个是干什么的"</span>' },
+    { phase: 1, wait: 520, html: '<span class="tool">⏺ glob</span><span class="argument">({ pattern: "*.py", path: "tools" })</span>' },
+    { phase: 1, wait: 180, html: '<span class="result">  ⎿ 6 files</span><span class="dim"> · bash_tool.py · edit_file.py · glob_files.py · grep_files.py · read_file.py · write_file.py</span>' },
+    { phase: 2, wait: 580, html: '<span class="tool">⏺ read_file</span><span class="argument">({ path: "tools/read_file.py", start_line: 1, end_line: 5 })</span>' },
+    { phase: 2, wait: 180, html: '<span class="result">  ⎿ tools/read_file.py</span><span class="dim"> · 112 lines · showing 1–5</span>' },
+    { phase: 2, wait: 100, html: '<span class="dim">  1</span>  """read_file：行范围 + 行号 + 二进制检测。"""' },
+    { phase: 2, wait: 100, html: '<span class="dim">  3</span>  from pathlib import Path' },
+    { phase: 2, wait: 100, html: '<span class="dim">  4</span>  from registry import tool' },
+    { phase: 3, wait: 620, html: '<span class="answer">tools/ 下有 6 个工具：</span>' },
+    { phase: 3, wait: 90, html: '  <span class="bullet">●</span> read_file  <span class="dim">读取文件，支持行范围与 PDF</span>' },
+    { phase: 3, wait: 90, html: '  <span class="bullet">●</span> write_file <span class="dim">创建或覆盖文件</span>' },
+    { phase: 3, wait: 90, html: '  <span class="bullet">●</span> edit_file  <span class="dim">精确替换指定文本</span>' },
+    { phase: 3, wait: 90, html: '  <span class="bullet">●</span> glob / grep / bash <span class="dim">定位文件、搜索内容、执行命令</span>' }
+  ];
+
+  function setPhase(index) {
+    document.querySelectorAll(".phase").forEach(function (el, i) {
+      el.classList.toggle("active", i === index);
+      el.classList.toggle("done", i < index);
+    });
+    var labels = ["接收用户任务，交给模型判断", "先定位候选文件，而不是盲目读取", "读取最小证据片段", "基于工具结果组织回答"];
+    statusEl.textContent = labels[index];
+  }
+
+  function addLine(item, animate) {
+    var line = document.createElement("div");
+    line.className = "line" + (animate ? " enter" : "");
+    line.innerHTML = item.html;
+    output.appendChild(line);
+    output.scrollTop = output.scrollHeight;
+  }
+
+  async function wait(ms, token) {
+    var elapsed = 0;
+    while (elapsed < ms && token === generation && !finishRequested) {
+      while (paused && token === generation) await new Promise(function (resolve) { setTimeout(resolve, 60); });
+      var chunk = Math.min(40, ms - elapsed);
+      await new Promise(function (resolve) { setTimeout(resolve, chunk); });
+      elapsed += chunk / Number(speedSelect.value);
+    }
+  }
+
+  async function run() {
+    var token = ++generation;
+    paused = false;
+    finishRequested = Boolean(window.VizLab && window.VizLab.prefersReducedMotion);
+    output.innerHTML = "";
+    playBtn.textContent = "暂停";
+    playBtn.classList.add("primary");
+    runState.textContent = "RUNNING";
+    for (var i = 0; i < lines.length; i++) {
+      if (token !== generation) return;
+      var item = lines[i];
+      setPhase(item.phase);
+      await wait(item.wait, token);
+      if (token !== generation) return;
+      addLine(item, !finishRequested);
+    }
+    document.querySelectorAll(".phase").forEach(function (el) { el.classList.add("done"); el.classList.remove("active"); });
+    statusEl.textContent = "运行完成：工具负责取证，模型负责决策与表达。";
+    runState.textContent = "DONE";
+    playBtn.textContent = "再次运行";
+    playBtn.classList.remove("primary");
+  }
+
+  playBtn.addEventListener("click", function () {
+    if (runState.textContent === "DONE") { run(); return; }
+    paused = !paused;
+    playBtn.textContent = paused ? "继续" : "暂停";
+    runState.textContent = paused ? "PAUSED" : "RUNNING";
+  });
+  finishBtn.addEventListener("click", function () { finishRequested = true; paused = false; });
+  restartBtn.addEventListener("click", run);
+
+  run();
+</script>
+</body>
+</html>

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>messages 数组：LLM 对话的基本结构</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+.container {
+  display: flex;
+  height: 550px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+  gap: 16px;
+}
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ebe0d2;
+  padding: 12px 16px 8px;
+  text-align: center;
+}
+/* Toggle */
+.toggle-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 0 10px;
+  font-size: 11px;
+}
+.toggle-bar span { color: #6a6058; }
+.toggle-bar .active { color: #ebe0d2; }
+.toggle-btn {
+  width: 36px; height: 18px;
+  background: #332d28;
+  border-radius: 9px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.3s;
+}
+.toggle-btn::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  background: #6a6058;
+  border-radius: 50%;
+  top: 2px; left: 2px;
+  transition: transform 0.3s, background 0.3s;
+}
+.toggle-btn.on { background: #3a4a3a; }
+.toggle-btn.on::after { transform: translateX(18px); background: #7ec384; }
+/* Left panel */
+.left-panel {
+  flex: 0 0 55%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.messages-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px;
+  position: relative;
+}
+.messages-wrap::-webkit-scrollbar { width: 4px; }
+.messages-wrap::-webkit-scrollbar-thumb { background: #332d28; border-radius: 2px; }
+.bracket { color: #6a6058; font-size: 14px; padding: 2px 0 2px 28px; }
+.msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 3px 0;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.4s, transform 0.4s;
+}
+.msg-row.entering { opacity: 0; transform: translateY(12px); }
+.line-num {
+  flex: 0 0 20px;
+  font-size: 10px;
+  color: #6a6058;
+  text-align: right;
+  padding-top: 8px;
+}
+.msg-card {
+  flex: 1;
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  border-left: 3px solid #332d28;
+  position: relative;
+}
+.msg-card:hover { border-color: #4a4440; }
+.msg-card.selected { box-shadow: 0 0 0 1px rgba(235,224,210,0.15); }
+.msg-card[data-role="system"] { border-left-color: #c084e8; }
+.msg-card[data-role="user"] { border-left-color: #6477e0; }
+.msg-card[data-role="assistant"] { border-left-color: #D77757; }
+.msg-card[data-role="tool"] { border-left-color: #7ec384; }
+.msg-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.role-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.role-badge.system { background: rgba(192,132,232,0.15); color: #c084e8; }
+.role-badge.user { background: rgba(100,119,224,0.15); color: #6477e0; }
+.role-badge.assistant { background: rgba(215,119,87,0.15); color: #D77757; }
+.role-badge.tool { background: rgba(126,195,132,0.15); color: #7ec384; }
+.token-est {
+  font-size: 9px;
+  color: #6a6058;
+  margin-left: auto;
+}
+.msg-content {
+  font-size: 11px;
+  color: #ebe0d2;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.msg-content .dim { color: #6a6058; }
+.comma { color: #6a6058; font-size: 12px; padding-left: 28px; line-height: 1; }
+/* Right panel */
+.right-panel {
+  flex: 0 0 45%;
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.right-panel h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.right-panel .role-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.explain-section {
+  margin-bottom: 12px;
+}
+.explain-label {
+  font-size: 10px;
+  color: #6a6058;
+  margin-bottom: 3px;
+  font-weight: 500;
+}
+.explain-text {
+  font-size: 11px;
+  color: #ebe0d2;
+  line-height: 1.6;
+}
+.placeholder-text {
+  color: #6a6058;
+  font-size: 11px;
+  margin-top: 40px;
+  text-align: center;
+  line-height: 1.8;
+}
+/* Bottom */
+.bottom-note {
+  font-size: 10px;
+  color: #6a6058;
+  text-align: center;
+  padding: 8px 16px;
+  line-height: 1.6;
+  border-top: 1px solid #332d28;
+}
+.add-btn {
+  display: block;
+  margin: 8px auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 5px 12px;
+  background: rgba(126,195,132,0.1);
+  border: 1px solid #7ec384;
+  color: #7ec384;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.add-btn:hover { background: rgba(126,195,132,0.2); }
+.add-btn:disabled { opacity: 0.4; cursor: default; }
+.tool-msgs { display: none; }
+.tool-msgs.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="title">messages 数组：LLM 对话的基本结构</div>
+<div class="toggle-bar">
+  <span id="label-chat" class="active">普通聊天</span>
+  <div class="toggle-btn" id="modeToggle" onclick="toggleMode()"></div>
+  <span id="label-agent">agent 对话</span>
+</div>
+<div class="container">
+  <div class="left-panel">
+    <div class="messages-wrap" id="msgList"></div>
+    <button class="add-btn" id="addToolBtn" onclick="addToolMsg()" style="display:none">+ 加一条 tool message</button>
+  </div>
+  <div class="right-panel" id="explainPanel">
+    <div class="placeholder-text">点击左侧任意消息卡片<br>查看该 role 的详细说明</div>
+  </div>
+</div>
+<div class="bottom-note">LLM API 是无状态的 -- 每次调用都要把这整个数组传过去。你看到的每一条消息，都会消耗 token。</div>
+
+<script>
+const roleColors = { system:'#c084e8', user:'#6477e0', assistant:'#D77757', tool:'#7ec384' };
+
+const roleExplain = {
+  system: {
+    name: 'system',
+    who: '开发者写的，每次对话开头放一条',
+    what: '告诉模型它的身份和行为规则。比如"你是一个编程助手"、"回答要简洁"',
+    trait: '模型会遵守但用户看不到。整个对话里通常只有一条，放在最前面'
+  },
+  user: {
+    name: 'user',
+    who: '用户输入的',
+    what: '用户说的话。可以是问题、任务指令、补充信息',
+    trait: '每轮对话至少有一条 user message'
+  },
+  assistant: {
+    name: 'assistant',
+    who: '模型生成的',
+    what: '模型的回复。可能是文字回答，也可能包含工具调用请求 (tool_calls)',
+    trait: '必须追加到 messages 里，不然模型下一轮不知道自己上一轮说了什么'
+  },
+  tool: {
+    name: 'tool',
+    who: '程序写的（工具执行后的结果）',
+    what: '告诉模型某个工具的执行结果。比如读了文件返回内容，跑了命令返回输出',
+    trait: '必须带 tool_call_id 跟 assistant 的工具调用请求对应上。这个 role 是 agent 特有的，普通聊天不会用到'
+  }
+};
+
+const chatMsgs = [
+  { role:'system', content:'你是一个 Python 编程助手。简洁回答。' },
+  { role:'user', content:'什么是列表推导式？' },
+  { role:'assistant', content:'列表推导式是用一行代码生成列表的写法...' },
+  { role:'user', content:'给个例子' },
+  { role:'assistant', content:'squares = [x**2 for x in range(10)]' },
+];
+
+const agentExtra = [
+  { role:'user', content:'帮我看看 main.py 的内容' },
+  { role:'assistant', content:'tool_calls: [{ name: "read_file", args: { path: "main.py" } }]', isToolCall: true },
+  { role:'tool', content:'# main.py\nimport os\nprint("hello")', toolCallId:'call_001' },
+  { role:'assistant', content:'main.py 的内容是一个简单的脚本，导入了 os 模块并打印 hello。' },
+];
+
+let isAgent = false;
+let toolAdded = false;
+let selectedRole = null;
+
+function estimateTokens(text) {
+  return Math.max(4, Math.ceil(text.length / 2.5));
+}
+
+function renderMessages() {
+  const list = document.getElementById('msgList');
+  const msgs = isAgent ? [...chatMsgs, ...agentExtra] : chatMsgs;
+  let html = '<div class="bracket">[</div>';
+  msgs.forEach((m, i) => {
+    const tokens = estimateTokens(m.content);
+    const roleClass = m.role;
+    const sel = selectedRole === i ? ' selected' : '';
+    let contentDisplay = m.content;
+    if (m.isToolCall) {
+      contentDisplay = '<span class="dim">// tool_calls</span>\n[{ name: "read_file", args: { path: "main.py" } }]';
+    }
+    let extra = '';
+    if (m.toolCallId) {
+      extra = `<div style="margin-top:2px"><span class="dim">tool_call_id: "${m.toolCallId}"</span></div>`;
+    }
+    html += `<div class="msg-row" id="row-${i}">
+      <span class="line-num">${i}</span>
+      <div class="msg-card${sel}" data-role="${m.role}" onclick="selectMsg(${i},'${m.role}')">
+        <div class="msg-header">
+          <span class="role-badge ${roleClass}">${m.role}</span>
+          <span class="token-est">~${tokens} tokens</span>
+        </div>
+        ${extra}
+        <div class="msg-content">${contentDisplay}</div>
+      </div>
+    </div>`;
+    if (i < msgs.length - 1) html += '<div class="comma">,</div>';
+  });
+  html += '<div class="bracket">]</div>';
+  list.innerHTML = html;
+
+  const btn = document.getElementById('addToolBtn');
+  btn.style.display = isAgent ? 'none' : 'block';
+  btn.disabled = toolAdded;
+  if (toolAdded && !isAgent) btn.textContent = '已添加';
+}
+
+function selectMsg(idx, role) {
+  selectedRole = idx;
+  renderMessages();
+  showExplain(role);
+}
+
+function showExplain(role) {
+  const panel = document.getElementById('explainPanel');
+  const info = roleExplain[role];
+  const color = roleColors[role];
+  panel.innerHTML = `
+    <h3><span class="role-dot" style="background:${color}"></span>${info.name}</h3>
+    <div class="explain-section">
+      <div class="explain-label">谁写的</div>
+      <div class="explain-text">${info.who}</div>
+    </div>
+    <div class="explain-section">
+      <div class="explain-label">干什么</div>
+      <div class="explain-text">${info.what}</div>
+    </div>
+    <div class="explain-section">
+      <div class="explain-label">特点</div>
+      <div class="explain-text">${info.trait}</div>
+    </div>
+  `;
+}
+
+function toggleMode() {
+  isAgent = !isAgent;
+  const btn = document.getElementById('modeToggle');
+  const labelChat = document.getElementById('label-chat');
+  const labelAgent = document.getElementById('label-agent');
+  btn.classList.toggle('on', isAgent);
+  labelChat.classList.toggle('active', !isAgent);
+  labelAgent.classList.toggle('active', isAgent);
+  toolAdded = false;
+  selectedRole = null;
+  renderMessages();
+  document.getElementById('explainPanel').innerHTML = '<div class="placeholder-text">点击左侧任意消息卡片<br>查看该 role 的详细说明</div>';
+  if (isAgent) {
+    setTimeout(() => {
+      const rows = document.querySelectorAll('.msg-row');
+      for (let i = chatMsgs.length; i < rows.length; i++) {
+        rows[i].classList.add('entering');
+        setTimeout(() => rows[i].classList.remove('entering'), 50 + (i - chatMsgs.length) * 100);
+      }
+    }, 10);
+  }
+}
+
+function addToolMsg() {
+  if (toolAdded) return;
+  toolAdded = true;
+  isAgent = true;
+  document.getElementById('modeToggle').classList.add('on');
+  document.getElementById('label-chat').classList.remove('active');
+  document.getElementById('label-agent').classList.add('active');
+  renderMessages();
+  setTimeout(() => {
+    const rows = document.querySelectorAll('.msg-row');
+    for (let i = chatMsgs.length; i < rows.length; i++) {
+      rows[i].classList.add('entering');
+      setTimeout(() => rows[i].classList.remove('entering'), 50 + (i - chatMsgs.length) * 100);
+    }
+  }, 10);
+  selectMsg(chatMsgs.length + 2, 'tool');
+}
+
+renderMessages();
+</script>
+</body>
+</html>

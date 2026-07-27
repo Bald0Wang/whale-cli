@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ch01 - Code / Trace Dual View</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --page-bg: #f5f5f0;
+  --panel-bg: #ffffff;
+  --panel-border: #e5e5e0;
+  --panel-header: #f5f5f0;
+  --code-text: #1c1917;
+  --line-num: #78716c;
+  --text: #1c1917;
+  --text-dim: #78716c;
+  --highlight-code: rgba(124,58,237,0.08);
+  --highlight-border: #7c3aed;
+  /* trace step colors */
+  --send: #0550ae;
+  --recv: #116329;
+  --exec: #b45309;
+  --output: #1c1917;
+  /* syntax – GitHub Light */
+  --kw: #cf222e;
+  --fn: #8250df;
+  --str: #0a3069;
+  --cm: #6e7781;
+  --num: #953800;
+  --op: #0550ae;
+  --var: #1c1917;
+}
+
+body {
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  background: var(--page-bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 32px 24px;
+}
+
+.header {
+  max-width: 1120px;
+  margin: 0 auto 20px;
+}
+.header h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+.header p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.dual-container {
+  display: flex;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* -- Panels shared -- */
+.panel {
+  flex: 1;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 520px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--panel-header);
+  border-bottom: 1px solid var(--panel-border);
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #ff5f57; }
+.dot-y { background: #febc2e; }
+.dot-g { background: #28c840; }
+.panel-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--line-num);
+  margin-left: 4px;
+}
+
+.panel-body {
+  padding: 12px 0;
+  overflow-y: auto;
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.85;
+}
+
+/* -- Code panel -- */
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 1px 16px 1px 0;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.18s, border-color 0.18s;
+  min-height: 25px;
+}
+.code-line:hover {
+  background: rgba(124,58,237,0.05);
+}
+.code-line.active {
+  background: var(--highlight-code);
+  border-left-color: var(--highlight-border);
+}
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+.code-line.blank:hover {
+  background: transparent;
+}
+.line-num {
+  flex: 0 0 40px;
+  text-align: right;
+  padding-right: 14px;
+  color: var(--line-num);
+  font-size: 12px;
+  user-select: none;
+  line-height: 25px;
+}
+.line-code {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 25px;
+  color: var(--code-text);
+}
+
+/* Syntax */
+.kw  { color: var(--kw); }
+.fn  { color: var(--fn); }
+.str { color: var(--str); }
+.cm  { color: var(--cm); font-style: italic; }
+.num { color: var(--num); }
+.op  { color: var(--op); }
+.pr  { color: var(--var); }
+
+/* -- Trace panel -- */
+.trace-turn {
+  margin-bottom: 4px;
+}
+.turn-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--line-num);
+  padding: 6px 16px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.trace-step {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px 16px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.18s, border-color 0.18s;
+  gap: 8px;
+}
+.trace-step:hover {
+  background: rgba(124,58,237,0.04);
+}
+.trace-step.active {
+  border-left-color: currentColor;
+}
+.trace-step.active.type-send {
+  background: rgba(5,80,174,0.07);
+  border-left-color: var(--send);
+}
+.trace-step.active.type-recv {
+  background: rgba(17,99,41,0.07);
+  border-left-color: var(--recv);
+}
+.trace-step.active.type-exec {
+  background: rgba(180,83,9,0.07);
+  border-left-color: var(--exec);
+}
+.trace-step.active.type-output {
+  background: rgba(28,25,23,0.06);
+  border-left-color: var(--output);
+}
+
+.step-arrow {
+  flex: 0 0 16px;
+  font-size: 13px;
+  line-height: 22px;
+  user-select: none;
+}
+.step-arrow.send { color: var(--send); }
+.step-arrow.recv { color: var(--recv); }
+.step-arrow.exec { color: var(--exec); }
+.step-arrow.output { color: var(--output); }
+
+.step-text {
+  font-size: 12.5px;
+  line-height: 22px;
+  color: var(--code-text);
+  flex: 1;
+}
+.step-text .highlight {
+  font-weight: 500;
+}
+.step-text.send .highlight { color: var(--send); }
+.step-text.recv .highlight { color: var(--recv); }
+.step-text.exec .highlight { color: var(--exec); }
+.step-text.output .highlight { color: var(--output); }
+
+.step-detail {
+  font-size: 11.5px;
+  color: var(--line-num);
+  padding: 2px 16px 4px 40px;
+  line-height: 1.5;
+  user-select: none;
+}
+
+/* -- Legend -- */
+.legend {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.hint {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* -- Responsive -- */
+@media (max-width: 768px) {
+  body { padding: 16px 8px; }
+  .dual-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel { min-height: 320px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Code / Trace Dual View</h1>
+  <p>左边是 Whale CLI 主循环代码，右边是一个 2-turn 真实 trace。点击任一侧，另一侧联动高亮。</p>
+</div>
+
+<div class="dual-container">
+  <!-- Left: Code -->
+  <div class="panel" id="codePanel">
+    <div class="panel-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span class="panel-title">main.py -- Whale CLI 主循环</span>
+    </div>
+    <div class="panel-body" id="codeBody"></div>
+  </div>
+
+  <!-- Right: Trace -->
+  <div class="panel" id="tracePanel">
+    <div class="panel-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span class="panel-title">trace -- "README 里写了什么？"</span>
+    </div>
+    <div class="panel-body" id="traceBody"></div>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--send)"></div> 发送请求</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--recv)"></div> 接收响应</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--exec)"></div> 执行工具</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--output)"></div> 最终输出</div>
+</div>
+<div class="hint">点击代码行或 trace 步骤，观察双向联动</div>
+
+<script>
+// ═══════════════════════════════════════════
+// CODE LINES (with syntax highlighting)
+// ═══════════════════════════════════════════
+const codeLines = [
+  { num: 1,  html: '<span class="pr">messages</span> <span class="op">=</span> [{<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: SYSTEM_PROMPT}]',  id: 'c1' },
+  { num: 2,  html: '<span class="pr">messages</span>.<span class="fn">append</span>({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input})', id: 'c2' },
+  { num: 3,  html: '', blank: true },
+  { num: 4,  html: '<span class="kw">while</span> <span class="kw">True</span>:',  id: 'c4' },
+  { num: 5,  html: '    <span class="pr">response</span> <span class="op">=</span> <span class="pr">llm</span>.<span class="fn">chat</span>(<span class="pr">messages</span>, <span class="pr">tools</span><span class="op">=</span>TOOLS_SCHEMA)', id: 'c5' },
+  { num: 6,  html: '    <span class="pr">messages</span>.<span class="fn">append</span>(<span class="pr">response</span>)', id: 'c6' },
+  { num: 7,  html: '', blank: true },
+  { num: 8,  html: '    <span class="pr">tool_calls</span> <span class="op">=</span> <span class="pr">response</span>.<span class="fn">get</span>(<span class="str">"tool_calls"</span>)', id: 'c8' },
+  { num: 9,  html: '', blank: true },
+  { num: 10, html: '    <span class="kw">if not</span> <span class="pr">tool_calls</span>:', id: 'c10' },
+  { num: 11, html: '        <span class="cm"># 没有工具调用 = 任务完成</span>', id: 'c11' },
+  { num: 12, html: '        <span class="fn">print</span>(<span class="pr">response</span>[<span class="str">"content"</span>])', id: 'c12' },
+  { num: 13, html: '        <span class="kw">break</span>', id: 'c13' },
+  { num: 14, html: '', blank: true },
+  { num: 15, html: '    <span class="kw">for</span> <span class="pr">call</span> <span class="kw">in</span> <span class="pr">tool_calls</span>:', id: 'c15' },
+  { num: 16, html: '        <span class="pr">result</span> <span class="op">=</span> <span class="fn">run_tool</span>(<span class="pr">call</span>[<span class="str">"name"</span>], <span class="pr">call</span>[<span class="str">"args"</span>])', id: 'c16' },
+  { num: 17, html: '        <span class="pr">messages</span>.<span class="fn">append</span>({', id: 'c17' },
+  { num: 18, html: '            <span class="str">"role"</span>: <span class="str">"tool"</span>,', id: 'c18' },
+  { num: 19, html: '            <span class="str">"tool_call_id"</span>: <span class="pr">call</span>[<span class="str">"id"</span>],', id: 'c19' },
+  { num: 20, html: '            <span class="str">"content"</span>: <span class="pr">result</span>', id: 'c20' },
+  { num: 21, html: '        })', id: 'c21' },
+];
+
+// ═══════════════════════════════════════════
+// TRACE STEPS
+// Each step: { id, type, arrow, text, detail?, codeIds[] }
+// type: send | recv | exec | output
+// codeIds: which code lines light up when this step is clicked
+// ═══════════════════════════════════════════
+const traceData = [
+  {
+    turn: 'Turn 1',
+    steps: [
+      { id: 't1-1', type: 'send',  arrow: '->',  text: '<span class="highlight">llm.chat()</span> 发送请求', codeIds: ['c5'] },
+      { id: 't1-2', type: 'recv',  arrow: '<-',  text: '模型返回 <span class="highlight">tool_calls</span>: read_file({"path": "README.md"})', codeIds: ['c8'] },
+      { id: 't1-3', type: 'exec',  arrow: '->',  text: '<span class="highlight">run_tool</span>("read_file", ...) 执行', codeIds: ['c15', 'c16'] },
+      { id: 't1-4', type: 'recv',  arrow: '<-',  text: '返回: <span class="highlight">"# My Project\\nA simple web server..."</span>', codeIds: ['c16'] },
+      { id: 't1-5', type: 'send',  arrow: '->',  text: '<span class="highlight">messages.append</span>({"role": "tool", ...})', codeIds: ['c17', 'c18', 'c19', 'c20', 'c21'] },
+    ]
+  },
+  {
+    turn: 'Turn 2',
+    steps: [
+      { id: 't2-1', type: 'send',  arrow: '->',  text: '<span class="highlight">llm.chat()</span> 发送请求（带上工具结果）', codeIds: ['c5'] },
+      { id: 't2-2', type: 'recv',  arrow: '<-',  text: '模型返回纯文本回答（无 <span class="highlight">tool_calls</span>）', codeIds: ['c8', 'c10'] },
+      { id: 't2-3', type: 'output', arrow: '->', text: '<span class="highlight">print</span>("这个项目是一个用 Python 写的 Web 服务器...")', codeIds: ['c12', 'c13'] },
+    ]
+  }
+];
+
+// Reverse mapping: codeId -> traceStepIds
+const codeToTrace = {};
+traceData.forEach(turn => {
+  turn.steps.forEach(step => {
+    step.codeIds.forEach(cid => {
+      if (!codeToTrace[cid]) codeToTrace[cid] = [];
+      if (!codeToTrace[cid].includes(step.id)) {
+        codeToTrace[cid].push(step.id);
+      }
+    });
+  });
+});
+
+// ═══════════════════════════════════════════
+// RENDER CODE
+// ═══════════════════════════════════════════
+const codeBody = document.getElementById('codeBody');
+
+codeLines.forEach(line => {
+  const el = document.createElement('div');
+  el.className = 'code-line' + (line.blank ? ' blank' : '');
+  if (line.id) el.dataset.codeId = line.id;
+
+  const numSpan = document.createElement('span');
+  numSpan.className = 'line-num';
+  numSpan.textContent = line.num;
+
+  const codeSpan = document.createElement('span');
+  codeSpan.className = 'line-code';
+  codeSpan.innerHTML = line.html;
+
+  el.appendChild(numSpan);
+  el.appendChild(codeSpan);
+
+  if (!line.blank && line.id) {
+    el.addEventListener('click', () => handleCodeClick(line.id));
+  }
+
+  codeBody.appendChild(el);
+});
+
+// ═══════════════════════════════════════════
+// RENDER TRACE
+// ═══════════════════════════════════════════
+const traceBody = document.getElementById('traceBody');
+
+traceData.forEach(turn => {
+  const turnEl = document.createElement('div');
+  turnEl.className = 'trace-turn';
+
+  const headerEl = document.createElement('div');
+  headerEl.className = 'turn-header';
+  headerEl.textContent = turn.turn;
+  turnEl.appendChild(headerEl);
+
+  turn.steps.forEach(step => {
+    const stepEl = document.createElement('div');
+    stepEl.className = 'trace-step type-' + step.type;
+    stepEl.dataset.traceId = step.id;
+
+    const arrowEl = document.createElement('span');
+    arrowEl.className = 'step-arrow ' + step.type;
+    arrowEl.textContent = step.arrow;
+
+    const textEl = document.createElement('span');
+    textEl.className = 'step-text ' + step.type;
+    textEl.innerHTML = step.text;
+
+    stepEl.appendChild(arrowEl);
+    stepEl.appendChild(textEl);
+
+    stepEl.addEventListener('click', () => handleTraceClick(step.id, step.codeIds));
+
+    turnEl.appendChild(stepEl);
+  });
+
+  traceBody.appendChild(turnEl);
+});
+
+// ═══════════════════════════════════════════
+// INTERACTION LOGIC
+// ═══════════════════════════════════════════
+let activeCodeIds = [];
+let activeTraceIds = [];
+
+function clearAll() {
+  document.querySelectorAll('.code-line.active').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.trace-step.active').forEach(el => el.classList.remove('active'));
+  activeCodeIds = [];
+  activeTraceIds = [];
+}
+
+function handleCodeClick(codeId) {
+  const traceIds = codeToTrace[codeId] || [];
+
+  // Toggle: if clicking the same line, deselect
+  if (activeCodeIds.length === 1 && activeCodeIds[0] === codeId) {
+    clearAll();
+    return;
+  }
+
+  clearAll();
+  activeCodeIds = [codeId];
+  activeTraceIds = traceIds;
+
+  // Highlight code line
+  const codeLine = document.querySelector(`[data-code-id="${codeId}"]`);
+  if (codeLine) codeLine.classList.add('active');
+
+  // Highlight trace steps
+  traceIds.forEach(tid => {
+    const traceStep = document.querySelector(`[data-trace-id="${tid}"]`);
+    if (traceStep) traceStep.classList.add('active');
+  });
+}
+
+function handleTraceClick(traceId, codeIds) {
+  // Toggle: if clicking the same step, deselect
+  if (activeTraceIds.length === 1 && activeTraceIds[0] === traceId) {
+    clearAll();
+    return;
+  }
+
+  clearAll();
+  activeTraceIds = [traceId];
+  activeCodeIds = codeIds;
+
+  // Highlight trace step
+  const traceStep = document.querySelector(`[data-trace-id="${traceId}"]`);
+  if (traceStep) traceStep.classList.add('active');
+
+  // Highlight code lines
+  codeIds.forEach(cid => {
+    const codeLine = document.querySelector(`[data-code-id="${cid}"]`);
+    if (codeLine) codeLine.classList.add('active');
+  });
+}
+</script>
+</body>
+</html>

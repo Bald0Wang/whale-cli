@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Read 工具 · 你要的 21 行 vs 你塞进去的 3000 行</title>
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f4f2ea; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e8e4d8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+  --syn-comment:#8a9b78; --syn-kw:#9d4eb8; --syn-def:#2563a8; --syn-str:#b35c2a; --syn-plain:#8b8578;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:-apple-system,'Inter',system-ui,sans-serif;
+  background:radial-gradient(1100px 700px at 25% -8%, #fefdf9 0%, var(--bg0) 60%);
+  color:var(--text); min-height:100vh; padding:2.4rem 1rem 3rem;
+}
+.wrap { max-width:960px; margin:0 auto; }
+h1 {
+  font-family:Georgia,'Songti SC','Times New Roman',serif;
+  font-size:1.45rem; font-weight:600; color:var(--ink); text-align:center; letter-spacing:0.01em;
+}
+.subtitle { text-align:center; font-size:0.8rem; color:var(--text2); margin:0.5rem 0 1.7rem; }
+.subtitle b { color:var(--accent); font-weight:600; }
+
+/* ── 任务卡 ── */
+.task {
+  display:flex; align-items:center; gap:0.6rem;
+  background:var(--card); border:1px solid var(--border); border-radius:12px;
+  padding:0.7rem 1.05rem; margin-bottom:1rem; font-size:0.82rem;
+  box-shadow:var(--shadow-sm);
+}
+.task .pin { color:var(--teal); }
+.task code { font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.76rem; color:var(--teal); background:rgba(14,124,102,0.07); padding:0.12rem 0.4rem; border-radius:5px; }
+.task b { color:var(--ink); }
+
+/* ── 两种调用:tab ── */
+.calls { display:flex; gap:0.7rem; margin-bottom:1rem; }
+.call {
+  flex:1; cursor:pointer; border-radius:12px; padding:0.75rem 0.95rem;
+  background:var(--card); border:1px solid var(--border);
+  font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.78rem; color:var(--ink);
+  transition:border-color .2s, box-shadow .2s, transform .15s;
+  position:relative; line-height:1.5; box-shadow:var(--shadow-sm);
+}
+.call:hover { transform:translateY(-1px); }
+.call .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:0.45rem; vertical-align:1px; background:var(--text3); transition:background .2s, box-shadow .2s; }
+.call.c-all.active { border-color:rgba(217,119,87,0.55); box-shadow:0 0 0 3px rgba(217,119,87,0.10), var(--shadow-md); }
+.call.c-all.active .dot { background:var(--accent); box-shadow:0 0 6px rgba(217,119,87,0.6); }
+.call.c-rng.active { border-color:rgba(14,124,102,0.5); box-shadow:0 0 0 3px rgba(14,124,102,0.09), var(--shadow-md); }
+.call.c-rng.active .dot { background:var(--teal); box-shadow:0 0 6px rgba(14,124,102,0.55); }
+.call .fn { color:var(--syn-def); }
+.call .arg-str { color:var(--syn-str); }
+.call .arg-num { color:var(--teal); }
+.call .hint { display:block; margin-top:0.3rem; font-family:-apple-system,'Inter',sans-serif; font-size:0.68rem; color:var(--text2); }
+
+/* ── 主舞台 ── */
+.stage { display:flex; gap:0; align-items:stretch; margin-bottom:1.1rem; height:540px; }
+
+/* 文件卡(minimap) */
+.filecard {
+  width:208px; flex-shrink:0; background:var(--card); border:1px solid var(--border);
+  border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+  box-shadow:var(--shadow-md);
+}
+.filecard .bar {
+  display:flex; align-items:center; gap:5px; padding:0.55rem 0.75rem;
+  background:var(--card2); border-bottom:1px solid var(--border);
+}
+.filecard .bar i { width:9px; height:9px; border-radius:50%; }
+.filecard .bar i:nth-child(1){background:#f3aba2}.filecard .bar i:nth-child(2){background:#f3d9a2}.filecard .bar i:nth-child(3){background:#b5d9b2}
+.filecard .bar span { margin-left:0.4rem; font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--text2); }
+.mapbox { position:relative; flex:1; background:#fffefb; }
+#minimap { display:block; width:100%; height:100%; cursor:crosshair; }
+.filecard .foot { padding:0.45rem 0.7rem; font-size:0.64rem; color:var(--text3); border-top:1px solid var(--border); text-align:center; background:var(--card2); }
+
+/* 流动区 */
+.flow { flex:1; position:relative; min-width:180px; }
+#flowsvg, #particles { position:absolute; inset:0; width:100%; height:100%; }
+.flow-label {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  text-align:center; pointer-events:none;
+}
+.flow-label .big { font-family:'JetBrains Mono',monospace; font-size:1.6rem; font-weight:700; transition:color .3s; color:var(--accent); }
+.flow-label .sml { font-size:0.66rem; color:var(--text2); margin-top:0.15rem; }
+
+/* context 容器 */
+.ctxcard { width:188px; flex-shrink:0; display:flex; flex-direction:column; }
+.ctxcard .title { text-align:center; font-size:0.72rem; color:var(--text2); margin-bottom:0.5rem; }
+.ctxcard .title b { color:var(--ink); font-family:'JetBrains Mono',monospace; }
+.well {
+  position:relative; flex:1; background:linear-gradient(180deg,#fdfcf8,#f7f5ee);
+  border:1px solid var(--border); border-radius:14px; overflow:hidden;
+  box-shadow:var(--shadow-md), inset 0 1px 6px rgba(41,38,31,0.05);
+}
+.layer { position:absolute; left:0; right:0; transition:height .45s cubic-bezier(.22,1,.36,1), background .3s; overflow:hidden; }
+.layer .tag {
+  position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+  font-size:0.62rem; text-align:center;
+  font-family:'JetBrains Mono',monospace; white-space:nowrap;
+}
+.l-sys  { background:linear-gradient(180deg,#e9e0f6,#e0d4f0); } .l-sys .tag { color:#6b4fa3; }
+.l-tool { background:linear-gradient(180deg,#dde6f5,#d2ddf0); } .l-tool .tag { color:#3f5d9e; }
+.l-hist { background:linear-gradient(180deg,#eceae2,#e4e1d6); } .l-hist .tag { color:#7a7468; }
+.l-read.is-all { background:linear-gradient(180deg,#eda584,#d97757); box-shadow:0 -2px 16px -2px rgba(217,119,87,0.45); }
+.l-read.is-all .tag { color:#fff; text-shadow:0 1px 2px rgba(120,45,20,0.4); }
+.l-read.is-rng { background:linear-gradient(180deg,#9fd4c5,#5cab97); box-shadow:0 -2px 16px -2px rgba(14,124,102,0.4); }
+.l-read.is-rng .tag { color:#0b4a3c; }
+.ruler { position:absolute; right:3px; top:0; bottom:0; width:1px; }
+.tick { position:absolute; right:0; font-size:0.55rem; color:var(--text3); font-family:monospace; transform:translateY(-50%); padding-right:6px; white-space:nowrap; }
+.tick::after { content:''; position:absolute; right:0; top:50%; width:4px; height:1px; background:var(--text3); }
+.freebadge { position:absolute; left:0; right:0; text-align:center; font-size:0.6rem; color:var(--text3); font-family:monospace; }
+
+/* 放大镜 tooltip */
+#loupe {
+  position:fixed; z-index:50; pointer-events:none; display:none;
+  background:#fffefb; border:1px solid var(--border2); border-radius:10px;
+  padding:0.55rem 0.75rem; font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.68rem;
+  line-height:1.55; box-shadow:0 6px 16px -4px rgba(41,38,31,0.18), 0 18px 48px -12px rgba(41,38,31,0.22);
+  max-width:420px; white-space:pre; color:var(--text);
+}
+#loupe .ln { color:var(--text3); display:inline-block; width:3.2em; text-align:right; margin-right:0.8em; }
+#loupe .cur { background:rgba(217,119,87,0.10); display:block; border-radius:4px; }
+#loupe .cur .ln { color:var(--accent); }
+
+/* 仪表 */
+.meters { display:grid; grid-template-columns:repeat(4,1fr); gap:0.7rem; margin-bottom:1rem; }
+.meter {
+  background:var(--card); border:1px solid var(--border); border-radius:12px;
+  padding:0.65rem 0.85rem; text-align:center; box-shadow:var(--shadow-sm);
+}
+.meter .k { font-size:0.64rem; color:var(--text2); margin-bottom:0.25rem; }
+.meter .v { font-family:'JetBrains Mono',monospace; font-size:1.05rem; font-weight:600; color:var(--ink); transition:color .3s; }
+.meter .v small { font-size:0.66rem; color:var(--text2); font-weight:400; }
+
+.note { font-size:0.68rem; color:var(--text2); text-align:center; line-height:1.8; }
+.note b { color:var(--text); }
+@media(max-width:760px){
+  .stage { flex-direction:column; gap:0.8rem; height:auto; }
+  .filecard{ width:100%; height:160px; } .ctxcard{ width:100%; }
+  .well{ min-height:140px; } .flow{ min-height:70px; }
+  .meters{ grid-template-columns:repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>你要的 21 行,和你塞进去的 3000 行</h1>
+  <p class="subtitle">在左侧代码长卷上<b>拖选</b>一段范围 · 点击上方两种调用方式切换 · 悬停看真实代码</p>
+
+  <div class="task">
+    <span class="pin">📍</span>
+    <span>模型的任务:看一眼 <code>login()</code> 函数的实现——它在 <code>server.py</code> 第 <b id="task-range">40-60</b> 行,整个文件 3000 行。</span>
+  </div>
+
+  <div class="calls">
+    <div class="call c-all active" id="call-all">
+      <span class="dot"></span><span class="fn">read_file</span>(<span class="arg-str">"server.py"</span>)
+      <span class="hint">Ch01 的读法:没有行范围参数,只能整个文件读进来</span>
+    </div>
+    <div class="call c-rng" id="call-rng">
+      <span class="dot"></span><span class="fn">read_file</span>(<span class="arg-str">"server.py"</span>, <span class="arg-num" id="call-start">40</span>, <span class="arg-num" id="call-end">60</span>)
+      <span class="hint">Ch03 的读法:模型自己决定只读哪一段</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="filecard">
+      <div class="bar"><i></i><i></i><i></i><span>server.py · 3000 行</span></div>
+      <div class="mapbox"><canvas id="minimap"></canvas></div>
+      <div class="foot" id="map-foot">拖选 = 设定读取范围</div>
+    </div>
+
+    <div class="flow">
+      <svg id="flowsvg" preserveAspectRatio="none"></svg>
+      <canvas id="particles"></canvas>
+      <div class="flow-label">
+        <div class="big" id="flow-tok">18,000</div>
+        <div class="sml">token 流入 context</div>
+      </div>
+    </div>
+
+    <div class="ctxcard">
+      <div class="title">context 窗口 <b>200k</b> token</div>
+      <div class="well" id="well">
+        <div class="ruler" id="ruler"></div>
+        <div class="freebadge" id="freebadge">还空着 —</div>
+        <div class="layer l-read is-all" id="l-read"><span class="tag" id="tag-read"></span></div>
+        <div class="layer l-hist"><span class="tag">对话历史 ~8k</span></div>
+        <div class="layer l-tool"><span class="tag">tools schema ~3.5k</span></div>
+        <div class="layer l-sys"><span class="tag">system ~0.6k</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meters">
+    <div class="meter"><div class="k">这次 read</div><div class="v" id="m-tok">—</div></div>
+    <div class="meter"><div class="k">占 context</div><div class="v" id="m-pct">—</div></div>
+    <div class="meter"><div class="k">其中你需要的</div><div class="v" id="m-need">—</div></div>
+    <div class="meter"><div class="k">白占的 token</div><div class="v" id="m-waste">—</div></div>
+  </div>
+
+  <div class="note">
+    长卷里渲染的是本章 <b>read_file.py</b> 的真实源码(112 行循环填充到 3000 行,行颜色按语法分类)。
+    token 按<b>每行 ≈ 6</b> 粗估,与正文同口径;其他层的大小是演示值。
+    模型从 schema description 知道有 start/end 参数——本章实测里它读 20 行的文件就自发传了 <b>end_line: 20</b>。
+  </div>
+</div>
+
+<div id="loupe"></div>
+
+<script>
+/* ───────────────────── 真实源码(本章 tools/read_file.py,循环填充) ───────────────────── */
+const SRC_RAW = `\"\"\"read_file 工具 v1:加行范围 + 行号 + 二进制检测。
+Ch02 的 read_file 读全文返回,没有行号,也不检查文件类型。
+这一版升级了三件事:
+  1. start_line / end_line 参数,模型可以只读一段
+  2. 输出带行号(模型后续 Edit 时需要行号定位)
+  3. 二进制扩展名检测(.png / .pdf / .exe 等不尝试读)
+\"\"\"
+from __future__ import annotations
+from pathlib import Path
+from registry import tool
+
+BINARY_EXTENSIONS = frozenset({
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".svg",
+    ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".pyc", ".pdf",
+    ".sqlite", ".db", ".woff", ".woff2", ".ttf",
+})
+MAX_FILE_SIZE = 500_000  # 500KB
+MAX_LINES_PER_READ = 2000
+
+@tool(
+    name="read_file",
+    description=(
+        "读取一个本地文本文件。返回带行号的内容。"
+        "可用 start_line / end_line 只读一段(大文件必须分段读)。"
+        "二进制文件(图片、PDF、压缩包等)会报错。"
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "文件路径"},
+            "start_line": {"type": "integer", "description": "起始行号,默认 1"},
+            "end_line": {"type": "integer", "description": "结束行号,默认最多 2000 行"},
+        },
+        "required": ["path"],
+    },
+)
+def read_file(path, start_line=1, end_line=None):
+    p = Path(path)
+    if not p.exists():
+        return f"Error: 文件不存在 {path}"
+    if not p.is_file():
+        return f"Error: 不是文件 {path}"
+    # 二进制扩展名拦截
+    if p.suffix.lower() in BINARY_EXTENSIONS:
+        size = p.stat().st_size
+        return f"Error: {p.suffix} 是二进制格式,文件大小 {size} bytes"
+    # 大小限制
+    size = p.stat().st_size
+    if size > MAX_FILE_SIZE:
+        return f"Error: 文件太大({size} bytes)。用 start_line/end_line 分段读"
+    # 读取
+    try:
+        text = p.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return "Error: 不是 UTF-8 文本(可能是二进制文件)"
+    lines = text.splitlines()
+    total = len(lines)
+    start = max(1, start_line)
+    if start > total:
+        return f"Error: start_line={start} 超过文件总行数 {total}"
+    end = min(total, end_line if end_line is not None else start + MAX_LINES_PER_READ - 1)
+    selected = lines[start - 1 : end]
+    numbered = "\\n".join(
+        f"{i:>5}  {line}" for i, line in enumerate(selected, start=start)
+    )
+    header = f"# {path} ({total} lines, showing {start}-{end})"
+    return f"{header}\\n{numbered}"`;
+
+const TOTAL = 3000, TOK = 6, CTX = 200000;
+const PRE = { sys:600, tool:3500, hist:8000 };           // 演示值
+const srcLines = SRC_RAW.split('\n');
+const FILE = Array.from({length: TOTAL}, (_, i) => srcLines[i % srcLines.length]);
+
+/* 浅色主题画布色板 */
+const PAL = {
+  allFill:'rgba(217,119,87,0.13)', allEdge:'rgba(217,119,87,0.55)',
+  needFill:'rgba(14,124,102,0.16)', needEdge:'#0e7c66',
+  dim:'rgba(250,249,245,0.78)',
+  rngFill:'rgba(14,124,102,0.12)', rngEdge:'#0e7c66', rngGlow:'rgba(14,124,102,0.5)',
+  badgeBg:'rgba(255,255,255,0.92)',
+  flowAll:'rgba(217,119,87,', flowRng:'rgba(14,124,102,',
+  partAll:'#d97757', partRng:'#0e7c66',
+};
+
+/* 行语法分类 → 颜色 */
+function lineColor(s) {
+  const t = s.trim();
+  if (!t) return null;
+  if (t.startsWith('#') || t.startsWith('"""') || t.startsWith("'''")) return getCSS('--syn-comment');
+  if (/^(from|import)\b/.test(t)) return getCSS('--syn-kw');
+  if (/^(def|class|return|if|try|except|for|while)\b/.test(t) || t.startsWith('@')) return getCSS('--syn-def');
+  if (t.includes('"') || t.includes("'")) return getCSS('--syn-str');
+  return getCSS('--syn-plain');
+}
+function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+/* ───────────────────── 状态 ───────────────────── */
+let mode = 'all';            // 'all' | 'range'
+let selStart = 40, selEnd = 60;
+let displayTok = 0;          // tween 用
+
+const $ = id => document.getElementById(id);
+const mm = $('minimap'), mctx = mm.getContext('2d');
+const pc = $('particles'), pctx = pc.getContext('2d');
+let mmW=0, mmH=0, dpr = Math.min(window.devicePixelRatio||1, 2);
+
+/* ───────────────────── minimap 渲染 ───────────────────── */
+const lineCache = FILE.map(l => ({ color: lineColor(l), len: Math.min(l.length, 90)/90 }));
+
+function sizeCanvases() {
+  const box = mm.parentElement.getBoundingClientRect();
+  mmW = box.width; mmH = box.height;
+  mm.width = mmW*dpr; mm.height = mmH*dpr; mctx.setTransform(dpr,0,0,dpr,0,0);
+  const f = pc.parentElement.getBoundingClientRect();
+  pc.width = f.width*dpr; pc.height = f.height*dpr; pctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function drawMinimap() {
+  mctx.clearRect(0,0,mmW,mmH);
+  const lh = mmH/TOTAL, pad = 10, w = mmW - pad*2;
+  // 代码纹理
+  for (let i=0;i<TOTAL;i++){
+    const lc = lineCache[i]; if (!lc.color) continue;
+    mctx.fillStyle = lc.color; mctx.globalAlpha = 0.8;
+    mctx.fillRect(pad, i*lh, Math.max(w*lc.len, 2), Math.max(lh*0.72, 0.5));
+  }
+  mctx.globalAlpha = 1;
+  const yS = (selStart-1)*lh, yE = selEnd*lh;
+  if (mode === 'all') {
+    // 全卷被读入:terracotta 罩
+    mctx.fillStyle = PAL.allFill; mctx.fillRect(0,0,mmW,mmH);
+    mctx.strokeStyle = PAL.allEdge; mctx.lineWidth = 1.5;
+    mctx.strokeRect(0.75,0.75,mmW-1.5,mmH-1.5);
+    // 你要的:teal 窗
+    mctx.fillStyle = PAL.needFill; mctx.fillRect(0,yS,mmW,Math.max(yE-yS,2));
+    mctx.strokeStyle = PAL.needEdge; mctx.lineWidth = 1.5;
+    mctx.strokeRect(0.75,yS,mmW-1.5,Math.max(yE-yS,2));
+    badge(yS, yE, PAL.needEdge, '你要的 '+(selEnd-selStart+1)+' 行');
+  } else {
+    // 只有选区点亮,其余纸面洗白
+    mctx.fillStyle = PAL.dim;
+    mctx.fillRect(0,0,mmW,yS); mctx.fillRect(0,yE,mmW,mmH-yE);
+    mctx.fillStyle = PAL.rngFill; mctx.fillRect(0,yS,mmW,Math.max(yE-yS,2));
+    mctx.strokeStyle = PAL.rngEdge; mctx.lineWidth = 1.5;
+    mctx.strokeRect(0.75,yS,mmW-1.5,Math.max(yE-yS,2));
+    mctx.shadowColor = PAL.rngGlow; mctx.shadowBlur = 8;
+    mctx.strokeRect(0.75,yS,mmW-1.5,Math.max(yE-yS,2));
+    mctx.shadowBlur = 0;
+    badge(yS, yE, PAL.rngEdge, '读取 '+(selEnd-selStart+1)+' 行');
+  }
+  function badge(y0,y1,color,txt){
+    const y = Math.min(Math.max((y0+y1)/2, 9), mmH-9);
+    mctx.font = '600 9px JetBrains Mono, monospace';
+    const tw = mctx.measureText(txt).width+10;
+    mctx.fillStyle = PAL.badgeBg;
+    mctx.fillRect(mmW-tw-4, y-8, tw, 16);
+    mctx.fillStyle = color;
+    mctx.fillText(txt, mmW-tw+1, y+3.5);
+  }
+}
+
+/* ───────────────────── context 容器 ───────────────────── */
+function layout() {
+  const well = $('well'), H = well.getBoundingClientRect().height;
+  const readTok = mode==='all' ? TOTAL*TOK : (selEnd-selStart+1)*TOK;
+  const px = t => t/CTX*H;
+  const hSys=px(PRE.sys), hTool=px(PRE.tool), hHist=px(PRE.hist);
+  const hRead=Math.max(px(readTok), 3);
+  const layers = well.querySelectorAll('.layer');
+  // 从底部往上堆:sys, tool, hist, read
+  let y = 0;
+  const order = [[layers[3],hSys],[layers[2],hTool],[layers[1],hHist],[layers[0],hRead]];
+  for (const [el,h] of order){ el.style.bottom = y+'px'; el.style.height = h+'px'; y += h; }
+  $('tag-read').textContent = `这次 read ${fmt(readTok)}`;
+  const lr = $('l-read');
+  lr.classList.toggle('is-all', mode==='all');
+  lr.classList.toggle('is-rng', mode==='range');
+  // 刻度
+  const ruler = $('ruler'); ruler.innerHTML='';
+  [50,100,150,200].forEach(k=>{
+    const t=document.createElement('div'); t.className='tick';
+    t.style.bottom = (k*1000/CTX*H)+'px'; t.textContent=k+'k'; ruler.appendChild(t);
+  });
+  const used = PRE.sys+PRE.tool+PRE.hist+readTok;
+  const fb = $('freebadge');
+  fb.style.bottom = (used/CTX*H + (H - used/CTX*H)/2 - 6) + 'px';
+  fb.textContent = `还空着 ${fmt(CTX-used)}`;
+  return readTok;
+}
+
+/* ───────────────────── 流动带 + 粒子 ───────────────────── */
+function drawFlowBand() {
+  const svg = $('flowsvg'), r = svg.getBoundingClientRect();
+  const W=r.width, Hh=r.height;
+  svg.setAttribute('viewBox', `0 0 ${W} ${Hh}`);
+  const mmBox = mm.getBoundingClientRect(), fBox = svg.getBoundingClientRect();
+  const lh = mmH/TOTAL;
+  let y0a, y0b;
+  if (mode==='all'){ y0a = mmBox.top-fBox.top; y0b = mmBox.bottom-fBox.top; }
+  else { y0a = mmBox.top-fBox.top + (selStart-1)*lh; y0b = mmBox.top-fBox.top + selEnd*lh; }
+  const wellBox = $('well').getBoundingClientRect();
+  const readTok = mode==='all' ? TOTAL*TOK : (selEnd-selStart+1)*TOK;
+  const wellH = wellBox.height;
+  const base = PRE.sys+PRE.tool+PRE.hist;
+  const y1b = wellBox.bottom-fBox.top - base/CTX*wellH;
+  const y1a = y1b - Math.max(readTok/CTX*wellH, 3);
+  const c = mode==='all' ? PAL.flowAll : PAL.flowRng;
+  const mx = W*0.5;
+  svg.innerHTML = `
+    <path d="M 0 ${y0a} C ${mx} ${y0a}, ${mx} ${y1a}, ${W} ${y1a}
+             L ${W} ${y1b} C ${mx} ${y1b}, ${mx} ${y0b}, 0 ${y0b} Z"
+          fill="${c}0.07)" stroke="${c}0.25)" stroke-width="1"/>
+    <path d="M 0 ${(y0a+y0b)/2} C ${mx} ${(y0a+y0b)/2}, ${mx} ${(y1a+y1b)/2}, ${W} ${(y1a+y1b)/2}"
+          fill="none" stroke="${c}0.55)" stroke-width="1.5" stroke-dasharray="6 7" class="dashflow"/>
+    <style>.dashflow{animation:dash 1.2s linear infinite}@keyframes dash{to{stroke-dashoffset:-13}}</style>`;
+  return {y0a,y0b,y1a,y1b,W};
+}
+
+let parts=[];
+function burst() {
+  const g = drawFlowBand();
+  const c = mode==='all' ? PAL.partAll : PAL.partRng;
+  const n = mode==='all' ? 46 : 18;
+  for(let i=0;i<n;i++){
+    const t0=Math.random()*0.35;
+    parts.push({t:-t0, y0:g.y0a+Math.random()*(g.y0b-g.y0a), y1:g.y1a+Math.random()*Math.max(g.y1b-g.y1a,4), W:g.W, color:c, sz:1.5+Math.random()*2.5});
+  }
+}
+function tickParticles(){
+  const r = pc.getBoundingClientRect();
+  pctx.clearRect(0,0,r.width,r.height);
+  parts = parts.filter(p=>p.t<1);
+  for(const p of parts){
+    p.t += 0.022;
+    if(p.t<0) continue;
+    const e = p.t<.5 ? 2*p.t*p.t : 1-Math.pow(-2*p.t+2,2)/2;
+    const x = e*p.W;
+    const y = p.y0 + (p.y1-p.y0)*e;
+    pctx.globalAlpha = p.t<0.85 ? 0.85 : (1-p.t)/0.15*0.85;
+    pctx.fillStyle = p.color;
+    pctx.fillRect(x-p.sz/2, y-p.sz/2, p.sz, p.sz);
+  }
+  pctx.globalAlpha=1;
+  // 数字 tween
+  const target = mode==='all' ? TOTAL*TOK : (selEnd-selStart+1)*TOK;
+  displayTok += (target-displayTok)*0.12;
+  if (Math.abs(target-displayTok)<1) displayTok=target;
+  const ft = $('flow-tok');
+  ft.textContent = fmt(Math.round(displayTok));
+  ft.style.color = mode==='all' ? 'var(--accent)' : 'var(--teal)';
+  requestAnimationFrame(tickParticles);
+}
+
+/* ───────────────────── 仪表 ───────────────────── */
+function fmt(n){ return n.toLocaleString('en-US'); }
+function updateMeters(readTok){
+  const needTok = (selEnd-selStart+1)*TOK;
+  const pct = readTok/CTX*100;
+  $('m-tok').innerHTML = fmt(readTok)+' <small>tok</small>';
+  $('m-pct').textContent = pct>=10?pct.toFixed(0)+'%':pct.toFixed(1)+'%';
+  $('m-pct').style.color = pct>=8 ? 'var(--accent-deep)' : 'var(--green)';
+  $('m-need').innerHTML = fmt(needTok)+' <small>tok</small>';
+  const waste = readTok-needTok;
+  $('m-waste').innerHTML = fmt(waste)+' <small>tok</small>';
+  $('m-waste').style.color = waste>0 ? 'var(--red)' : 'var(--green)';
+  $('call-start').textContent = selStart; $('call-end').textContent = selEnd;
+  $('task-range').textContent = selStart+'-'+selEnd;
+}
+
+/* ───────────────────── 全量刷新 ───────────────────── */
+function render(withBurst){
+  drawMinimap();
+  const readTok = layout();
+  drawFlowBand();
+  updateMeters(readTok);
+  if (withBurst) burst();
+}
+
+/* ───────────────────── 交互:拖选 / hover / 切换 ───────────────────── */
+let dragging=false, dragAnchor=0;
+function yToLine(clientY){
+  const r = mm.getBoundingClientRect();
+  return Math.max(1, Math.min(TOTAL, Math.round((clientY-r.top)/r.height*TOTAL)));
+}
+mm.addEventListener('mousedown', e=>{
+  dragging=true; dragAnchor=yToLine(e.clientY);
+  selStart=selEnd=dragAnchor;
+  if(mode==='all'){ mode='range'; setTabs(); }
+  render(false);
+});
+window.addEventListener('mousemove', e=>{
+  if(dragging){
+    const l=yToLine(e.clientY);
+    selStart=Math.min(dragAnchor,l); selEnd=Math.max(dragAnchor,l);
+    render(false);
+  }
+});
+window.addEventListener('mouseup', ()=>{ if(dragging){ dragging=false; render(true); } });
+
+/* 放大镜 */
+const loupe = $('loupe');
+mm.addEventListener('mousemove', e=>{
+  if(dragging){ loupe.style.display='none'; return; }
+  const ln = yToLine(e.clientY);
+  let html='';
+  for(let i=Math.max(1,ln-2); i<=Math.min(TOTAL,ln+2); i++){
+    const code = (FILE[i-1]||'').slice(0,52) || ' ';
+    const esc = code.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    html += i===ln ? `<span class="cur"><span class="ln">${i}</span>${esc}</span>` : `<span class="ln">${i}</span>${esc}\n`;
+  }
+  loupe.innerHTML = html;
+  loupe.style.display='block';
+  const lw = loupe.getBoundingClientRect();
+  loupe.style.left = Math.min(e.clientX+18, window.innerWidth-lw.width-12)+'px';
+  loupe.style.top = Math.min(e.clientY-20, window.innerHeight-lw.height-12)+'px';
+});
+mm.addEventListener('mouseleave', ()=>{ loupe.style.display='none'; });
+
+/* tab 切换 */
+function setTabs(){
+  $('call-all').classList.toggle('active', mode==='all');
+  $('call-rng').classList.toggle('active', mode==='range');
+  $('map-foot').textContent = mode==='all'
+    ? '整卷被读入 · 绿框 = 你真正要的'
+    : '拖选 = 设定读取范围';
+}
+$('call-all').addEventListener('click', ()=>{ mode='all'; setTabs(); render(true); });
+$('call-rng').addEventListener('click', ()=>{ mode='range'; setTabs(); render(true); });
+
+/* ───────────────────── 启动 ───────────────────── */
+window.addEventListener('resize', ()=>{ sizeCanvases(); render(false); });
+sizeCanvases(); setTabs(); render(false);
+requestAnimationFrame(tickParticles);
+setTimeout(()=>burst(), 350);
+</script>
+</body>
+</html>

@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>whale-cli-tutorial 项目结构</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: #1c1816;
+  font-family: 'JetBrains Mono', monospace;
+  color: #ebe0d2;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Layer tabs ── */
+.layer-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.layer-tab {
+  padding: 5px 12px;
+  border: 1px solid #332d28;
+  border-radius: 6px;
+  background: transparent;
+  color: #6a6058;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.layer-tab:hover {
+  border-color: #554a42;
+  color: #ebe0d2;
+}
+
+.layer-tab.active {
+  border-color: #D77757;
+  color: #D77757;
+  background: rgba(215, 119, 87, 0.08);
+}
+
+/* ── Tree area ── */
+.tree-area {
+  background: #0f0e0c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 12px 16px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.tree-area::-webkit-scrollbar { width: 6px; }
+.tree-area::-webkit-scrollbar-track { background: transparent; }
+.tree-area::-webkit-scrollbar-thumb { background: #332d28; border-radius: 3px; }
+.tree-area::-webkit-scrollbar-thumb:hover { background: #554a42; }
+
+/* ── Tree nodes ── */
+.tree-node {
+  line-height: 28px;
+  white-space: nowrap;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 4px;
+  cursor: default;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.tree-row:hover {
+  background: rgba(215, 119, 87, 0.06);
+}
+
+.tree-row.highlighted {
+  background: rgba(215, 119, 87, 0.12);
+  border-left: 2px solid #D77757;
+  margin-left: -2px;
+}
+
+.tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 28px;
+  font-size: 9px;
+  color: #6a6058;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  user-select: none;
+}
+
+.tree-toggle.open {
+  transform: rotate(0deg);
+}
+
+.tree-toggle.closed {
+  transform: rotate(0deg);
+}
+
+.tree-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 28px;
+  font-size: 10px;
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+
+.tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-desc {
+  color: #6a6058;
+  margin-left: 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Children container for animation */
+.tree-children {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+
+.tree-children.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tree-children.expanded {
+  opacity: 1;
+}
+
+/* ── Colors ── */
+.c-dir  { color: #D77757; }
+.c-py   { color: #e8b863; }
+.c-md   { color: #7ec384; }
+.c-html { color: #6477e0; }
+.c-cfg  { color: #6a6058; }
+.c-dim  { color: #6a6058; }
+
+/* ── Tooltip ── */
+.tooltip {
+  position: fixed;
+  background: #2a2420;
+  color: #ebe0d2;
+  border: 1px solid #332d28;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  max-width: 300px;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.tooltip.visible {
+  opacity: 1;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="layer-tabs">
+    <button class="layer-tab" data-layer="demo">demo 层</button>
+    <button class="layer-tab" data-layer="snapshot">章节快照层</button>
+    <button class="layer-tab" data-layer="product">产品层</button>
+  </div>
+  <div class="tree-area" id="treeArea"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ── Data ──
+const treeData = {
+  name: "whale-cli-tutorial/",
+  type: "dir",
+  desc: "教程项目根目录",
+  expanded: true,
+  children: [
+    {
+      name: "tutorial/",
+      type: "dir",
+      desc: "教程文档与参考资料",
+      children: [
+        {
+          name: "docs/",
+          type: "dir",
+          desc: "教程章节正文",
+          children: [
+            { name: "第00章-开篇.md", type: "md", desc: "你在这里。看完这章你会知道 coding agent 里面到底在跑什么，以及 Whale CLI 最终能做成什么样" },
+            { name: "第01章-最小-agent-loop.md", type: "md", desc: "110 行 Python 跑通一个完整的 agent loop。模型能读你电脑上的文件、回答问题。这一章结尾还会引入 Rich 让终端输出变好看" },
+            { name: "第02章-统一工具接口.md", type: "md", desc: "用一个 @tool 装饰器解决"加工具要改三个地方"的问题。加完之后往 Whale CLI 加新工具只需要写一个文件" },
+            { name: "第03章-读文件-Read.md", type: "md", desc: "给 read_file 加上行号、行范围、二进制检测。你会学到为什么 agent 读 PNG 会出问题、怎么防止 3000 行代码撑爆 context" },
+            { name: "第04章-改文件-Write与Edit.md", type: "md", desc: "old_string → new_string 精确替换。重点是匹配失败时怎么把有用的错误信息返回给模型，让它自己纠错" },
+            { name: "第05章-查文件-Glob与Grep.md", type: "md", desc: "模型先搜再改——从 847 个文件缩小到 1 处 Edit。你会看到没有搜索工具的 agent 有多浪费 token" },
+            { name: "第06章-命令执行Bash.md", type: "md", desc: "agent 能跑命令了——装依赖、跑测试、git 操作。但也是最危险的工具，这章讲怎么加 timeout、黑名单和输出截断" },
+            { name: "第07章~第34章...", type: "md", desc: "后续章节：TodoWrite 任务管理、上下文裁剪、权限审批、子 agent、Hooks、MCP、沙箱...", dimLabel: true },
+            { name: "番外01~番外08", type: "md", desc: "源码阅读：带你读 Claude Code 反编译版、kimi-cli、mini-coding-agent 等项目的关键实现", dimLabel: true },
+            { name: "展望01~展望06", type: "md", desc: "前沿方向：agent 安全红队、多模态 coding、自改进 agent...", dimLabel: true }
+          ]
+        },
+        {
+          name: "refs/",
+          type: "dir",
+          desc: "参考资料",
+          children: [
+            { name: "README.md", type: "md", desc: "参考资料索引，列出所有引用来源" },
+            { name: "notes/", type: "dir", desc: "深读笔记：对重要论文和项目的详细阅读记录", children: [] },
+            { name: "style/", type: "dir", desc: "写作风格参考：收集的优秀技术写作样本", children: [] }
+          ]
+        },
+        { name: "AI-SMELL.md", type: "md", desc: "AI 写作痕迹检查清单，写完每章后对照自查" }
+      ]
+    },
+    {
+      name: "code/",
+      type: "dir",
+      desc: "每章配套代码",
+      children: [
+        {
+          name: "chapter-01/",
+          type: "dir",
+          desc: "跑完这个目录的代码，你就有一个能接 API、能读文件、能回答问题的 agent 了",
+          layers: ["snapshot"],
+          children: [
+            { name: "main.py", type: "py", desc: "110 行，Whale CLI 的入口。for 循环 + 工具调用 + messages 管理全在这里", layers: ["snapshot"] },
+            { name: "llm_client.py", type: "py", desc: "封装了 DashScope / DeepSeek / OpenAI 三家 API，换一个参数就能切模型", layers: ["snapshot"] },
+            { name: "tools.py", type: "py", desc: "read_file 工具的 schema 和执行函数。第 2 章会把这个拆成 registry 结构", layers: ["snapshot"] },
+            { name: "rich_output.py", type: "py", desc: "给终端输出加颜色和面板，让你一眼看出 agent 在做什么", layers: ["snapshot"] },
+            {
+              name: "demo/",
+              type: "dir",
+              desc: "不接 API 也能跑的 mock 版本，20 行理解 loop 的核心",
+              layers: ["demo"],
+              children: [
+                { name: "loop_demo.py", type: "py", desc: "用硬编码的假响应跑一遍完整循环——先跑这个再看 main.py 会好理解很多", layers: ["demo"] }
+              ]
+            },
+            {
+              name: "viz/",
+              type: "dir",
+              desc: "交互可视化",
+              children: [
+                { name: "minimal-loop/", type: "dir", desc: "agent loop 可视化：动态展示消息在 loop 中的流转", children: [] }
+              ]
+            }
+          ]
+        },
+        {
+          name: "chapter-02/",
+          type: "dir",
+          desc: "加完 registry 之后，往 tools/ 里丢一个文件就是加一个新工具，main.py 一行不用改",
+          layers: ["snapshot"],
+          children: [
+            { name: "main.py", type: "py", desc: "跟 Ch01 几乎一样，只改了两行 import", layers: ["snapshot"] },
+            { name: "registry.py", type: "py", desc: "@tool 装饰器 + schema 自动收集 + 参数校验。这个文件后面每章都会用到", layers: ["snapshot"] },
+            { name: "tools/", type: "dir", desc: "每个 .py 文件就是一个工具，用 @tool 装饰就自动注册了", layers: ["snapshot"], children: [] },
+            { name: "demo/", type: "dir", desc: "不到 20 行演示 decorator 注册机制", layers: ["demo"], children: [] }
+          ]
+        },
+        {
+          name: "chapter-03/ ~ chapter-06/",
+          type: "dir",
+          desc: "第三到六章代码（类似结构，逐章新增工具）",
+          dimLabel: true,
+          children: []
+        },
+        {
+          name: "chapter-00/",
+          type: "dir",
+          desc: "开篇的交互组件",
+          children: [
+            {
+              name: "viz/",
+              type: "dir",
+              desc: "开篇的交互组件",
+              children: [
+                { name: "whale-cli-demo/", type: "dir", desc: "虚拟终端：模拟 Whale CLI 的交互体验", children: [] },
+                { name: "timeline/", type: "dir", desc: "发展时间轴：coding agent 领域的里程碑事件", children: [] },
+                { name: "landscape/", type: "dir", desc: "开源项目浏览器：主流 coding agent 对比", children: [] },
+                { name: "code-explainer/", type: "dir", desc: "代码解读器：逐行解释核心代码", children: [] },
+                { name: "prompt-assembly/", type: "dir", desc: "prompt 组装可视化：展示 system prompt 的构造过程", children: [] }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: "product/",
+      type: "dir",
+      desc: "这是 Whale CLI 的产品版——比每章的教学代码多了 magic bytes 检测、空白归一化、进程组隔离这些生产级细节",
+      layers: ["product"],
+      children: [
+        {
+          name: "src/",
+          type: "dir",
+          desc: "源代码",
+          layers: ["product"],
+          children: [
+            {
+              name: "whale_cli/",
+              type: "dir",
+              desc: "uv run python -m whale_cli '你的任务' 就能跑",
+              layers: ["product"],
+              children: [
+                { name: "main.py", type: "py", desc: "产品版入口。跟 chapter-06 的 main.py 对比看，能看到教学版和产品版的差距", layers: ["product"] },
+                {
+                  name: "tools/",
+                  type: "dir",
+                  desc: "6 个工具的产品级实现，比教学版多了错误恢复、类型自动修正、相似名推荐等",
+                  layers: ["product"],
+                  children: [
+                    { name: "registry.py", type: "py", desc: "拼错工具名会推荐正确的、传错类型会自动修正，教学版只报错", layers: ["product"] },
+                    { name: "read_file.py", type: "py", desc: "比教学版多了 magic bytes 二进制检测和 PDF 支持", layers: ["product"] },
+                    { name: "write_file.py", type: "py", desc: "最简单的工具，产品版也只有十几行", layers: ["product"] },
+                    { name: "edit_file.py", type: "py", desc: "比教学版多了空白归一化 fallback——模型幻觉了一个空格也能匹配上", layers: ["product"] },
+                    { name: "glob_files.py", type: "py", desc: "优先用 ripgrep，没装就降级到 Python 遍历", layers: ["product"] },
+                    { name: "grep_files.py", type: "py", desc: "敏感文件过滤（.env、credentials）+ 超时双杀（SIGTERM → SIGKILL）", layers: ["product"] },
+                    { name: "bash_tool.py", type: "py", desc: "进程组隔离、大输出落盘、stdin 关闭防卡死——Ch06 正文里讲了为什么要这些", layers: ["product"] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: "real-sessions/",
+      type: "dir",
+      desc: "真实的 agent 运行记录——教程里的 trace 示例和交互可视化的数据来源。不是编的",
+      children: [
+        { name: "claude-code/", type: "dir", desc: "在这个目录下跑 Claude Code，session JSONL 会存到 ~/.claude/ 下，复制过来就行", children: [] },
+        { name: "whale-cli/", type: "dir", desc: "Whale CLI 跑出来的记录。后面会加 --trace 参数直接输出到这里", children: [] }
+      ]
+    },
+    {
+      name: "site/",
+      type: "dir",
+      desc: "Astro 文档站点",
+      children: [
+        {
+          name: "src/",
+          type: "dir",
+          desc: "站点源代码",
+          children: [
+            {
+              name: "content/",
+              type: "dir",
+              desc: "内容目录",
+              children: [
+                { name: "docs/", type: "dir", desc: "文档页面：从 tutorial/docs 自动同步", children: [] }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    { name: "pyproject.toml", type: "cfg", desc: "uv 管理依赖：Python 版本、依赖包、构建配置" },
+    { name: "PROGRESS.md", type: "md", desc: "进度追踪：各章节完成状态与里程碑" },
+    { name: "CHANGELOG-IDEAS.md", type: "md", desc: "想法演化日志：记录每次设计决策的思考过程" }
+  ]
+};
+
+// ── State ──
+let activeLayer = null;
+const tooltip = document.getElementById('tooltip');
+const treeArea = document.getElementById('treeArea');
+
+// ── File type helpers ──
+function getTypeClass(type) {
+  const map = { dir: 'c-dir', py: 'c-py', md: 'c-md', html: 'c-html', cfg: 'c-cfg' };
+  return map[type] || 'c-dim';
+}
+
+function getFileIcon(type, expanded) {
+  if (type === 'dir') return expanded ? '▼' : '▶';
+  return '·';
+}
+
+// ── Build tree DOM ──
+function buildNode(node, depth) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tree-node';
+
+  const row = document.createElement('div');
+  row.className = 'tree-row';
+  row.style.paddingLeft = (depth * 20 + 6) + 'px';
+
+  const isDir = node.type === 'dir';
+  const hasChildren = isDir && node.children && node.children.length > 0;
+  let expanded = node.expanded || false;
+
+  // Toggle arrow
+  const toggle = document.createElement('span');
+  toggle.className = 'tree-toggle';
+  if (isDir) {
+    toggle.textContent = expanded ? '▼' : '▶';
+    toggle.style.cursor = 'pointer';
+  } else {
+    toggle.textContent = '';
+    toggle.style.width = '16px';
+  }
+
+  // Icon (dot for files)
+  const icon = document.createElement('span');
+  icon.className = 'tree-icon ' + getTypeClass(node.type);
+  if (!isDir) {
+    icon.textContent = '·';
+    icon.style.fontSize = '16px';
+    icon.style.fontWeight = 'bold';
+  }
+
+  // Label
+  const label = document.createElement('span');
+  label.className = 'tree-label ' + getTypeClass(node.type);
+  if (node.dimLabel) {
+    label.classList.add('c-dim');
+  }
+  label.textContent = node.name;
+
+  // Inline desc for directories (visible on wider screens)
+  const desc = document.createElement('span');
+  desc.className = 'tree-desc';
+  if (isDir && node.desc && depth < 2) {
+    desc.textContent = node.desc;
+  }
+
+  row.appendChild(toggle);
+  if (!isDir) row.appendChild(icon);
+  row.appendChild(label);
+  row.appendChild(desc);
+
+  // Store node data for layer highlighting and tooltip
+  row._nodeData = node;
+  row._layers = node.layers || [];
+
+  // Tooltip on hover
+  if (node.desc) {
+    row.addEventListener('mouseenter', (e) => {
+      showTooltip(e, node.desc);
+    });
+    row.addEventListener('mousemove', (e) => {
+      moveTooltip(e);
+    });
+    row.addEventListener('mouseleave', () => {
+      hideTooltip();
+    });
+  }
+
+  wrapper.appendChild(row);
+
+  // Children container
+  if (isDir) {
+    const childrenEl = document.createElement('div');
+    childrenEl.className = 'tree-children';
+
+    if (hasChildren) {
+      node.children.forEach(child => {
+        childrenEl.appendChild(buildNode(child, depth + 1));
+      });
+    }
+
+    if (expanded) {
+      childrenEl.classList.add('expanded');
+      // Set a large initial max-height, will be recalculated
+      childrenEl.style.maxHeight = childrenEl.scrollHeight + 5000 + 'px';
+    } else {
+      childrenEl.classList.add('collapsed');
+      childrenEl.style.maxHeight = '0px';
+    }
+
+    wrapper.appendChild(childrenEl);
+
+    // Click to toggle
+    const toggleDir = () => {
+      expanded = !expanded;
+      toggle.textContent = expanded ? '▼' : '▶';
+
+      if (expanded) {
+        childrenEl.classList.remove('collapsed');
+        childrenEl.classList.add('expanded');
+        // Measure actual height
+        childrenEl.style.maxHeight = '0px';
+        requestAnimationFrame(() => {
+          childrenEl.style.maxHeight = childrenEl.scrollHeight + 'px';
+          // After transition, allow natural height for nested toggles
+          const onEnd = () => {
+            if (expanded) childrenEl.style.maxHeight = 'none';
+            childrenEl.removeEventListener('transitionend', onEnd);
+          };
+          childrenEl.addEventListener('transitionend', onEnd);
+        });
+      } else {
+        // Set explicit height first so transition works
+        childrenEl.style.maxHeight = childrenEl.scrollHeight + 'px';
+        requestAnimationFrame(() => {
+          childrenEl.style.maxHeight = '0px';
+          childrenEl.classList.remove('expanded');
+          childrenEl.classList.add('collapsed');
+        });
+      }
+    };
+
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleDir();
+    });
+
+    label.style.cursor = 'pointer';
+    label.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleDir();
+    });
+  }
+
+  return wrapper;
+}
+
+// ── Tooltip ──
+function showTooltip(e, text) {
+  tooltip.textContent = text;
+  tooltip.classList.add('visible');
+  moveTooltip(e);
+}
+
+function moveTooltip(e) {
+  const pad = 12;
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  const rect = tooltip.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth - 10) {
+    x = e.clientX - rect.width - pad;
+  }
+  if (y + rect.height > window.innerHeight - 10) {
+    y = e.clientY - rect.height - pad;
+  }
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+
+// ── Layer highlighting ──
+function setActiveLayer(layer) {
+  if (activeLayer === layer) {
+    activeLayer = null;
+  } else {
+    activeLayer = layer;
+  }
+
+  // Update tab buttons
+  document.querySelectorAll('.layer-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.layer === activeLayer);
+  });
+
+  // Update row highlights
+  document.querySelectorAll('.tree-row').forEach(row => {
+    const nodeLayers = row._layers;
+    if (activeLayer && nodeLayers && nodeLayers.includes(activeLayer)) {
+      row.classList.add('highlighted');
+    } else {
+      row.classList.remove('highlighted');
+    }
+  });
+
+  // If a layer is active, auto-expand directories that contain highlighted items
+  if (activeLayer) {
+    expandLayerPaths(activeLayer);
+  }
+}
+
+function expandLayerPaths(layer) {
+  // Find all highlighted rows and ensure their parent tree-children are expanded
+  document.querySelectorAll('.tree-row.highlighted').forEach(row => {
+    let el = row.parentElement; // tree-node
+    while (el) {
+      const parentChildren = el.parentElement;
+      if (parentChildren && parentChildren.classList.contains('tree-children') && parentChildren.classList.contains('collapsed')) {
+        // Expand it
+        parentChildren.classList.remove('collapsed');
+        parentChildren.classList.add('expanded');
+        parentChildren.style.maxHeight = 'none';
+        // Update toggle
+        const parentNode = parentChildren.parentElement;
+        if (parentNode) {
+          const tog = parentNode.querySelector(':scope > .tree-row .tree-toggle');
+          if (tog) tog.textContent = '▼';
+        }
+      }
+      el = el.parentElement;
+    }
+  });
+}
+
+// ── Layer tab helpers for data: mark layers recursively ──
+function propagateLayers(node) {
+  if (!node.children) return;
+  node.children.forEach(child => {
+    // Inherit parent layer if child doesn't have its own
+    // (We already set them in data, this is for directories that should light up)
+    propagateLayers(child);
+  });
+}
+
+// ── Init ──
+propagateLayers(treeData);
+treeArea.appendChild(buildNode(treeData, 0));
+
+document.querySelectorAll('.layer-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    setActiveLayer(tab.dataset.layer);
+  });
+});
+
+// Fix initial expanded max-height after render
+requestAnimationFrame(() => {
+  document.querySelectorAll('.tree-children.expanded').forEach(el => {
+    el.style.maxHeight = 'none';
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale CLI - Autoplay Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: #faf9f5;
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .page-title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 22px;
+    font-weight: 400;
+    color: #3c3428;
+    margin-bottom: 20px;
+    text-align: center;
+    letter-spacing: 0.01em;
+  }
+
+  .page-title span {
+    color: #d97757;
+  }
+
+  .terminal-card {
+    width: 100%;
+    max-width: 820px;
+    background: #ffffff;
+    border: 1px solid #e8e4de;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 12px rgba(60, 52, 40, 0.08), 0 1px 3px rgba(60, 52, 40, 0.04);
+  }
+
+  .terminal {
+    width: 100%;
+    max-width: 780px;
+    background: #0f0e0c;
+    border: 1px solid #332d28;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+  }
+
+  .title-bar {
+    background: #231f1c;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    border-radius: 8px 8px 0 0;
+    flex-shrink: 0;
+    border-bottom: 1px solid #332d28;
+  }
+
+  .dots {
+    display: flex;
+    gap: 8px;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .dot-red { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green { background: #28c840; }
+
+  .title-text {
+    flex: 1;
+    text-align: center;
+    color: #6a6058;
+    font-size: 13px;
+    margin-right: 52px;
+  }
+
+  .terminal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+    scrollbar-width: thin;
+    scrollbar-color: #332d28 transparent;
+  }
+
+  .terminal-body::-webkit-scrollbar { width: 6px; }
+  .terminal-body::-webkit-scrollbar-track { background: transparent; }
+  .terminal-body::-webkit-scrollbar-thumb { background: #332d28; border-radius: 3px; }
+
+  .line {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #ebe0d2;
+    white-space: pre;
+    min-height: 1.7em;
+  }
+
+  .prompt { color: #6477e0; font-weight: 700; }
+  .cmd-text { color: #ebe0d2; }
+  .tool-marker { color: #d97757; }
+  .tool-name { color: #d97757; }
+  .result-marker { color: #7ec384; }
+  .dim { color: #6a6058; }
+  .summary-dot { color: #d97757; }
+
+  .fade-in {
+    animation: fadeIn 0.35s ease-out forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background: #ebe0d2;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .footer {
+    text-align: center;
+    padding: 16px;
+    color: #8a8078;
+    font-size: 12px;
+    font-family: Georgia, 'Times New Roman', serif;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    max-width: 820px;
+    width: 100%;
+  }
+
+  .footer.visible { opacity: 1; }
+
+  .replay-btn {
+    display: none;
+    margin: 12px auto 0;
+    padding: 6px 20px;
+    background: transparent;
+    border: 1px solid #d4cfc8;
+    border-radius: 16px;
+    color: #8a8078;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .replay-btn:hover {
+    border-color: #d97757;
+    color: #d97757;
+  }
+
+  .replay-btn.visible {
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Whale CLI <span>Autoplay</span></h1>
+
+<div class="terminal-card">
+<div class="terminal">
+  <div class="title-bar">
+    <div class="dots">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+    <div class="title-text">whale</div>
+  </div>
+  <div class="terminal-body" id="output"></div>
+</div>
+</div>
+
+<div class="footer" id="footer">
+  这是教程第 6 章结束时 Whale CLI 的真实输出。
+  <br>
+  <button class="replay-btn" id="replayBtn" onclick="replay()">重播</button>
+</div>
+
+<script>
+const output = document.getElementById('output');
+const footer = document.getElementById('footer');
+const replayBtn = document.getElementById('replayBtn');
+
+let skipRequested = false;
+let playing = false;
+
+document.addEventListener('click', (e) => {
+  if (e.target === replayBtn) return;
+  if (playing) skipRequested = true;
+});
+
+function sleep(ms) {
+  if (skipRequested) return Promise.resolve();
+  return new Promise(r => setTimeout(r, ms));
+}
+
+function scrollToBottom() {
+  output.scrollTop = output.scrollHeight;
+}
+
+function addLine(html, cls) {
+  const div = document.createElement('div');
+  div.className = 'line' + (cls ? ' ' + cls : '');
+  div.innerHTML = html;
+  output.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+async function typeText(lineEl, text, speed) {
+  if (skipRequested) {
+    lineEl.innerHTML += text;
+    scrollToBottom();
+    return;
+  }
+  for (let i = 0; i < text.length; i++) {
+    if (skipRequested) {
+      lineEl.innerHTML += text.slice(i);
+      scrollToBottom();
+      return;
+    }
+    lineEl.innerHTML += text[i];
+    scrollToBottom();
+    await sleep(speed);
+  }
+}
+
+async function typeCommand(promptHtml, text) {
+  const line = addLine(promptHtml);
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  line.appendChild(cursor);
+  await sleep(300);
+
+  const span = document.createElement('span');
+  span.className = 'cmd-text';
+  line.insertBefore(span, cursor);
+
+  const speed = skipRequested ? 0 : 35;
+  for (let i = 0; i < text.length; i++) {
+    if (skipRequested) {
+      span.textContent += text.slice(i);
+      scrollToBottom();
+      break;
+    }
+    span.textContent += text[i];
+    scrollToBottom();
+    await sleep(speed);
+  }
+  cursor.remove();
+  await sleep(400);
+}
+
+async function fadeLines(lines) {
+  for (const html of lines) {
+    const div = addLine(html, 'fade-in');
+    if (!skipRequested) await sleep(80);
+  }
+  if (!skipRequested) await sleep(200);
+}
+
+async function play() {
+  playing = true;
+  skipRequested = false;
+  output.innerHTML = '';
+  footer.classList.remove('visible');
+  replayBtn.classList.remove('visible');
+
+  await sleep(1000);
+
+  // Command
+  await typeCommand('<span class="prompt">$ </span><span class="cmd-text">whale </span>', '"为什么我们要自己造一个 coding agent？"');
+
+  addLine('');
+
+  // Tool call 1: read README
+  await fadeLines([
+    '<span class="tool-marker">⏺</span> <span class="tool-name">read_file</span>(<span class="dim">{path: "README.md", start_line: 1, end_line: 30}</span>)',
+    '<span class="result-marker">  ⎿</span> <span class="dim"># Whale CLI 教程</span>',
+    '<span class="dim">    从零搞懂 CLI Coding Agent 的设计与实现</span>',
+    '<span class="dim">    ...</span>',
+  ]);
+
+  addLine('');
+
+  // Tool call 2: grep for philosophy
+  await fadeLines([
+    '<span class="tool-marker">⏺</span> <span class="tool-name">grep</span>(<span class="dim">{pattern: "为什么|目标|原理", path: "docs/"}</span>)',
+    '<span class="result-marker">  ⎿</span> <span class="dim">docs/ch00.md: 弄明白每一层是怎么运转的</span>',
+    '<span class="dim">    docs/ch00.md: 知其然也知其所以然</span>',
+    '<span class="dim">    docs/ch01.md: 最小的 Agent Loop</span>',
+  ]);
+
+  addLine('');
+  await sleep(300);
+
+  // Summary
+  await fadeLines([
+    '也许你也会很好奇：',
+    '  <span class="summary-dot">·</span> 它读文件的时候，怎么知道该读哪几行而不是全读？',
+    '  <span class="summary-dot">·</span> 改完代码之后，是什么驱动它自己去跑测试的？',
+    '  <span class="summary-dot">·</span> 连续工作几十轮，它怎么没把最初的任务忘掉？',
+    '',
+    '跟着 Whale CLI 一起学一遍，这些就慢慢明白了。',
+  ]);
+
+  await sleep(400);
+
+  // Show footer and replay
+  footer.classList.add('visible');
+  replayBtn.classList.add('visible');
+  playing = false;
+}
+
+function replay() {
+  play();
+}
+
+play();
+</script>
+</body>
+</html>

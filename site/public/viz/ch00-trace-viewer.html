@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trace Viewer - 51 次工具调用</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f5f0e8; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e6dfd8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+  --blue:#5468c8;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  background: var(--bg0);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 400px;
+}
+
+/* ── Top bar ─────────────────────────────────── */
+.top-bar {
+  padding: 16px 24px 14px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.top-bar h1 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+  letter-spacing: -0.01em;
+}
+.top-bar h1 span { color: var(--accent); }
+.top-bar .subtitle {
+  font-size: 12px;
+  color: var(--text2);
+}
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.stat-item { color: var(--text2); }
+.stat-item .num { color: var(--ink); font-weight: 600; }
+.stat-item.read .num { color: var(--blue); }
+.stat-item.bash .num { color: var(--green); }
+
+/* ── Controls row ─────────────────────────────── */
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  background: var(--card2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.play-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--card);
+}
+.play-btn.playing {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.play-btn .icon { font-size: 10px; }
+.step-counter {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 500;
+  font-size: 12px;
+}
+.token-counter-inline {
+  font-size: 12px;
+  color: var(--text2);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+}
+.token-counter-inline .num {
+  color: var(--ink);
+  font-weight: 500;
+  transition: all 0.4s ease;
+}
+.kbd-hint {
+  font-size: 11px;
+  color: var(--text3);
+}
+.kbd-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  background: var(--bg1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text2);
+}
+
+/* ── Main area ─────────────────────────────────── */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left panel (event list) ───────────────────── */
+.left-panel {
+  width: 50%;
+  background: var(--bg0);
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 4px 0;
+}
+.left-panel::-webkit-scrollbar { width: 6px; }
+.left-panel::-webkit-scrollbar-track { background: transparent; }
+.left-panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Phase labels */
+.phase-label {
+  padding: 10px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.phase-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Event rows */
+.event-row {
+  padding: 7px 14px 7px 16px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-left-color 0.3s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+}
+.event-row:hover { background: var(--bg1); }
+.event-row.active {
+  background: var(--bg1);
+  border-left-color: var(--accent);
+  box-shadow: inset 4px 0 12px -6px rgba(217,119,87,0.2);
+}
+
+/* Thinking pattern indicator */
+.thinking-dot {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.4;
+}
+
+/* Text event */
+.event-row.type-text .event-content { color: var(--text2); font-size: 12px; }
+
+/* Tool use */
+.event-row.type-tool_use.tool-Read .event-detail-path { color: var(--teal); }
+.event-row.type-tool_use.tool-Bash .event-detail-path { color: var(--green); }
+
+/* Tool result */
+.event-row.type-tool_result {
+  padding: 3px 14px 3px 27px;
+  opacity: 0.55;
+  border-left-color: transparent;
+}
+.event-row.type-tool_result .event-content {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+.event-row.type-tool_result.expanded {
+  opacity: 0.85;
+  padding: 6px 14px 6px 27px;
+}
+.event-row.type-tool_result.expanded .event-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Badges */
+.tool-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+.tool-badge.read-badge {
+  background: rgba(14,124,102,0.1);
+  color: var(--teal);
+  padding: 0 7px;
+}
+.tool-badge.bash-badge {
+  background: rgba(46,125,79,0.1);
+  color: var(--green);
+  padding: 0 7px;
+}
+.tool-badge.text-badge {
+  background: rgba(217,119,87,0.1);
+  color: var(--accent);
+  padding: 0 6px;
+  font-size: 10px;
+}
+.tool-badge.result-badge {
+  background: rgba(125,118,106,0.08);
+  color: var(--text3);
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+.event-content {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.event-detail-path {
+  color: var(--ink);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.event-detail-dim {
+  color: var(--text3);
+  font-size: 11px;
+}
+
+/* ── Right panel (detail) ──────────────────────── */
+.right-panel {
+  width: 50%;
+  background: var(--card);
+  overflow-y: auto;
+  padding: 0;
+  position: relative;
+}
+.right-panel::-webkit-scrollbar { width: 6px; }
+.right-panel::-webkit-scrollbar-track { background: transparent; }
+.right-panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.detail-wrapper {
+  padding: 20px 24px;
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text3);
+  font-size: 13px;
+  gap: 6px;
+  padding: 20px;
+}
+.detail-empty .hint { font-size: 11px; color: var(--text3); }
+
+.detail-header {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-header .detail-type {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.detail-header .detail-type.text-type { color: var(--accent); }
+.detail-header .detail-type.read-type { color: var(--teal); }
+.detail-header .detail-type.bash-type { color: var(--green); }
+.detail-header .detail-type.result-type { color: var(--text3); }
+.detail-header .detail-name {
+  font-size: 13px;
+  color: var(--ink);
+  word-break: break-all;
+  font-family: 'JetBrains Mono', monospace;
+}
+.detail-body {
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+/* ── Heatmap (bottom bar) ──────────────────────── */
+.heatmap-section {
+  flex-shrink: 0;
+  padding: 12px 24px 14px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+}
+.heatmap-title {
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.heatmap-bars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.heatmap-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.heatmap-bar {
+  height: 14px;
+  border-radius: 3px;
+  min-width: 8px;
+  transition: width 0.6s ease;
+}
+.heatmap-bar.animate-in {
+  animation: barGrow 0.6s ease forwards;
+}
+@keyframes barGrow {
+  from { width: 0; opacity: 0; }
+  to   { opacity: 1; }
+}
+.heatmap-label {
+  color: var(--text2);
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+.heatmap-count {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="top-bar">
+    <h1>Trace Viewer：<span>51 次工具调用</span></h1>
+    <div class="subtitle">Claude Code 在 OpenClaw v2026.5.17 (b9921e21) 的 15,000+ 文件中追踪消息处理链路</div>
+    <div class="stats-row">
+      <span class="stat-item"><span class="num">51</span> 次工具调用</span>
+      <span class="stat-item read">Read <span class="num">26</span></span>
+      <span class="stat-item bash">Bash <span class="num">25</span></span>
+      <span class="stat-item">约 1m49s</span>
+      <span class="token-counter-inline">tokens ≈ <span class="num" id="tokenNum">0</span></span>
+    </div>
+    <div class="controls-row">
+      <button class="play-btn" id="playBtn">
+        <span class="icon" id="playIcon">&#9654;</span>
+        <span id="playLabel">自动播放</span>
+      </button>
+      <span class="kbd-hint"><kbd>↑</kbd> <kbd>↓</kbd> 逐步浏览</span>
+      <span class="step-counter" id="stepCounter">点击事件查看详情</span>
+    </div>
+  </div>
+  <div class="main">
+    <div class="left-panel" id="leftPanel"></div>
+    <div class="right-panel" id="rightPanel">
+      <div class="detail-empty">
+        <span>点击左侧事件查看详细内容</span>
+        <span class="hint">或按 ↓ 键开始浏览</span>
+      </div>
+    </div>
+  </div>
+  <div class="heatmap-section">
+    <div class="heatmap-title">文件 / 目录访问热力图</div>
+    <div class="heatmap-bars" id="heatmapBars"></div>
+  </div>
+</div>
+
+<script>
+const EVENTS = [{"type": "text", "text": "I'll conduct a thorough exploration of the OpenClaw codebase to trace the user message processing call chain. Let me start by examining the project structure and then follow the data flow."}, {"type": "tool_use", "name": "Bash", "detail": "find ./src -type f -name \"*.ts\" -o -name \"*.js\" -o -name \"*.json\" | head -50"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/entry.ts\n/home/leonliu2020/ry_"}, {"type": "text", "text": "Let me explore the directory structure more systematically:"}, {"type": "tool_use", "name": "Bash", "detail": "ls -la ./src/ | grep -E \"^d\" | awk '{print $NF}'"}, {"type": "tool_result", "preview": ".\n..\nacp\nagents\nauto-reply\nbindings\nbootstrap\nchannels\nchat\ncli\ncommands\ncommitments\ncompat\nconfig\nc"}, {"type": "text", "text": "Now let me examine the channels and gateway directories as these are likely entry points:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/channels -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/channels/sender-identity.ts\n/h"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-startup-log.ts\n"}, {"type": "text", "text": "Let me look at the main entry points and key files:"}, {"type": "tool_use", "name": "Read", "detail": "src/index.ts"}, {"type": "tool_result", "preview": "1\t#!/usr/bin/env node\n2\timport process from \"node:process\";\n3\timport { fileURLToPath } from \"node:ur"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"*.ts\" | grep -E \"server|chat|message\" | head -"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-startup-log.ts\n"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"server.ts\" -o -name \"server-*.ts\" | grep -v te"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-startup-log.ts\n"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src -type f -name \"server.ts\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/acp/server.ts\n/home/leonliu202"}, {"type": "text", "text": "Great! Let me read the main gateway server:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server.ts"}, {"type": "tool_result", "preview": "1\texport { truncateCloseReason } from \"./server/close-reason.js\";\n2\texport type { GatewayServer, Gat"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server.impl.ts"}, {"type": "tool_result", "preview": "1\timport { monitorEventLoopDelay, performance } from \"node:perf_hooks\";\n2\timport { getActiveEmbedded"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server.impl.ts"}, {"type": "tool_result", "preview": "400\t            spanId,\n401\t            durationMs: now - before,\n402\t            attributes: name ="}, {"type": "text", "text": "Let me search for message handling and chat-related code:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src -type f -name \"*.ts\" | xargs grep -l \"sendMessage\\|handleMessage\\|pro"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/tasks/task-executor.test.ts\n/h"}, {"type": "text", "text": "Let me look at the chat directory and routing:"}, {"type": "tool_use", "name": "Bash", "detail": "ls -la ./src/chat/"}, {"type": "tool_result", "preview": "total 20\ndrwxrwxr-x  2 leonliu2020 leonliu2020 4096 May 16 06:44 .\ndrwxrwxr-x 69 leonliu2020 leonliu"}, {"type": "tool_use", "name": "Bash", "detail": "ls -la ./src/routing/"}, {"type": "tool_result", "preview": "total 160\ndrwxrwxr-x  2 leonliu2020 leonliu2020  4096 May 16 06:44 .\ndrwxrwxr-x 69 leonliu2020 leonl"}, {"type": "tool_use", "name": "Read", "detail": "src/routing/resolve-route.ts"}, {"type": "tool_result", "preview": "1\timport { resolveDefaultAgentId } from \"../agents/agent-scope.js\";\n2\timport type { ChatType } from "}, {"type": "text", "text": "Now let me look for the actual message handling in gateway methods:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway/server-methods -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-methods/devices"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway/server-methods -type f -name \"*.ts\" | grep -E \"chat|send|mess"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-methods/chat.di"}, {"type": "text", "text": "Perfect! Let me read the main chat and send files:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "1\timport { createHash } from \"node:crypto\";\n2\timport fs from \"node:fs\";\n3\timport path from \"node:pat"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "200\t  },\n201\t): Promise<{ content: Array<Record<string, unknown>>; transcriptText: string } | null> "}, {"type": "text", "text": "Now let me look at the send and dispatch logic:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/send.ts"}, {"type": "tool_result", "preview": "1\timport { resolveSessionAgentId } from \"../../agents/agent-scope.js\";\n2\timport { sendDurableMessage"}, {"type": "text", "text": "Now let me look at the auto-reply dispatch:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/dispatch.ts"}, {"type": "tool_result", "preview": "1\timport { normalizeChatType } from \"../channels/chat-type.js\";\n2\timport type { OpenClawConfig } fro"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/auto-reply -type f -name \"*.ts\" | grep -v test | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/auto-reply/templating.ts\n/home"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/auto-reply/reply -type f -name \"*.ts\" | grep -v test | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/auto-reply/reply/session-hooks"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/get-reply.ts"}, {"type": "tool_result", "preview": "1\timport fs from \"node:fs/promises\";\n2\timport {\n3\t  resolveAgentConfig,\n4\t  resolveAgentDir,\n5\t  res"}, {"type": "text", "text": "Let me continue reading this critical file:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/get-reply.ts"}, {"type": "tool_result", "preview": "200\t  }\n201\t}\n202\t\n203\texport async function getReplyFromConfig(\n204\t  ctx: MsgContext,\n205\t  opts?:"}, {"type": "text", "text": "Now let me look at where the model is actually invoked. Let me search for model invocation:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/agents -type f -name \"*.ts\" | grep -E \"runner|invoke|model\" | head -1"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/agents/pi-embedded-runner.cach"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/agents -type f -name \"pi-embedded-runner.ts\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/agents/pi-embedded-runner.ts"}, {"type": "tool_use", "name": "Read", "detail": "src/agents/pi-embedded-runner.ts"}, {"type": "tool_result", "preview": "1\texport {\n2\t  compactEmbeddedPiSession,\n3\t  compactEmbeddedPiSession as compactEmbeddedAgentSession"}, {"type": "tool_use", "name": "Read", "detail": "src/agents/pi-embedded-runner/run.ts"}, {"type": "tool_result", "preview": "1\timport { randomBytes } from \"node:crypto\";\n2\timport fs from \"node:fs/promises\";\n3\timport type { Re"}, {"type": "text", "text": "Let me find the actual message receiving/processing in channels:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/channels -type f -name \"*.ts\" | grep -v test | grep -E \"inbound|messa"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/channels/sender-identity.ts\n/h"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/channels/message -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/channels/message/send.test.ts\n"}, {"type": "tool_use", "name": "Read", "detail": "src/channels/message/receive.ts"}, {"type": "tool_result", "preview": "1\timport type { ChannelMessageReceiveAckPolicy } from \"./types.js\";\n2\t\n3\texport type MessageAckPolic"}, {"type": "text", "text": "Now let me look at how messages flow through the actual system. Let me search for where messages are ingested from channels:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"dispatchInboundMessage\\|handleInbound\\|receiveMessage\" ./src --include="}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/plugin-sdk/reply-runtime.ts:  "}, {"type": "text", "text": "Perfect! Let me read the actual dispatchInboundMessage function:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/dispatch.ts"}, {"type": "tool_result", "preview": "100\t  snapshot: ForegroundReplyFenceSnapshot | undefined,\n101\t): boolean {\n102\t  return Boolean(\n103"}, {"type": "text", "text": "Perfect! Now let me trace the reply/response path. Let me look at reply delivery:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/reply-delivery.ts"}, {"type": "tool_result", "preview": "1\timport { hasOutboundReplyContent } from \"openclaw/plugin-sdk/reply-payload\";\n2\timport { logVerbose"}, {"type": "text", "text": "Now let me search for the final reply sending/broadcasting logic:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"sendReply\\|broadcastReply\\|deliverReply\\|queuedFinal\" ./src/auto-reply/"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/auto-reply/reply/dispatch-from"}, {"type": "text", "text": "Let me look at the reply-dispatcher to understand how replies are queued and sent:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/reply-dispatcher.ts"}, {"type": "tool_result", "preview": "1\timport type { TypingCallbacks } from \"../../channels/typing.js\";\n2\timport type { HumanDelayConfig "}, {"type": "text", "text": "Let me continue reading:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/reply-dispatcher.ts"}, {"type": "tool_result", "preview": "200\t        }\n201\t        await options.deliver(deliverPayload, { kind });\n202\t      })\n203\t      .c"}, {"type": "text", "text": "Perfect! Now let me understand the gateway response/send path better:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "600\t  const shouldDeliverExternally = params.deliver === true;\n601\t  if (!shouldDeliverExternally) {"}, {"type": "text", "text": "Now let me look at where responses are actually sent back to clients in gateway:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"*.ts\" | grep -E \"respond|send|broadcast|event\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/event-loop-ready.ts\n/h"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-broadcast.ts"}, {"type": "tool_result", "preview": "1\timport { logRejectedLargePayload } from \"../logging/diagnostic-payload.js\";\n2\timport {\n3\t  ADMIN_S"}, {"type": "text", "text": "Perfect! Now let me create a comprehensive map. Let me search for where chat/agent events are actually generated and broadcast:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "800\t    try {\n801\t      inlineSaved.push(\n802\t        await saveMediaBuffer(Buffer.from(img.data, \"b"}, {"type": "text", "text": "Let me look for where agent events are actually emitted/broadcast back to clients:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"broadcastAgentEvent\\|emitAgent\\|sendAgentEvent\" ./src --include=\"*.ts\" "}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/agents/agent-command.ts:  emit"}, {"type": "tool_use", "name": "Read", "detail": "src/infra/agent-events.ts"}, {"type": "tool_result", "preview": "1\timport type { VerboseLevel } from \"../auto-reply/thinking.js\";\n2\timport { resolveGlobalSingleton }"}, {"type": "tool_use", "name": "Read", "detail": "src/infra/agent-events.ts"}, {"type": "tool_result", "preview": "100\t};\n101\t\n102\texport type AgentEventPayload = {\n103\t  runId: string;\n104\t  seq: number;\n105\t  stre"}, {"type": "text", "text": "Now let me look at how the gateway consumes these events:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"registerAgentEventListener\\|onAgentEvent\\|agentEventPayload\" ./src/gate"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/openresponses-http.ts:"}, {"type": "text", "text": "Perfect! Let me now read the server-runtime-subscriptions file:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-runtime-subscriptions.ts"}, {"type": "tool_result", "preview": "1\timport { clearAgentRunContext, onAgentEvent } from \"../infra/agent-events.js\";\n2\timport { onHeartb"}, {"type": "text", "text": "Perfect! Now let me look at how the createAgentEventHandler works:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -n \"createAgentEventHandler\" ./src/gateway/server-chat.ts | head -5"}, {"type": "tool_result", "preview": "218:export function createAgentEventHandler({"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-chat.ts"}, {"type": "tool_result", "preview": "218\texport function createAgentEventHandler({\n219\t  broadcast,\n220\t  broadcastToConnIds,\n221\t  nodeS"}, {"type": "text", "text": "Excellent! Now I have a comprehensive understanding. Let me create a final summary document by tracing through a few more key files to ensure completeness:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"server-methods.ts\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-methods.ts"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods.ts"}, {"type": "tool_result", "preview": "1\timport { getPluginRegistryState } from \"../plugins/runtime-state.js\";\n2\timport { withPluginRuntime"}, {"type": "text", "text": "Perfect! Now I have comprehensive knowledge. Let me create a detailed summary document:\n\n## User Message Processing Call Chain in OpenClaw - Comprehensive Analysis\n\nI've thoroughly explored the OpenCl"}];
+
+// ─── Phase definitions ──────────────────────────
+// Map event indices to logical phases based on what the agent is doing.
+const PHASES = [
+  { start: 0,  label: '探索阶段',   desc: '项目结构与入口' },
+  { start: 12, label: '定位入口',   desc: 'gateway / server' },
+  { start: 28, label: '追踪路由',   desc: '消息处理与路由' },
+  { start: 56, label: '追踪链路',   desc: '回复生成与分发' },
+  { start: 80, label: '汇总',      desc: '事件广播与总结' },
+];
+
+// ─── Helpers ─────────────────────────────────────
+function shortenPath(p) {
+  if (!p) return '';
+  return p.replace('/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/', '')
+          .replace(/^\.\//,'');
+}
+function shortenCommand(cmd) {
+  if (!cmd) return '';
+  let s = cmd.replace(/\/home\/leonliu2020\/ry_workspace\/real-sessions\/claude-code\/openclaw\//g, './');
+  if (s.length > 80) s = s.slice(0, 77) + '...';
+  return s;
+}
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ─── Compute running token estimate from events ──
+// Simple heuristic: text ≈ len/4, tool_use ≈ 50, tool_result ≈ preview_len/4
+const tokenEstimates = [];
+let runningTokens = 0;
+EVENTS.forEach(ev => {
+  if (ev.type === 'text') {
+    runningTokens += Math.ceil((ev.text || '').length / 4);
+  } else if (ev.type === 'tool_use') {
+    runningTokens += 50;
+  } else if (ev.type === 'tool_result') {
+    runningTokens += Math.ceil((ev.preview || '').length / 4);
+  }
+  tokenEstimates.push(runningTokens);
+});
+
+// ─── Detect "thinking" patterns (text → tool_use → tool_result) ──
+const thinkingStarts = new Set();
+EVENTS.forEach((ev, i) => {
+  if (ev.type === 'text'
+      && i + 1 < EVENTS.length && EVENTS[i + 1].type === 'tool_use'
+      && i + 2 < EVENTS.length && EVENTS[i + 2].type === 'tool_result') {
+    thinkingStarts.add(i);
+  }
+});
+
+// ─── Build tool call index ───────────────────────
+const toolCallIndices = [];
+EVENTS.forEach((e, i) => { if (e.type === 'tool_use') toolCallIndices.push(i); });
+
+// ─── DOM refs ────────────────────────────────────
+const leftPanel = document.getElementById('leftPanel');
+const rightPanel = document.getElementById('rightPanel');
+const stepCounter = document.getElementById('stepCounter');
+const tokenNum = document.getElementById('tokenNum');
+const playBtn = document.getElementById('playBtn');
+const playIcon = document.getElementById('playIcon');
+const playLabel = document.getElementById('playLabel');
+
+let activeIndex = -1;
+let isPlaying = false;
+let playTimer = null;
+
+// ─── Build event list with phase labels ──────────
+let nextPhaseIdx = 0;
+EVENTS.forEach((ev, idx) => {
+  // Insert phase label if we've reached the next phase boundary
+  if (nextPhaseIdx < PHASES.length && idx === PHASES[nextPhaseIdx].start) {
+    const label = document.createElement('div');
+    label.className = 'phase-label';
+    label.textContent = PHASES[nextPhaseIdx].label;
+    leftPanel.appendChild(label);
+    nextPhaseIdx++;
+  }
+
+  const row = document.createElement('div');
+  row.className = 'event-row type-' + ev.type;
+  row.dataset.index = idx;
+
+  if (ev.type === 'text') {
+    row.innerHTML = '<span class="tool-badge text-badge">T</span>' +
+      '<span class="event-content">' + escHtml(ev.text.slice(0, 80)) + (ev.text.length > 80 ? '...' : '') + '</span>';
+    // Add thinking pattern dot
+    if (thinkingStarts.has(idx)) {
+      row.innerHTML += '<span class="thinking-dot" title="思考 → 调用 → 结果"></span>';
+    }
+  } else if (ev.type === 'tool_use') {
+    row.classList.add('tool-' + ev.name);
+    const badge = ev.name === 'Read'
+      ? '<span class="tool-badge read-badge">Read</span>'
+      : '<span class="tool-badge bash-badge">Bash</span>';
+    const detail = ev.name === 'Read'
+      ? '<span class="event-detail-path">' + escHtml(shortenPath(ev.detail)) + '</span>'
+      : '<span class="event-detail-path">' + escHtml(shortenCommand(ev.detail)) + '</span>';
+    row.innerHTML = badge + '<span class="event-content">' + detail + '</span>';
+  } else if (ev.type === 'tool_result') {
+    row.innerHTML = '<span class="tool-badge result-badge">&#x2190;</span>' +
+      '<span class="event-content"><span class="event-detail-dim">' +
+      escHtml((ev.preview || '').slice(0, 60).replace(/\n/g, ' ')) + '...</span></span>';
+  }
+
+  row.addEventListener('click', () => selectEvent(idx));
+  leftPanel.appendChild(row);
+});
+
+// ─── Select event ────────────────────────────────
+function selectEvent(idx) {
+  if (idx < 0 || idx >= EVENTS.length) return;
+
+  // Deactivate previous
+  if (activeIndex >= 0) {
+    const prev = leftPanel.querySelector('[data-index="' + activeIndex + '"]');
+    if (prev) prev.classList.remove('active');
+  }
+  activeIndex = idx;
+  const row = leftPanel.querySelector('[data-index="' + idx + '"]');
+  if (row) {
+    row.classList.add('active');
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  // Toggle tool_result expand
+  const ev = EVENTS[idx];
+  if (ev.type === 'tool_result' && row) {
+    row.classList.toggle('expanded');
+  }
+
+  // Update step counter
+  if (ev.type === 'tool_use') {
+    const toolIdx = toolCallIndices.indexOf(idx) + 1;
+    stepCounter.textContent = '第 ' + toolIdx + ' / 51 步';
+  } else {
+    const nearestTool = toolCallIndices.filter(i => i <= idx).length;
+    stepCounter.textContent = nearestTool > 0 ? '第 ' + nearestTool + ' / 51 步' : '开始分析';
+  }
+
+  // Update token counter
+  const tokens = tokenEstimates[idx];
+  tokenNum.textContent = tokens >= 1000 ? (tokens / 1000).toFixed(1) + 'k' : tokens;
+
+  // Right panel detail
+  showDetail(ev);
+}
+
+function showDetail(ev) {
+  let html = '<div class="detail-wrapper">';
+  if (ev.type === 'text') {
+    html += '<div class="detail-header"><div class="detail-type text-type">TEXT OUTPUT</div></div>';
+    html += '<div class="detail-body">' + escHtml(ev.text) + '</div>';
+  } else if (ev.type === 'tool_use') {
+    const typeClass = ev.name === 'Read' ? 'read-type' : 'bash-type';
+    const label = ev.name === 'Read' ? 'READ FILE' : 'BASH COMMAND';
+    html += '<div class="detail-header"><div class="detail-type ' + typeClass + '">' + label + '</div>';
+    html += '<div class="detail-name">' + escHtml(ev.name === 'Read' ? shortenPath(ev.detail) : ev.detail) + '</div></div>';
+    html += '<div class="detail-body">' + escHtml(ev.detail) + '</div>';
+  } else if (ev.type === 'tool_result') {
+    html += '<div class="detail-header"><div class="detail-type result-type">TOOL RESULT</div></div>';
+    html += '<div class="detail-body">' + escHtml(ev.preview || '(empty)') + '</div>';
+  }
+  html += '</div>';
+  rightPanel.innerHTML = html;
+}
+
+// ─── Keyboard navigation ─────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = activeIndex < 0 ? 0 : Math.min(activeIndex + 1, EVENTS.length - 1);
+    selectEvent(next);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = Math.max(activeIndex - 1, 0);
+    selectEvent(prev);
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    toggleAutoplay();
+  }
+});
+
+// ─── Autoplay ────────────────────────────────────
+function toggleAutoplay() {
+  if (isPlaying) {
+    stopAutoplay();
+  } else {
+    startAutoplay();
+  }
+}
+
+function startAutoplay() {
+  isPlaying = true;
+  playBtn.classList.add('playing');
+  playIcon.innerHTML = '&#9646;&#9646;';
+  playLabel.textContent = '暂停';
+  if (activeIndex < 0) activeIndex = -1;
+  advanceAutoplay();
+}
+
+function stopAutoplay() {
+  isPlaying = false;
+  playBtn.classList.remove('playing');
+  playIcon.innerHTML = '&#9654;';
+  playLabel.textContent = '自动播放';
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+}
+
+function advanceAutoplay() {
+  if (!isPlaying) return;
+  const next = activeIndex + 1;
+  if (next >= EVENTS.length) {
+    stopAutoplay();
+    return;
+  }
+  selectEvent(next);
+  playTimer = setTimeout(advanceAutoplay, 800);
+}
+
+playBtn.addEventListener('click', toggleAutoplay);
+
+// ─── Build heatmap from events ───────────────────
+function buildHeatmap() {
+  const dirCounts = {};
+  EVENTS.forEach(ev => {
+    if (ev.type === 'tool_use' && ev.name === 'Read') {
+      const p = shortenPath(ev.detail);
+      const parts = p.split('/');
+      const dir = parts.length > 2 ? parts.slice(0, 2).join('/') : parts[0];
+      dirCounts[dir] = (dirCounts[dir] || 0) + 1;
+    } else if (ev.type === 'tool_use' && ev.name === 'Bash') {
+      const m = ev.detail.match(/\.\/src\/([a-z-]+)/);
+      if (m) {
+        const dir = 'src/' + m[1];
+        dirCounts[dir] = (dirCounts[dir] || 0) + 1;
+      }
+    }
+  });
+
+  const sorted = Object.entries(dirCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const maxCount = sorted[0] ? sorted[0][1] : 1;
+  const container = document.getElementById('heatmapBars');
+
+  sorted.forEach(([dir, count], i) => {
+    const width = Math.max(20, (count / maxCount) * 120);
+    const color = dir.includes('gateway') ? 'var(--blue)' :
+                  dir.includes('auto-reply') ? 'var(--green)' :
+                  dir.includes('agent') ? 'var(--accent)' :
+                  dir.includes('channel') ? 'var(--purple)' :
+                  dir.includes('infra') ? 'var(--teal)' : 'var(--text3)';
+    const item = document.createElement('div');
+    item.className = 'heatmap-item';
+    item.innerHTML = '<span class="heatmap-label">' + escHtml(dir) + '</span>' +
+      '<div class="heatmap-bar animate-in" style="width:' + width + 'px;background:' + color +
+      ';animation-delay:' + (i * 0.08) + 's"></div>' +
+      '<span class="heatmap-count">' + count + '</span>';
+    container.appendChild(item);
+  });
+}
+buildHeatmap();
+
+// Select first event on load
+selectEvent(0);
+</script>
+</body>
+</html>

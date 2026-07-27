@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grep Playground — 交互式正则搜索</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg:       #1c1816;
+    --bg-panel: #231f1c;
+    --bg-input: #2a2420;
+    --text:     #ebe0d2;
+    --text-dim: #6a6058;
+    --orange:   #D77757;
+    --orange-bg: rgba(215, 119, 87, 0.12);
+    --orange-hi: rgba(215, 119, 87, 0.35);
+    --blue:     #6477e0;
+    --green:    #7ec384;
+    --border:   #332d28;
+    --radius:   8px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow: hidden;
+  }
+
+  /* === LAYOUT === */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  /* === INPUT BAR === */
+  .input-section {
+    flex-shrink: 0;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    gap: 0;
+    transition: border-color 0.2s;
+  }
+  .input-row:focus-within {
+    border-color: var(--orange);
+  }
+
+  .input-prefix, .input-suffix {
+    color: var(--text-dim);
+    white-space: nowrap;
+    user-select: none;
+    font-size: 14px;
+  }
+  .input-prefix .icon {
+    color: var(--orange);
+    margin-right: 6px;
+  }
+
+  #patternInput {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--orange);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 0;
+    caret-color: var(--orange);
+  }
+  #patternInput::placeholder {
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* Toggle switch */
+  .toggle-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    cursor: pointer;
+  }
+  .toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+  .toggle .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    transition: background 0.2s;
+  }
+  .toggle .slider::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: var(--text-dim);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle input:checked + .slider {
+    background: var(--orange);
+  }
+  .toggle input:checked + .slider::after {
+    transform: translateX(16px);
+    background: var(--bg);
+  }
+
+  /* Slider */
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .slider-group input[type="range"] {
+    -webkit-appearance: none;
+    width: 100px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  .slider-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--orange);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .slider-group input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--orange);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+  .slider-value {
+    color: var(--text);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  /* Preset chips */
+  .presets {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+    justify-content: flex-end;
+  }
+  .chip {
+    padding: 4px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .chip:hover {
+    border-color: var(--orange);
+    color: var(--orange);
+    background: var(--orange-bg);
+  }
+  .chip.active {
+    border-color: var(--orange);
+    color: var(--orange);
+    background: var(--orange-bg);
+  }
+
+  /* === CODE PANELS === */
+  .panels-section {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .file-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .file-header {
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.15);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .file-header .file-icon {
+    color: var(--blue);
+    font-size: 12px;
+  }
+  .file-header .match-badge {
+    margin-left: auto;
+    background: var(--orange-bg);
+    color: var(--orange);
+    padding: 1px 7px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .file-header .match-badge.visible {
+    opacity: 1;
+  }
+
+  .file-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px 0;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .file-body::-webkit-scrollbar { width: 6px; }
+  .file-body::-webkit-scrollbar-track { background: transparent; }
+  .file-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .code-line {
+    display: flex;
+    padding: 0 12px 0 0;
+    transition: background 0.15s, border-color 0.15s;
+    border-left: 3px solid transparent;
+    min-height: 20px;
+  }
+  .code-line.matched {
+    background: var(--orange-bg);
+    border-left-color: var(--orange);
+  }
+  .line-num {
+    display: inline-block;
+    min-width: 32px;
+    padding: 0 8px 0 10px;
+    text-align: right;
+    color: var(--text-dim);
+    user-select: none;
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
+  .code-line.matched .line-num {
+    opacity: 0.8;
+    color: var(--orange);
+  }
+  .line-content {
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Syntax colors */
+  .syn-kw   { color: var(--blue); }
+  .syn-str  { color: var(--green); }
+  .syn-cmt  { color: var(--text-dim); font-style: italic; }
+  .syn-fn   { color: #d4a96a; }
+  .syn-type { color: #c9a5e8; }
+  .syn-num  { color: #d4a96a; }
+  .syn-op   { color: var(--text-dim); }
+
+  /* Grep highlight within code */
+  .grep-match {
+    background: var(--orange-hi);
+    color: var(--orange);
+    border-radius: 2px;
+    padding: 0 1px;
+    font-weight: 600;
+  }
+
+  /* === TERMINAL === */
+  .terminal-section {
+    flex-shrink: 0;
+    height: 28%;
+    min-height: 120px;
+    max-height: 300px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .terminal-header {
+    padding: 6px 12px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .terminal-header .dots {
+    display: flex;
+    gap: 5px;
+  }
+  .terminal-header .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+  }
+  .terminal-header .dot:nth-child(1) { background: #e06464; }
+  .terminal-header .dot:nth-child(2) { background: #d4a96a; }
+  .terminal-header .dot:nth-child(3) { background: var(--green); }
+
+  .terminal-stats {
+    margin-left: auto;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .terminal-stats .count {
+    color: var(--orange);
+    font-weight: 600;
+  }
+
+  .terminal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 14px;
+    font-size: 12px;
+    line-height: 1.65;
+    min-height: 0;
+  }
+  .terminal-body::-webkit-scrollbar { width: 6px; }
+  .terminal-body::-webkit-scrollbar-track { background: transparent; }
+  .terminal-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .term-line {
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .term-path { color: var(--blue); }
+  .term-linenum { color: var(--green); }
+  .term-match { color: var(--orange); font-weight: 600; }
+  .term-content { color: var(--text); }
+  .term-empty {
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 16px 0;
+  }
+  .term-error {
+    color: #e06464;
+    padding: 4px 0;
+  }
+  .term-prompt {
+    color: var(--text-dim);
+    user-select: none;
+  }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 1100px) {
+    .panels-section {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 640px) {
+    .app { padding: 10px; gap: 8px; }
+    .panels-section {
+      grid-template-columns: 1fr;
+    }
+    .presets {
+      justify-content: flex-start;
+    }
+    .controls-row {
+      gap: 10px;
+    }
+    .terminal-section {
+      height: 25%;
+      min-height: 100px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- INPUT SECTION -->
+  <div class="input-section">
+    <div class="input-row">
+      <span class="input-prefix"><span class="icon">&#9210;</span> grep(pattern="</span>
+      <input type="text" id="patternInput" placeholder="输入正则表达式..." autocomplete="off" spellcheck="false">
+      <span class="input-suffix">")</span>
+    </div>
+    <div class="controls-row">
+      <label class="toggle-group">
+        <span class="toggle">
+          <input type="checkbox" id="caseToggle">
+          <span class="slider"></span>
+        </span>
+        case_insensitive
+      </label>
+      <div class="slider-group">
+        <span>max_results:</span>
+        <input type="range" id="maxSlider" min="50" max="500" step="50" value="200">
+        <span class="slider-value" id="maxValue">200</span>
+      </div>
+      <div class="presets">
+        <span class="chip" data-pattern="clearCookie">clearCookie</span>
+        <span class="chip" data-pattern="cookie">cookie</span>
+        <span class="chip" data-pattern="res\.(clear|set)Cookie">res\.(clear|set)Cookie</span>
+        <span class="chip" data-pattern="function\s+\w+">function\s+\w+</span>
+        <span class="chip" data-pattern="import.*from">import.*from</span>
+        <span class="chip" data-pattern="TODO|FIXME|HACK">TODO|FIXME|HACK</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CODE PANELS -->
+  <div class="panels-section" id="panelsContainer"></div>
+
+  <!-- TERMINAL -->
+  <div class="terminal-section">
+    <div class="terminal-header">
+      <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <span>Terminal Output</span>
+      <span class="terminal-stats" id="termStats"></span>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <div class="term-empty">输入正则表达式开始搜索...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// MOCK CODEBASE
+// ============================================================
+const FILES = [
+  {
+    path: 'src/auth/logout.ts',
+    content: `import { Request, Response } from "express"
+import { destroySession } from "./session"
+
+export async function logout(req: Request, res: Response) {
+  const session = req.cookies.session
+  if (!session) {
+    return res.status(401).json({ error: "Not logged in" })
+  }
+
+  await destroySession(session)
+  res.clearCookie("session")
+  res.clearCookie("refresh")
+  return res.status(200).json({ message: "Logged out" })
+}
+
+export function clearAllCookies(res: Response) {
+  res.clearCookie("session")
+  res.clearCookie("refresh")
+  res.clearCookie("preferences")
+}`
+  },
+  {
+    path: 'src/middleware/csrf.ts',
+    content: `import { Request, Response, NextFunction } from "express"
+import crypto from "crypto"
+
+export function csrfProtection(req: Request, res: Response, next: NextFunction) {
+  if (req.method === "GET") {
+    const token = crypto.randomBytes(32).toString("hex")
+    res.cookie("csrf_token", token, { httpOnly: true })
+    res.locals.csrfToken = token
+    return next()
+  }
+
+  const cookieToken = req.cookies.csrf_token
+  const headerToken = req.headers["x-csrf-token"]
+
+  if (!cookieToken || cookieToken !== headerToken) {
+    res.clearCookie("csrf_token")
+    return res.status(403).json({ error: "Invalid CSRF token" })
+  }
+  next()
+}`
+  },
+  {
+    path: 'src/utils/config.ts',
+    content: `import { readFileSync } from "fs"
+import { join } from "path"
+
+interface AppConfig {
+  port: number
+  host: string
+  cookieSecret: string
+  sessionTTL: number
+}
+
+export function loadConfig(): AppConfig {
+  const raw = readFileSync(join(__dirname, "../../config/app.json"), "utf-8")
+  const config = JSON.parse(raw)
+  return {
+    port: config.port ?? 3000,
+    host: config.host ?? "localhost",
+    cookieSecret: config.cookie_secret ?? "default-secret",
+    sessionTTL: config.session_ttl ?? 3600,
+  }
+}`
+  },
+  {
+    path: 'tests/auth.test.ts',
+    content: `import { describe, it, expect, vi } from "vitest"
+import { logout, clearAllCookies } from "../src/auth/logout"
+
+describe("logout", () => {
+  it("should clear session cookie", async () => {
+    const res = { clearCookie: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() }
+    const req = { cookies: { session: "abc123" } }
+    await logout(req as any, res as any)
+    expect(res.clearCookie).toHaveBeenCalledWith("session")
+  })
+
+  it("should return 401 without session", async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() }
+    const req = { cookies: {} }
+    await logout(req as any, res as any)
+    expect(res.status).toHaveBeenCalledWith(401)
+  })
+})`
+  }
+];
+
+// ============================================================
+// SIMPLE SYNTAX HIGHLIGHTER
+// ============================================================
+const TS_KEYWORDS = new Set([
+  'import','export','from','const','let','var','function','async','await',
+  'return','if','else','new','typeof','interface','type','class','extends',
+  'implements','describe','it','expect','default'
+]);
+
+const TS_TYPES = new Set([
+  'Request','Response','NextFunction','AppConfig','Promise',
+  'string','number','boolean','void','any'
+]);
+
+function syntaxHighlight(line) {
+  // Escape HTML first
+  let escaped = line
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Comments (// ...)
+  escaped = escaped.replace(/(\/\/.*)$/, '<span class="syn-cmt">$1</span>');
+
+  // Strings (double-quoted and single-quoted and template)
+  escaped = escaped.replace(/(&quot;|")((?:[^"\\]|\\.)*)(&quot;|")/g, '<span class="syn-str">"$2"</span>');
+  escaped = escaped.replace(/"([^"]*?)"/g, '<span class="syn-str">"$1"</span>');
+  escaped = escaped.replace(/'([^']*?)'/g, "<span class=\"syn-str\">'$1'</span>");
+
+  // Numbers
+  escaped = escaped.replace(/\b(\d+)\b/g, '<span class="syn-num">$1</span>');
+
+  // Types
+  TS_TYPES.forEach(t => {
+    const re = new RegExp('\\b(' + t + ')\\b', 'g');
+    escaped = escaped.replace(re, '<span class="syn-type">$1</span>');
+  });
+
+  // Keywords
+  TS_KEYWORDS.forEach(kw => {
+    const re = new RegExp('\\b(' + kw + ')\\b', 'g');
+    escaped = escaped.replace(re, '<span class="syn-kw">$1</span>');
+  });
+
+  return escaped;
+}
+
+// ============================================================
+// BUILD FILE PANELS
+// ============================================================
+const panelsContainer = document.getElementById('panelsContainer');
+
+const filePanels = FILES.map((file, fi) => {
+  const panel = document.createElement('div');
+  panel.className = 'file-panel';
+
+  const header = document.createElement('div');
+  header.className = 'file-header';
+  header.innerHTML = `<span class="file-icon">&#9783;</span><span>${escapeHtml(file.path)}</span><span class="match-badge" id="badge-${fi}">0</span>`;
+  panel.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'file-body';
+  body.id = `filebody-${fi}`;
+
+  const lines = file.content.split('\n');
+  lines.forEach((line, li) => {
+    const row = document.createElement('div');
+    row.className = 'code-line';
+    row.id = `line-${fi}-${li}`;
+    row.innerHTML =
+      `<span class="line-num">${li + 1}</span>` +
+      `<span class="line-content" id="lc-${fi}-${li}">${syntaxHighlight(line)}</span>`;
+    body.appendChild(row);
+  });
+
+  panel.appendChild(body);
+  panelsContainer.appendChild(panel);
+
+  return { file, lines, body };
+});
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================
+// SEARCH ENGINE
+// ============================================================
+const patternInput = document.getElementById('patternInput');
+const caseToggle   = document.getElementById('caseToggle');
+const maxSlider    = document.getElementById('maxSlider');
+const maxValueEl   = document.getElementById('maxValue');
+const termBody     = document.getElementById('terminalBody');
+const termStats    = document.getElementById('termStats');
+
+let debounceTimer = null;
+
+function doSearch() {
+  const pattern = patternInput.value;
+  const caseInsensitive = caseToggle.checked;
+  const maxResults = parseInt(maxSlider.value, 10);
+
+  // Reset all panels
+  filePanels.forEach((fp, fi) => {
+    fp.lines.forEach((line, li) => {
+      const row = document.getElementById(`line-${fi}-${li}`);
+      const lc  = document.getElementById(`lc-${fi}-${li}`);
+      row.classList.remove('matched');
+      lc.innerHTML = syntaxHighlight(line);
+    });
+    const badge = document.getElementById(`badge-${fi}`);
+    badge.textContent = '0';
+    badge.classList.remove('visible');
+  });
+
+  // Empty pattern
+  if (!pattern) {
+    termBody.innerHTML = '<div class="term-empty">输入正则表达式开始搜索...</div>';
+    termStats.innerHTML = '';
+    updateChipHighlights('');
+    return;
+  }
+
+  // Try to compile regex
+  let regex;
+  try {
+    const flags = caseInsensitive ? 'gi' : 'g';
+    regex = new RegExp(pattern, flags);
+  } catch (e) {
+    termBody.innerHTML = '<div class="term-error">&#9888; 正则表达式无效: ' + escapeHtml(e.message) + '</div>';
+    termStats.innerHTML = '';
+    updateChipHighlights(pattern);
+    return;
+  }
+
+  // Run search
+  let totalMatches = 0;
+  let fileMatchCount = 0;
+  let termLines = [];
+  let firstMatchEl = null;
+
+  filePanels.forEach((fp, fi) => {
+    let fileHits = 0;
+
+    fp.lines.forEach((line, li) => {
+      if (totalMatches >= maxResults) return;
+
+      // Reset regex lastIndex for each line
+      regex.lastIndex = 0;
+      const matches = [];
+      let m;
+      while ((m = regex.exec(line)) !== null) {
+        matches.push({ index: m.index, length: m[0].length, text: m[0] });
+        if (m[0].length === 0) { regex.lastIndex++; }
+        if (matches.length > 50) break; // safety
+      }
+
+      if (matches.length > 0 && totalMatches < maxResults) {
+        fileHits += matches.length;
+        totalMatches += matches.length;
+
+        // Highlight the code line
+        const row = document.getElementById(`line-${fi}-${li}`);
+        const lc  = document.getElementById(`lc-${fi}-${li}`);
+        row.classList.add('matched');
+
+        // Build highlighted line content: apply grep highlights over syntax
+        lc.innerHTML = highlightMatches(line, matches);
+
+        if (!firstMatchEl) firstMatchEl = row;
+
+        // Build terminal output line
+        const termLine = buildTermLine(fp.file.path, li + 1, line, matches);
+        termLines.push(termLine);
+      }
+    });
+
+    if (fileHits > 0) {
+      fileMatchCount++;
+      const badge = document.getElementById(`badge-${fi}`);
+      badge.textContent = fileHits.toString();
+      badge.classList.add('visible');
+    }
+  });
+
+  // Update terminal
+  if (termLines.length === 0) {
+    termBody.innerHTML = '<div class="term-empty">没有匹配结果</div>';
+    termStats.innerHTML = '';
+  } else {
+    termBody.innerHTML = termLines.join('\n');
+    termStats.innerHTML = `Results: <span class="count">${totalMatches}</span> match${totalMatches !== 1 ? 'es' : ''} in <span class="count">${fileMatchCount}</span> file${fileMatchCount !== 1 ? 's' : ''}`;
+    // Scroll terminal to top
+    termBody.scrollTop = 0;
+  }
+
+  // Scroll first match into view in its panel
+  if (firstMatchEl) {
+    firstMatchEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  updateChipHighlights(pattern);
+}
+
+function highlightMatches(rawLine, matches) {
+  // First, we need to insert grep highlights into the raw text,
+  // then apply syntax highlighting around them.
+  // Strategy: mark match regions in the raw text with placeholders,
+  // escape HTML, then replace placeholders with highlight spans.
+
+  const OPEN = '\x00GOPEN\x00';
+  const CLOSE = '\x00GCLOSE\x00';
+
+  // Sort matches by index
+  matches.sort((a, b) => a.index - b.index);
+
+  // Build string with markers
+  let result = '';
+  let cursor = 0;
+  for (const m of matches) {
+    if (m.index < cursor) continue; // overlapping
+    result += rawLine.slice(cursor, m.index);
+    result += OPEN + rawLine.slice(m.index, m.index + m.length) + CLOSE;
+    cursor = m.index + m.length;
+  }
+  result += rawLine.slice(cursor);
+
+  // Now apply syntax highlighting to the whole thing (markers are invisible to regex)
+  // But it's simpler to: escape HTML, then do syntax coloring, then swap markers.
+  let escaped = result
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Apply basic syntax highlighting (simplified for matched lines)
+  // Strings
+  escaped = escaped.replace(/"([^"]*?)"/g, '<span class="syn-str">"$1"</span>');
+  escaped = escaped.replace(/'([^']*?)'/g, "<span class=\"syn-str\">'$1'</span>");
+
+  // Numbers
+  escaped = escaped.replace(/\b(\d+)\b/g, '<span class="syn-num">$1</span>');
+
+  // Types
+  TS_TYPES.forEach(t => {
+    escaped = escaped.replace(new RegExp('\\b(' + t + ')\\b', 'g'), '<span class="syn-type">$1</span>');
+  });
+
+  // Keywords
+  TS_KEYWORDS.forEach(kw => {
+    escaped = escaped.replace(new RegExp('\\b(' + kw + ')\\b', 'g'), '<span class="syn-kw">$1</span>');
+  });
+
+  // Now replace markers with grep highlight spans
+  // The markers might have been split by syntax span insertion, so we need a robust approach
+  // Use a simpler method: just replace the escaped marker strings
+  const openEsc = OPEN.replace(/\x00/g, '\x00');
+  const closeEsc = CLOSE.replace(/\x00/g, '\x00');
+
+  escaped = escaped.split(OPEN).join('<span class="grep-match">');
+  escaped = escaped.split(CLOSE).join('</span>');
+
+  return escaped;
+}
+
+function buildTermLine(path, lineNum, line, matches) {
+  // Build: path:linenum:content  with highlighting
+  let content = escapeHtml(line);
+
+  // Highlight matched portions in the terminal line
+  // We need to work on the escaped version
+  // Re-run regex on escaped text is tricky; instead highlight in raw then escape
+  const caseInsensitive = caseToggle.checked;
+  const flags = caseInsensitive ? 'gi' : 'g';
+  let regex;
+  try {
+    regex = new RegExp(patternInput.value, flags);
+  } catch(e) {
+    return '';
+  }
+
+  // Build from raw line with markers
+  let cursor = 0;
+  let parts = [];
+  let m;
+  regex.lastIndex = 0;
+  while ((m = regex.exec(line)) !== null) {
+    if (m.index < cursor) { if (m[0].length === 0) { regex.lastIndex++; } continue; }
+    parts.push(escapeHtml(line.slice(cursor, m.index)));
+    parts.push('<span class="term-match">' + escapeHtml(m[0]) + '</span>');
+    cursor = m.index + m.length;
+    if (m[0].length === 0) { regex.lastIndex++; }
+    if (parts.length > 100) break;
+  }
+  parts.push(escapeHtml(line.slice(cursor)));
+  const highlighted = parts.join('');
+
+  return `<div class="term-line"><span class="term-path">${escapeHtml(path)}</span><span class="syn-op">:</span><span class="term-linenum">${lineNum}</span><span class="syn-op">:</span><span class="term-content">${highlighted}</span></div>`;
+}
+
+function updateChipHighlights(currentPattern) {
+  document.querySelectorAll('.chip').forEach(chip => {
+    if (chip.dataset.pattern === currentPattern) {
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+patternInput.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(doSearch, 150);
+});
+
+caseToggle.addEventListener('change', () => {
+  doSearch();
+});
+
+maxSlider.addEventListener('input', () => {
+  maxValueEl.textContent = maxSlider.value;
+});
+maxSlider.addEventListener('change', () => {
+  doSearch();
+});
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    patternInput.value = chip.dataset.pattern;
+    patternInput.focus();
+    doSearch();
+  });
+});
+
+// Auto-focus
+patternInput.focus();
+
+// Run initial empty state
+doSearch();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+[project]
+name = "whale-cli"
+version = "0.5.0"
+description = "Whale CLI — 入门篇（Ch00-Ch05）"
+requires-python = ">=3.10"
+dependencies = ["openai", "rich"]
+
+[project.scripts]
+whale-cli = "ui.shell.main:main"
+
+[tool.setuptools.packages.find]
+include = ["llm*", "soul*", "tools*", "ui*"]

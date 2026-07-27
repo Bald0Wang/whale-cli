@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session Waterfall</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f5f0e8; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e6dfd8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+  --blue:#6477e0; --blue-deep:#4a5ec0; --yellow:#c4a832; --yellow-deep:#a89028;
+  --bg-top:#fefdf9;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: radial-gradient(1100px 700px at 25% -8%, var(--bg-top) 0%, var(--bg0) 60%); color: var(--text); font-family: -apple-system,'Inter',system-ui,sans-serif; font-size: 13px; min-width: 600px; min-height: 100vh; }
+.header { position: sticky; top: 0; z-index: 10; background: var(--card); padding: 16px 24px; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.5px; color: var(--ink); }
+.header .stats { font-size: 12px; color: var(--text2); }
+.header .stats span { margin-left: 16px; }
+.header .stats .token-counter { color: var(--accent); font-weight: 500; }
+.table-header { position: sticky; top: 52px; z-index: 9; background: var(--card); display: grid; grid-template-columns: 56px 1fr 64px 72px 1fr; gap: 0; padding: 8px 24px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+.rows { padding: 0 24px 24px; }
+.row { display: grid; grid-template-columns: 56px 1fr 64px 72px 1fr; gap: 0; padding: 7px 0; border-bottom: 1px solid var(--bg1); border-left: 3px solid transparent; cursor: pointer; opacity: 0; transform: translateY(6px); transition: opacity 0.3s, transform 0.3s, background 0.15s; }
+.row.visible { opacity: 1; transform: translateY(0); }
+.row:hover { background: var(--bg1); }
+.row.selected { background: var(--bg1); }
+.row.type-llm { border-left-color: var(--accent); }
+.row.type-tool-Read { border-left-color: var(--blue); }
+.row.type-tool-Glob, .row.type-tool-Grep { border-left-color: var(--purple); }
+.row.type-tool-Write, .row.type-tool-Edit { border-left-color: var(--yellow); }
+.row.type-tool-Bash { border-left-color: var(--green); }
+.row.type-result { border-left-color: transparent; cursor: default; }
+.row.selected.type-llm { border-left-color: var(--accent-deep); }
+.row.selected.type-tool-Read { border-left-color: var(--blue-deep); }
+.row.selected.type-tool-Glob { border-left-color: var(--purple); }
+.row.selected.type-tool-Write { border-left-color: var(--yellow-deep); }
+.row.selected.type-tool-Bash { border-left-color: var(--teal); }
+.cell { padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 22px; }
+.cell-type { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.cell-type.llm { color: var(--accent); }
+.cell-type.tool { color: var(--text2); }
+.cell-type.result { color: transparent; }
+.cell-name { font-weight: 500; color: var(--ink); font-family: 'JetBrains Mono','SF Mono',monospace; font-size: 12px; }
+.cell-name.result-name { color: var(--text3); font-weight: 400; padding-left: 28px; font-size: 12px; }
+.cell-duration { color: var(--text2); font-size: 12px; text-align: right; font-family: 'JetBrains Mono','SF Mono',monospace; }
+.cell-tokens { color: var(--text2); font-size: 12px; text-align: right; font-family: 'JetBrains Mono','SF Mono',monospace; }
+.cell-timeline { position: relative; padding: 0 4px; }
+.bar-track { position: absolute; top: 50%; left: 4px; right: 4px; height: 18px; transform: translateY(-50%); }
+.bar { position: absolute; top: 0; height: 100%; border-radius: 2px; min-width: 3px; transition: opacity 0.15s; }
+.bar-llm { background: rgba(217, 119, 87, 0.18); border-left: 2px solid var(--accent); }
+.bar-Read { background: rgba(100, 119, 224, 0.15); border-left: 2px solid var(--blue); }
+.bar-Glob, .bar-Grep { background: rgba(138, 99, 201, 0.15); border-left: 2px solid var(--purple); }
+.bar-Write, .bar-Edit { background: rgba(196, 168, 50, 0.15); border-left: 2px solid var(--yellow); }
+.bar-Bash { background: rgba(46, 125, 79, 0.15); border-left: 2px solid var(--green); }
+.detail-panel { display: none; grid-column: 1 / -1; padding: 10px 16px 10px 72px; font-size: 12px; color: var(--text2); line-height: 1.7; font-family: 'JetBrains Mono','SF Mono',monospace; }
+.detail-panel.open { display: block; }
+.detail-panel .detail-row { display: flex; gap: 24px; }
+.detail-panel .detail-label { color: var(--text3); min-width: 80px; }
+.detail-panel .detail-value { color: var(--ink); }
+.tooltip { position: fixed; z-index: 100; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 11px; color: var(--text); pointer-events: none; opacity: 0; transition: opacity 0.15s; line-height: 1.6; max-width: 300px; box-shadow: var(--shadow-md); font-family: 'JetBrains Mono','SF Mono',monospace; }
+.tooltip.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Session Waterfall</h1>
+  <div class="stats">
+    <span>总耗时 <strong style="color:var(--ink)">6.2s</strong></span>
+    <span>总 token <strong class="token-counter" id="tokenCounter">0</strong></span>
+    <span>$<strong style="color:var(--ink)" id="costDisplay">0.000</strong></span>
+  </div>
+</div>
+
+<div class="table-header">
+  <div class="cell">类型</div>
+  <div class="cell">名称</div>
+  <div class="cell" style="text-align:right">耗时</div>
+  <div class="cell" style="text-align:right">token</div>
+  <div class="cell" style="padding-left:12px">时间线 (0s ── 6.2s)</div>
+</div>
+
+<div class="rows" id="rows"></div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const EVENTS = [
+  { type: "llm", label: "LLM 思考", start: 0, duration: 1200, tokens_in: 1840, tokens_out: 320, cost: 0.003 },
+  { type: "tool", tool: "Glob", label: "Glob: src/**/*.py", start: 1200, duration: 150, tokens: 180 },
+  { type: "result", parent: 1, label: "找到 12 个文件", start: 1350, duration: 0, tokens: 90 },
+  { type: "llm", label: "LLM 思考", start: 1400, duration: 1800, tokens_in: 2430, tokens_out: 580, cost: 0.005 },
+  { type: "tool", tool: "Read", label: "Read: src/main.py", start: 3200, duration: 120, tokens: 450 },
+  { type: "result", parent: 4, label: "47 行", start: 3320, duration: 0, tokens: 450 },
+  { type: "tool", tool: "Read", label: "Read: src/utils.py", start: 3350, duration: 100, tokens: 380 },
+  { type: "result", parent: 6, label: "32 行", start: 3450, duration: 0, tokens: 380 },
+  { type: "tool", tool: "Read", label: "Read: src/config.py", start: 3480, duration: 80, tokens: 210 },
+  { type: "result", parent: 8, label: "18 行", start: 3560, duration: 0, tokens: 210 },
+  { type: "llm", label: "LLM 思考", start: 3600, duration: 1500, tokens_in: 4290, tokens_out: 720, cost: 0.008 },
+  { type: "tool", tool: "Write", label: "Write: count_lines.py", start: 5100, duration: 90, tokens: 320 },
+  { type: "result", parent: 11, label: "写入成功", start: 5190, duration: 0, tokens: 40 },
+  { type: "tool", tool: "Bash", label: "Bash: python count_lines.py", start: 5220, duration: 350, tokens: 280 },
+  { type: "result", parent: 13, label: "总计 247 行", start: 5570, duration: 0, tokens: 120 },
+  { type: "llm", label: "LLM 最终回答", start: 5600, duration: 600, tokens_in: 5010, tokens_out: 260, cost: 0.002 }
+];
+
+const TOTAL_MS = 6200;
+const TOTAL_TOKENS = 4680;
+const TOTAL_COST = 0.018;
+const container = document.getElementById("rows");
+const tooltipEl = document.getElementById("tooltip");
+const tokenCounter = document.getElementById("tokenCounter");
+const costDisplay = document.getElementById("costDisplay");
+let selectedRow = null;
+
+function getTokens(e) {
+  if (e.type === "llm") return e.tokens_in + e.tokens_out;
+  return e.tokens || 0;
+}
+
+function getTypeClass(e) {
+  if (e.type === "llm") return "type-llm";
+  if (e.type === "tool") return "type-tool-" + e.tool;
+  return "type-result";
+}
+
+function getBarClass(e) {
+  if (e.type === "llm") return "bar-llm";
+  return "bar-" + e.tool;
+}
+
+function formatDuration(ms) {
+  return ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms";
+}
+
+function formatTokens(n) {
+  return n.toLocaleString("zh-CN");
+}
+
+function buildTooltipContent(e) {
+  let lines = [`<strong>${e.label}</strong>`];
+  if (e.type === "llm") {
+    lines.push(`开始: ${(e.start / 1000).toFixed(1)}s`);
+    lines.push(`耗时: ${formatDuration(e.duration)}`);
+    lines.push(`输入 token: ${formatTokens(e.tokens_in)}`);
+    lines.push(`输出 token: ${formatTokens(e.tokens_out)}`);
+    lines.push(`费用: $${e.cost.toFixed(3)}`);
+  } else if (e.type === "tool") {
+    lines.push(`工具: ${e.tool}`);
+    lines.push(`开始: ${(e.start / 1000).toFixed(1)}s`);
+    lines.push(`耗时: ${formatDuration(e.duration)}`);
+    lines.push(`token: ${formatTokens(e.tokens)}`);
+  } else {
+    const parent = EVENTS[e.parent];
+    lines.push(`来自: ${parent.label}`);
+    lines.push(`token: ${formatTokens(e.tokens)}`);
+  }
+  return lines.join("<br>");
+}
+
+function buildDetailHTML(e) {
+  if (e.type === "llm") {
+    return `<div class="detail-row"><span class="detail-label">输入 token</span><span class="detail-value">${formatTokens(e.tokens_in)}</span></div>` +
+           `<div class="detail-row"><span class="detail-label">输出 token</span><span class="detail-value">${formatTokens(e.tokens_out)}</span></div>` +
+           `<div class="detail-row"><span class="detail-label">费用</span><span class="detail-value">$${e.cost.toFixed(3)}</span></div>` +
+           `<div class="detail-row"><span class="detail-label">开始时间</span><span class="detail-value">${(e.start / 1000).toFixed(1)}s</span></div>`;
+  } else if (e.type === "tool") {
+    const resultEvent = EVENTS.find(r => r.type === "result" && r.parent === EVENTS.indexOf(e));
+    const resultText = resultEvent ? resultEvent.label : "--";
+    return `<div class="detail-row"><span class="detail-label">工具</span><span class="detail-value">${e.tool}</span></div>` +
+           `<div class="detail-row"><span class="detail-label">参数</span><span class="detail-value">${e.label.split(": ").slice(1).join(": ") || "--"}</span></div>` +
+           `<div class="detail-row"><span class="detail-label">结果</span><span class="detail-value">${resultText}</span></div>` +
+           `<div class="detail-row"><span class="detail-label">耗时</span><span class="detail-value">${formatDuration(e.duration)}</span></div>`;
+  }
+  return "";
+}
+
+EVENTS.forEach((e, i) => {
+  const row = document.createElement("div");
+  row.className = `row ${getTypeClass(e)}`;
+  row.dataset.index = i;
+
+  const typeLabel = e.type === "llm" ? "LLM" : e.type === "tool" ? "TOOL" : "";
+  const typeClass = e.type === "llm" ? "llm" : e.type === "tool" ? "tool" : "result";
+  const tokens = getTokens(e);
+  const nameClass = e.type === "result" ? "cell-name result-name" : "cell-name";
+  const nameText = e.type === "result" ? "└ " + e.label : e.label;
+
+  let barHTML = "";
+  if (e.type !== "result" && e.duration > 0) {
+    const left = (e.start / TOTAL_MS * 100).toFixed(2);
+    const width = Math.max(e.duration / TOTAL_MS * 100, 0.5).toFixed(2);
+    barHTML = `<div class="bar-track"><div class="bar ${getBarClass(e)}" style="left:${left}%;width:${width}%"></div></div>`;
+  }
+
+  row.innerHTML =
+    `<div class="cell cell-type ${typeClass}">${typeLabel}</div>` +
+    `<div class="cell ${nameClass}">${nameText}</div>` +
+    `<div class="cell cell-duration">${e.duration > 0 ? formatDuration(e.duration) : ""}</div>` +
+    `<div class="cell cell-tokens">${tokens > 0 ? formatTokens(tokens) : ""}</div>` +
+    `<div class="cell cell-timeline">${barHTML}</div>`;
+
+  if (e.type !== "result") {
+    const detail = document.createElement("div");
+    detail.className = "detail-panel";
+    detail.innerHTML = buildDetailHTML(e);
+    row.appendChild(detail);
+  }
+
+  row.addEventListener("mouseenter", (ev) => {
+    tooltipEl.innerHTML = buildTooltipContent(e);
+    tooltipEl.classList.add("show");
+    positionTooltip(ev);
+    updateRunningCounter(i);
+  });
+  row.addEventListener("mousemove", positionTooltip);
+  row.addEventListener("mouseleave", () => {
+    tooltipEl.classList.remove("show");
+  });
+
+  if (e.type !== "result") {
+    row.addEventListener("click", () => {
+      const panel = row.querySelector(".detail-panel");
+      if (selectedRow === row) {
+        row.classList.remove("selected");
+        panel.classList.remove("open");
+        selectedRow = null;
+      } else {
+        if (selectedRow) {
+          selectedRow.classList.remove("selected");
+          const prev = selectedRow.querySelector(".detail-panel");
+          if (prev) prev.classList.remove("open");
+        }
+        row.classList.add("selected");
+        panel.classList.add("open");
+        selectedRow = row;
+      }
+    });
+  }
+
+  container.appendChild(row);
+  setTimeout(() => row.classList.add("visible"), 80 + i * 100);
+});
+
+function positionTooltip(ev) {
+  const x = ev.clientX + 14;
+  const y = ev.clientY + 14;
+  const r = tooltipEl.getBoundingClientRect();
+  const maxX = window.innerWidth - r.width - 8;
+  const maxY = window.innerHeight - r.height - 8;
+  tooltipEl.style.left = Math.min(x, maxX) + "px";
+  tooltipEl.style.top = Math.min(y, maxY) + "px";
+}
+
+function updateRunningCounter(upToIndex) {
+  let tokens = 0, cost = 0;
+  for (let i = 0; i <= upToIndex; i++) {
+    const e = EVENTS[i];
+    tokens += getTokens(e);
+    if (e.cost) cost += e.cost;
+  }
+  animateNumber(tokenCounter, tokens);
+  costDisplay.textContent = cost.toFixed(3);
+}
+
+function animateNumber(el, target) {
+  const current = parseInt(el.textContent.replace(/,/g, "")) || 0;
+  if (current === target) return;
+  const steps = 12;
+  const inc = (target - current) / steps;
+  let step = 0;
+  function tick() {
+    step++;
+    const val = step >= steps ? target : Math.round(current + inc * step);
+    el.textContent = val.toLocaleString("zh-CN");
+    if (step < steps) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// Animate final totals on load
+setTimeout(() => {
+  animateNumber(tokenCounter, TOTAL_TOKENS);
+  costDisplay.textContent = TOTAL_COST.toFixed(3);
+}, 80 + EVENTS.length * 100 + 300);
+</script>
+</body>
+</html>

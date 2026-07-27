@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Read 工具透视 — 一次调用背后发生了什么</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #1c1816;
+  --panel: #231f1c;
+  --text: #ebe0d2;
+  --dim: #6a6058;
+  --accent: #D77757;
+  --green: #7ec384;
+  --red: #e06464;
+  --border: #332d28;
+  --radius: 8px;
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  overflow-x: hidden;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--dim);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* Progress bar */
+.progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 700px;
+}
+
+.progress-dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.4s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.progress-dot.active {
+  background: var(--accent);
+}
+
+.progress-dot.completed {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.progress-dot:hover::after {
+  content: attr(data-label);
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Step label */
+.step-label {
+  text-align: center;
+  margin-bottom: 16px;
+  min-height: 44px;
+}
+
+.step-label .step-num {
+  font-size: 11px;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.step-label .step-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.step-label .step-desc {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+/* Main stage */
+.stage {
+  width: 100%;
+  max-width: 700px;
+  min-height: 420px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.btn.primary:hover {
+  opacity: 0.9;
+  color: var(--bg);
+}
+
+.btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(215, 119, 87, 0); }
+  50% { box-shadow: 0 0 12px 2px rgba(215, 119, 87, 0.25); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes flyUp {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-60px); }
+}
+
+.animate-in {
+  animation: fadeInUp 0.45s ease forwards;
+}
+
+.animate-fade {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.animate-slide {
+  animation: slideInRight 0.4s ease forwards;
+}
+
+/* Step-specific styles */
+
+/* Step 1: Parameter parsing */
+.json-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-top: 8px;
+}
+
+.json-key {
+  color: var(--accent);
+}
+
+.json-str {
+  color: var(--green);
+}
+
+.json-num {
+  color: #c9a3e8;
+}
+
+.json-brace {
+  color: var(--dim);
+}
+
+.field-highlight {
+  background: rgba(215, 119, 87, 0.12);
+  border-radius: 3px;
+  padding: 1px 4px;
+  transition: background 0.3s;
+}
+
+.field-highlight.active {
+  background: rgba(215, 119, 87, 0.28);
+  animation: highlight-pulse 1.5s ease infinite;
+}
+
+.field-annotation {
+  font-size: 11px;
+  color: var(--dim);
+  margin-left: 12px;
+}
+
+/* Step 2-4: Check items */
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+}
+
+.check-icon {
+  font-size: 18px;
+  min-width: 24px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.check-icon.pass { color: var(--green); }
+.check-icon.fail { color: var(--red); }
+.check-icon.pending { color: var(--dim); }
+
+.check-body {
+  flex: 1;
+}
+
+.check-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.check-detail {
+  font-size: 11px;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+.check-detail code {
+  background: rgba(215, 119, 87, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+/* Step 5: Line extraction */
+.file-lines {
+  font-size: 11px;
+  line-height: 1.55;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 0;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.file-lines::-webkit-scrollbar {
+  width: 4px;
+}
+
+.file-lines::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.file-lines::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.file-line {
+  padding: 0 14px;
+  white-space: pre;
+  transition: all 0.4s ease;
+  color: var(--dim);
+  opacity: 0.35;
+}
+
+.file-line.in-range {
+  color: var(--text);
+  opacity: 1;
+  background: rgba(215, 119, 87, 0.08);
+}
+
+.file-line.in-range.highlight-border-top {
+  border-top: 1px solid var(--accent);
+}
+
+.file-line.in-range.highlight-border-bottom {
+  border-bottom: 1px solid var(--accent);
+}
+
+.range-indicator {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--accent);
+  margin-left: 8px;
+}
+
+/* Step 6: Line numbers */
+.numbered-lines {
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 0;
+}
+
+.numbered-line {
+  padding: 0 14px;
+  white-space: pre;
+}
+
+.line-number {
+  color: var(--dim);
+  display: inline-block;
+  width: 36px;
+  text-align: right;
+  margin-right: 12px;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.line-number.visible {
+  opacity: 1;
+}
+
+.line-code {
+  color: var(--text);
+}
+
+/* Step 7: Header */
+.header-build {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-size: 13px;
+}
+
+.header-template {
+  color: var(--dim);
+  margin-bottom: 12px;
+  line-height: 1.7;
+}
+
+.header-result {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 14px;
+  background: rgba(215, 119, 87, 0.08);
+  border-radius: var(--radius);
+  border: 1px solid rgba(215, 119, 87, 0.2);
+}
+
+.header-slot {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  transition: all 0.4s ease;
+}
+
+.header-slot.empty {
+  background: rgba(106, 96, 88, 0.2);
+  border: 1px dashed var(--dim);
+  min-width: 30px;
+}
+
+.header-slot.filled {
+  background: rgba(215, 119, 87, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(215, 119, 87, 0.3);
+}
+
+/* Step 8: Return */
+.return-block {
+  text-align: center;
+  padding: 20px;
+}
+
+.message-bubble {
+  display: inline-block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 100%;
+  position: relative;
+}
+
+.message-bubble .role-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.result-content {
+  color: var(--text);
+  white-space: pre;
+  overflow-x: auto;
+  font-size: 11px;
+}
+
+.arrow-up {
+  display: block;
+  margin: 12px auto 0;
+  color: var(--accent);
+  font-size: 20px;
+  animation: flyUp 1.5s ease infinite;
+}
+
+.messages-array {
+  margin-top: 16px;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: end;
+}
+
+.msg-slot {
+  width: 36px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--border);
+  font-size: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+}
+
+.msg-slot.tool-result {
+  background: rgba(215, 119, 87, 0.25);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  height: 28px;
+  animation: highlight-pulse 2s ease infinite;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  body { padding: 16px 10px; }
+  .stage { padding: 14px; min-height: 380px; }
+  h1 { font-size: 15px; }
+  .json-block, .check-item { font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<h1>Read 工具透视 — 一次调用背后发生了什么</h1>
+<p class="subtitle">read_file({ path: "src/auth/login.ts", start_line: 20, end_line: 45 })</p>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<div class="step-label" id="stepLabel">
+  <div class="step-num"></div>
+  <div class="step-text"></div>
+  <div class="step-desc"></div>
+</div>
+
+<div class="stage" id="stage"></div>
+
+<div class="controls">
+  <button class="btn" id="prevBtn" disabled>← 上一步</button>
+  <button class="btn primary" id="playBtn">▶ 自动播放</button>
+  <button class="btn" id="nextBtn">下一步 →</button>
+</div>
+
+<script>
+// ---------- Data ----------
+const STEPS = [
+  {
+    num: '1/8',
+    title: '参数解析',
+    desc: '从模型的 tool_use 消息中提取 JSON 参数',
+  },
+  {
+    num: '2/8',
+    title: '二进制文件检查',
+    desc: '根据扩展名黑名单判断是否为二进制文件',
+  },
+  {
+    num: '3/8',
+    title: '文件大小检查',
+    desc: '读取文件元信息，确认不超过 500KB 限制',
+  },
+  {
+    num: '4/8',
+    title: 'UTF-8 解码',
+    desc: '尝试以 UTF-8 编码读取文件内容',
+  },
+  {
+    num: '5/8',
+    title: '行范围提取',
+    desc: '从全文 112 行中切出第 20-45 行',
+  },
+  {
+    num: '6/8',
+    title: '添加行号',
+    desc: '在每行前面添加行号，方便模型定位代码',
+  },
+  {
+    num: '7/8',
+    title: '构建头部信息',
+    desc: '拼接文件路径、总行数和显示范围',
+  },
+  {
+    num: '8/8',
+    title: '返回给模型',
+    desc: '将格式化后的结果放入 messages 数组',
+  },
+];
+
+// Fake file content (112 lines of a login handler)
+const FAKE_FILE = [];
+const PRE_LINES = [
+  'import { Request, Response } from "express";',
+  'import { compare } from "bcryptjs";',
+  'import { sign } from "jsonwebtoken";',
+  'import { db } from "../database/connection";',
+  'import { UserModel } from "../models/user";',
+  'import { LoginSchema } from "../schemas/auth";',
+  'import { RateLimiter } from "../middleware/rate-limit";',
+  'import { logger } from "../utils/logger";',
+  '',
+  '// Constants',
+  'const MAX_ATTEMPTS = 5;',
+  'const LOCK_DURATION = 15 * 60 * 1000; // 15 min',
+  'const TOKEN_EXPIRY = "7d";',
+  '',
+  'const limiter = new RateLimiter({',
+  '  windowMs: 60_000,',
+  '  maxRequests: 10,',
+  '});',
+  '',
+];
+
+const RANGE_LINES = [
+  'export async function handleLogin(req: Request, res: Response) {',
+  '  const parsed = LoginSchema.safeParse(req.body);',
+  '  if (!parsed.success) {',
+  '    return res.status(400).json({',
+  '      error: "VALIDATION_FAILED",',
+  '      details: parsed.error.flatten(),',
+  '    });',
+  '  }',
+  '',
+  '  const { email, password } = parsed.data;',
+  '',
+  '  const user = await UserModel.findByEmail(email);',
+  '  if (!user) {',
+  '    logger.warn("login:unknown_email", { email });',
+  '    return res.status(401).json({ error: "INVALID_CREDENTIALS" });',
+  '  }',
+  '',
+  '  if (user.lockedUntil && user.lockedUntil > Date.now()) {',
+  '    const remaining = Math.ceil((user.lockedUntil - Date.now()) / 60000);',
+  '    return res.status(423).json({',
+  '      error: "ACCOUNT_LOCKED",',
+  '      retryAfterMinutes: remaining,',
+  '    });',
+  '  }',
+  '',
+  '  const valid = await compare(password, user.passwordHash);',
+  '  if (!valid) {',
+];
+
+const POST_LINES = [
+  '    const attempts = (user.failedAttempts || 0) + 1;',
+  '    if (attempts >= MAX_ATTEMPTS) {',
+  '      await UserModel.lock(user.id, LOCK_DURATION);',
+  '      logger.warn("login:account_locked", { userId: user.id });',
+  '    } else {',
+  '      await UserModel.incrementFailedAttempts(user.id);',
+  '    }',
+  '    return res.status(401).json({ error: "INVALID_CREDENTIALS" });',
+  '  }',
+  '',
+  '  // Reset failed attempts on success',
+  '  await UserModel.resetFailedAttempts(user.id);',
+  '',
+  '  const token = sign(',
+  '    { sub: user.id, role: user.role },',
+  '    process.env.JWT_SECRET!,',
+  '    { expiresIn: TOKEN_EXPIRY }',
+  '  );',
+  '',
+  '  const refreshToken = sign(',
+  '    { sub: user.id, type: "refresh" },',
+  '    process.env.JWT_REFRESH_SECRET!,',
+  '    { expiresIn: "30d" }',
+  '  );',
+  '',
+  '  await db.sessions.create({',
+  '    userId: user.id,',
+  '    token: refreshToken,',
+  '    userAgent: req.headers["user-agent"] || "unknown",',
+  '    ip: req.ip,',
+  '    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),',
+  '  });',
+  '',
+  '  logger.info("login:success", { userId: user.id });',
+  '',
+  '  res.json({',
+  '    token,',
+  '    refreshToken,',
+  '    user: {',
+  '      id: user.id,',
+  '      email: user.email,',
+  '      name: user.name,',
+  '      role: user.role,',
+  '    },',
+  '  });',
+  '}',
+  '',
+  '// Helper: validate email domain',
+  'function isAllowedDomain(email: string): boolean {',
+  '  const allowed = ["company.com", "partner.org"];',
+  '  const domain = email.split("@")[1];',
+  '  return allowed.includes(domain);',
+  '}',
+  '',
+  '// Helper: generate short-lived OTP',
+  'function generateOTP(): string {',
+  '  return Math.floor(100000 + Math.random() * 900000).toString();',
+  '}',
+  '',
+  'export default { handleLogin };',
+];
+
+// Build full file
+for (let i = 0; i < PRE_LINES.length; i++) FAKE_FILE.push(PRE_LINES[i]);      // lines 1-19
+for (let i = 0; i < RANGE_LINES.length; i++) FAKE_FILE.push(RANGE_LINES[i]);   // lines 20-45 (26 lines)
+for (let i = 0; i < POST_LINES.length; i++) FAKE_FILE.push(POST_LINES[i]);     // lines 46+
+
+// Pad to 112 lines
+while (FAKE_FILE.length < 112) FAKE_FILE.push('');
+
+const TOTAL_LINES = 112;
+const START_LINE = 20;
+const END_LINE = 45;
+
+const BINARY_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.pdf', '.zip', '.tar', '.gz', '.exe', '.dll', '.so', '.wasm', '.mp3', '.mp4', '.mov', '.avi'];
+
+// ---------- State ----------
+let currentStep = 0;
+let playing = false;
+let playTimer = null;
+
+// ---------- DOM ----------
+const stage = document.getElementById('stage');
+const stepLabel = document.getElementById('stepLabel');
+const progressBar = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const playBtn = document.getElementById('playBtn');
+
+// Build progress dots
+STEPS.forEach((s, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'progress-dot';
+  dot.dataset.label = s.title;
+  dot.addEventListener('click', () => goToStep(i));
+  progressBar.appendChild(dot);
+});
+
+// ---------- Controls ----------
+prevBtn.addEventListener('click', () => {
+  if (currentStep > 0) goToStep(currentStep - 1);
+});
+
+nextBtn.addEventListener('click', () => {
+  if (currentStep < STEPS.length - 1) goToStep(currentStep + 1);
+});
+
+playBtn.addEventListener('click', () => {
+  if (playing) {
+    stopPlay();
+  } else {
+    startPlay();
+  }
+});
+
+function startPlay() {
+  playing = true;
+  playBtn.textContent = '⏸ 暂停';
+  playBtn.classList.add('primary');
+  if (currentStep >= STEPS.length - 1) goToStep(0);
+  scheduleNext();
+}
+
+function stopPlay() {
+  playing = false;
+  playBtn.textContent = '▶ 自动播放';
+  playBtn.classList.add('primary');
+  clearTimeout(playTimer);
+}
+
+function scheduleNext() {
+  if (!playing) return;
+  const delay = currentStep === 4 ? 4000 : 3000; // longer for line extraction
+  playTimer = setTimeout(() => {
+    if (currentStep < STEPS.length - 1) {
+      goToStep(currentStep + 1);
+      scheduleNext();
+    } else {
+      stopPlay();
+    }
+  }, delay);
+}
+
+function goToStep(n) {
+  currentStep = n;
+  updateUI();
+}
+
+function updateUI() {
+  // Progress
+  const dots = progressBar.querySelectorAll('.progress-dot');
+  dots.forEach((d, i) => {
+    d.className = 'progress-dot';
+    if (i < currentStep) d.classList.add('completed');
+    if (i === currentStep) d.classList.add('active');
+  });
+
+  // Label
+  const s = STEPS[currentStep];
+  stepLabel.querySelector('.step-num').textContent = `步骤 ${s.num}`;
+  stepLabel.querySelector('.step-text').textContent = s.title;
+  stepLabel.querySelector('.step-desc').textContent = s.desc;
+
+  // Buttons
+  prevBtn.disabled = currentStep === 0;
+  nextBtn.disabled = currentStep === STEPS.length - 1;
+
+  // Render stage
+  renderStep(currentStep);
+}
+
+// ---------- Key navigation ----------
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    if (currentStep < STEPS.length - 1) goToStep(currentStep + 1);
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    if (currentStep > 0) goToStep(currentStep - 1);
+  }
+});
+
+// ---------- Renderers ----------
+function renderStep(n) {
+  stage.innerHTML = '';
+  switch (n) {
+    case 0: renderStep1(); break;
+    case 1: renderStep2(); break;
+    case 2: renderStep3(); break;
+    case 3: renderStep4(); break;
+    case 4: renderStep5(); break;
+    case 5: renderStep6(); break;
+    case 6: renderStep7(); break;
+    case 7: renderStep8(); break;
+  }
+}
+
+function renderStep1() {
+  const html = `
+    <div class="animate-in">
+      <div style="font-size:12px;color:var(--dim);margin-bottom:10px;">模型发出的 tool_use 消息:</div>
+      <div class="json-block">
+        <div><span class="json-brace">{</span></div>
+        <div>  <span class="json-key">"tool"</span>: <span class="json-str">"read_file"</span>,</div>
+        <div>  <span class="json-key">"args"</span>: <span class="json-brace">{</span></div>
+        <div class="field-highlight" id="f-path" style="animation-delay:0.3s">    <span class="json-key">"path"</span>: <span class="json-str">"src/auth/login.ts"</span><span class="field-annotation">← 目标文件路径</span></div>
+        <div class="field-highlight" id="f-start" style="animation-delay:0.6s">    <span class="json-key">"start_line"</span>: <span class="json-num">20</span><span class="field-annotation">← 起始行（含）</span></div>
+        <div class="field-highlight" id="f-end" style="animation-delay:0.9s">    <span class="json-key">"end_line"</span>: <span class="json-num">45</span><span class="field-annotation">← 结束行（含）</span></div>
+        <div>  <span class="json-brace">}</span></div>
+        <div><span class="json-brace">}</span></div>
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  // Sequentially highlight fields
+  const fields = ['f-path', 'f-start', 'f-end'];
+  fields.forEach((id, i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('active');
+    }, 400 + i * 500);
+  });
+}
+
+function renderStep2() {
+  const ext = '.ts';
+  const pass = !BINARY_EXTS.includes(ext);
+
+  const blacklistHtml = BINARY_EXTS.map(e =>
+    `<code>${e}</code>`
+  ).join(' ');
+
+  const html = `
+    <div class="animate-in">
+      <div class="check-item" style="margin-bottom:16px;">
+        <div class="check-icon pending" id="bin-icon">⏳</div>
+        <div class="check-body">
+          <div class="check-title">检查文件扩展名: <code>.ts</code></div>
+          <div class="check-detail">
+            黑名单: ${blacklistHtml}
+          </div>
+        </div>
+      </div>
+      <div id="bin-result" style="opacity:0;transition:opacity 0.4s;">
+        <div class="check-item">
+          <div class="check-icon pass">✓</div>
+          <div class="check-body">
+            <div class="check-title" style="color:var(--green);">通过 — <code>.ts</code> 不在黑名单中</div>
+            <div class="check-detail">这是一个文本文件，可以安全读取</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  setTimeout(() => {
+    const icon = document.getElementById('bin-icon');
+    if (icon) { icon.textContent = '✓'; icon.className = 'check-icon pass'; }
+    const result = document.getElementById('bin-result');
+    if (result) result.style.opacity = '1';
+  }, 700);
+}
+
+function renderStep3() {
+  const html = `
+    <div class="animate-in">
+      <div class="check-item" style="margin-bottom:16px;">
+        <div class="check-icon pending" id="size-icon">⏳</div>
+        <div class="check-body">
+          <div class="check-title">读取文件元信息</div>
+          <div class="check-detail">
+            <code>fs.stat("src/auth/login.ts")</code>
+          </div>
+        </div>
+      </div>
+      <div id="size-info" style="opacity:0;transition:opacity 0.4s;margin-bottom:16px;">
+        <div class="check-item">
+          <div class="check-icon" style="color:var(--dim);">📄</div>
+          <div class="check-body">
+            <div class="check-title">文件大小: <span style="color:var(--accent);">4,230 bytes</span></div>
+            <div class="check-detail">限制: 500 KB (512,000 bytes)</div>
+            <div style="margin-top:8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+              <div id="size-bar" style="width:0%;height:100%;background:var(--green);border-radius:3px;transition:width 0.8s ease;"></div>
+            </div>
+            <div class="check-detail" style="margin-top:4px;">使用了 <span style="color:var(--green);">0.8%</span> 的容量限制</div>
+          </div>
+        </div>
+      </div>
+      <div id="size-result" style="opacity:0;transition:opacity 0.4s;">
+        <div class="check-item">
+          <div class="check-icon pass">✓</div>
+          <div class="check-body">
+            <div class="check-title" style="color:var(--green);">通过 — 文件大小在限制范围内</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  setTimeout(() => {
+    const icon = document.getElementById('size-icon');
+    if (icon) { icon.textContent = '✓'; icon.className = 'check-icon pass'; }
+    const info = document.getElementById('size-info');
+    if (info) info.style.opacity = '1';
+  }, 500);
+
+  setTimeout(() => {
+    const bar = document.getElementById('size-bar');
+    if (bar) bar.style.width = '0.8%';
+  }, 800);
+
+  setTimeout(() => {
+    const result = document.getElementById('size-result');
+    if (result) result.style.opacity = '1';
+  }, 1200);
+}
+
+function renderStep4() {
+  const html = `
+    <div class="animate-in">
+      <div class="check-item" style="margin-bottom:16px;">
+        <div class="check-icon pending" id="utf8-icon">⏳</div>
+        <div class="check-body">
+          <div class="check-title">尝试 UTF-8 解码</div>
+          <div class="check-detail">
+            <code>Buffer → TextDecoder("utf-8")</code>
+          </div>
+        </div>
+      </div>
+      <div id="utf8-bytes" style="opacity:0;transition:opacity 0.5s;margin-bottom:16px;">
+        <div class="check-item">
+          <div class="check-icon" style="color:var(--dim);font-size:14px;">01</div>
+          <div class="check-body">
+            <div class="check-detail" style="font-size:11px;line-height:1.8;word-break:break-all;">
+              <span style="color:var(--dim);">69 6d 70 6f 72 74</span>
+              <span style="color:var(--accent);"> → </span>
+              <span style="color:var(--text);">import</span>
+              <span style="color:var(--dim);"> 20 7b 20 52 65 71</span>
+              <span style="color:var(--accent);"> → </span>
+              <span style="color:var(--text);"> { Req</span>
+              <span style="color:var(--dim);">...</span>
+            </div>
+            <div class="check-detail" style="margin-top:4px;">全部字节均为合法 UTF-8 序列</div>
+          </div>
+        </div>
+      </div>
+      <div id="utf8-result" style="opacity:0;transition:opacity 0.4s;">
+        <div class="check-item">
+          <div class="check-icon pass">✓</div>
+          <div class="check-body">
+            <div class="check-title" style="color:var(--green);">解码成功 — 得到 ${TOTAL_LINES} 行文本</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  setTimeout(() => {
+    const icon = document.getElementById('utf8-icon');
+    if (icon) { icon.textContent = '✓'; icon.className = 'check-icon pass'; }
+    const bytes = document.getElementById('utf8-bytes');
+    if (bytes) bytes.style.opacity = '1';
+  }, 600);
+
+  setTimeout(() => {
+    const result = document.getElementById('utf8-result');
+    if (result) result.style.opacity = '1';
+  }, 1200);
+}
+
+function renderStep5() {
+  // Show a compact view of the file with line extraction
+  const DISPLAY_BEFORE = 6;   // lines before range to show
+  const DISPLAY_AFTER = 6;    // lines after range to show
+  const rangeStart = START_LINE - 1; // 0-indexed
+  const rangeEnd = END_LINE - 1;     // 0-indexed
+
+  let linesHtml = '';
+
+  // Show first few lines
+  for (let i = 0; i < 4; i++) {
+    const code = escapeHtml(FAKE_FILE[i] || '');
+    linesHtml += `<div class="file-line" id="fl-${i}">${code || ' '}</div>`;
+  }
+
+  // Ellipsis
+  linesHtml += `<div class="file-line" style="color:var(--dim);opacity:0.5;">  ···  (第 5-${START_LINE - DISPLAY_BEFORE - 1} 行)</div>`;
+
+  // Lines near and in range
+  for (let i = rangeStart - DISPLAY_BEFORE; i <= rangeEnd + DISPLAY_AFTER && i < TOTAL_LINES; i++) {
+    if (i < 0) continue;
+    const code = escapeHtml(FAKE_FILE[i] || '');
+    const inRange = i >= rangeStart && i <= rangeEnd;
+    const cls = inRange ? 'file-line in-range' : 'file-line';
+    const extra = (i === rangeStart && inRange) ? ' highlight-border-top' : '';
+    const extra2 = (i === rangeEnd && inRange) ? ' highlight-border-bottom' : '';
+    linesHtml += `<div class="${cls}${extra}${extra2}" id="fl-${i}">${code || ' '}</div>`;
+  }
+
+  // Ellipsis
+  linesHtml += `<div class="file-line" style="color:var(--dim);opacity:0.5;">  ···  (第 ${END_LINE + DISPLAY_AFTER + 2}-${TOTAL_LINES} 行)</div>`;
+
+  // Show last few lines
+  for (let i = TOTAL_LINES - 3; i < TOTAL_LINES; i++) {
+    const code = escapeHtml(FAKE_FILE[i] || '');
+    linesHtml += `<div class="file-line" id="fl-${i}">${code || ' '}</div>`;
+  }
+
+  const html = `
+    <div class="animate-in">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12px;color:var(--dim);">src/auth/login.ts — ${TOTAL_LINES} 行</span>
+        <span style="font-size:11px;color:var(--accent);" id="range-label" style="opacity:0;transition:opacity 0.5s;">提取第 ${START_LINE}-${END_LINE} 行</span>
+      </div>
+      <div class="file-lines" id="file-lines-container">
+        ${linesHtml}
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  // After a short delay, scroll to make the range visible
+  setTimeout(() => {
+    const container = document.getElementById('file-lines-container');
+    const firstInRange = document.getElementById(`fl-${rangeStart}`);
+    if (container && firstInRange) {
+      const offset = firstInRange.offsetTop - container.offsetTop - 40;
+      container.scrollTo({ top: offset, behavior: 'smooth' });
+    }
+  }, 500);
+}
+
+function renderStep6() {
+  const rangeStart = START_LINE - 1;
+  const rangeEnd = END_LINE - 1;
+
+  let linesHtml = '';
+  for (let i = rangeStart; i <= rangeEnd; i++) {
+    const lineNum = i + 1;
+    const code = escapeHtml(FAKE_FILE[i] || '');
+    linesHtml += `<div class="numbered-line"><span class="line-number" id="ln-${i}">${String(lineNum).padStart(4, ' ')}</span><span class="line-code">${code}</span></div>`;
+  }
+
+  const html = `
+    <div class="animate-in">
+      <div style="font-size:12px;color:var(--dim);margin-bottom:8px;">
+        提取的 ${END_LINE - START_LINE + 1} 行代码 — 逐行添加行号
+      </div>
+      <div class="numbered-lines" id="numbered-container">
+        ${linesHtml}
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  // Animate line numbers appearing one by one
+  for (let i = rangeStart; i <= rangeEnd; i++) {
+    setTimeout(() => {
+      const el = document.getElementById(`ln-${i}`);
+      if (el) el.classList.add('visible');
+    }, (i - rangeStart) * 60 + 300);
+  }
+}
+
+function renderStep7() {
+  const html = `
+    <div class="animate-in">
+      <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">拼接头部信息模板:</div>
+      <div class="header-build" style="margin-bottom:16px;">
+        <div class="header-template">
+          <span style="color:var(--dim);"># </span>
+          <span class="header-slot empty" id="hs-path"></span>
+          <span style="color:var(--dim);"> (</span>
+          <span class="header-slot empty" id="hs-total"></span>
+          <span style="color:var(--dim);"> lines, showing </span>
+          <span class="header-slot empty" id="hs-range"></span>
+          <span style="color:var(--dim);">)</span>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--dim);margin-bottom:8px;">填充后的结果:</div>
+      <div id="header-final" style="opacity:0;transition:opacity 0.5s;">
+        <div class="header-result">
+          # src/auth/login.ts (112 lines, showing 20-45)
+        </div>
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  // Fill slots one by one
+  const fills = [
+    { id: 'hs-path', text: 'src/auth/login.ts', delay: 500 },
+    { id: 'hs-total', text: '112', delay: 1000 },
+    { id: 'hs-range', text: '20-45', delay: 1500 },
+  ];
+
+  fills.forEach(({ id, text, delay }) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = text;
+        el.className = 'header-slot filled';
+      }
+    }, delay);
+  });
+
+  setTimeout(() => {
+    const final = document.getElementById('header-final');
+    if (final) final.style.opacity = '1';
+  }, 2000);
+}
+
+function renderStep8() {
+  const rangeStart = START_LINE - 1;
+  const rangeEnd = END_LINE - 1;
+
+  // Show just first few and last few lines of the result
+  let resultPreview = '# src/auth/login.ts (112 lines, showing 20-45)\n';
+  for (let i = rangeStart; i <= Math.min(rangeStart + 4, rangeEnd); i++) {
+    resultPreview += `${String(i + 1).padStart(4, ' ')}  ${FAKE_FILE[i]}\n`;
+  }
+  resultPreview += '     ...\n';
+  for (let i = rangeEnd - 2; i <= rangeEnd; i++) {
+    resultPreview += `${String(i + 1).padStart(4, ' ')}  ${FAKE_FILE[i]}\n`;
+  }
+
+  const html = `
+    <div class="animate-in">
+      <div class="return-block">
+        <div class="message-bubble">
+          <div class="role-tag">tool_result</div>
+          <div class="result-content">${escapeHtml(resultPreview.trimEnd())}</div>
+        </div>
+        <div class="arrow-up">↑</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px;">结果注入 messages 数组</div>
+        <div class="messages-array" id="msg-array">
+          <div class="msg-slot">sys</div>
+          <div class="msg-slot">user</div>
+          <div class="msg-slot">asst</div>
+          <div class="msg-slot" id="tool-slot">tool</div>
+        </div>
+      </div>
+    </div>
+  `;
+  stage.innerHTML = html;
+
+  setTimeout(() => {
+    const slot = document.getElementById('tool-slot');
+    if (slot) slot.classList.add('tool-result');
+  }, 600);
+}
+
+// ---------- Util ----------
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ---------- Init ----------
+goToStep(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Read 文件类型检测实验</title>
+<link rel="stylesheet" href="./viz-foundation.css">
+<style>
+  * { box-sizing:border-box; }
+  :root {
+    --bg:#171413; --panel:#0e0d0c; --panel2:#211d1a; --line:#3b332e;
+    --text:#f3e8dc; --muted:#aa9b8e; --accent:#ef8e6d; --green:#8fd19a; --red:#f07d72; --blue:#8ca2ff;
+  }
+  body {
+    min-height:100vh; margin:0; padding:20px; color:var(--text);
+    background:radial-gradient(circle at 70% 0%,rgba(140,162,255,.09),transparent 38%),var(--bg);
+    font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  }
+  .lab { width:min(900px,100%); margin:auto; }
+  header { display:grid; grid-template-columns:1fr auto; gap:12px 20px; align-items:end; margin-bottom:15px; }
+  .eyebrow { color:var(--accent); font-size:10px; letter-spacing:.14em; font-weight:800; }
+  h1 { margin:3px 0; font:700 16px/1.35 inherit; }
+  .status { color:var(--muted); min-height:19px; }
+  .input { display:flex; gap:7px; }
+  input,button {
+    min-height:38px; border:1px solid var(--line); border-radius:8px;
+    color:var(--text); background:var(--panel2); font:700 11px inherit;
+  }
+  input { width:210px; padding:0 12px; outline:none; }
+  input:focus { border-color:var(--accent); }
+  button { padding:0 13px; cursor:pointer; }
+  button.primary { border-color:var(--accent); background:var(--accent); color:#1b110d; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button.primary:hover { color:#1b110d; }
+  .presets { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:6px; }
+  .presets button { min-height:32px; padding:0 10px; color:var(--muted); }
+  .pipeline {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:16px;
+    border:1px solid var(--line); border-radius:12px; background:var(--panel); box-shadow:0 20px 55px rgba(0,0,0,.3);
+  }
+  .check {
+    position:relative; min-height:188px; padding:15px; border:1px solid var(--line);
+    border-radius:9px; background:#171411; transition:.28s ease;
+  }
+  .check:not(:last-child)::after {
+    content:"→"; position:absolute; z-index:2; right:-17px; top:50%; width:24px;
+    color:#675b53; text-align:center; transform:translateY(-50%);
+  }
+  .check.active { border-color:var(--accent); transform:translateY(-2px); box-shadow:0 0 0 2px rgba(239,142,109,.1); }
+  .check.pass { border-color:rgba(143,209,154,.55); }
+  .check.fail { border-color:rgba(240,125,114,.75); }
+  .index { color:var(--accent); font-size:10px; letter-spacing:.1em; }
+  .check h2 { margin:6px 0 10px; font:700 13px/1.35 inherit; }
+  .question { min-height:38px; color:var(--muted); font-size:11px; }
+  .sample {
+    display:block; min-height:38px; margin-top:12px; padding:9px 10px; border-radius:7px;
+    background:var(--panel2); color:var(--blue); overflow-wrap:anywhere;
+  }
+  .verdict { margin-top:11px; color:#766a62; font-weight:800; }
+  .check.pass .verdict { color:var(--green); }
+  .check.fail .verdict { color:var(--red); }
+  .result {
+    display:grid; grid-template-columns:auto 1fr; gap:7px 14px; align-items:center;
+    margin-top:12px; padding:14px 16px; border:1px solid var(--line); border-radius:10px; background:var(--panel2);
+  }
+  .badge { grid-row:1/3; min-width:92px; padding:8px 11px; border-radius:8px; text-align:center; color:var(--muted); background:var(--panel); font-weight:800; }
+  .result.pass .badge { color:var(--green); border:1px solid rgba(143,209,154,.4); }
+  .result.fail .badge { color:var(--red); border:1px solid rgba(240,125,114,.4); }
+  .result strong { font-size:13px; }
+  .result p { margin:0; color:var(--muted); }
+  @media(max-width:700px) {
+    body { padding:14px; }
+    header { grid-template-columns:1fr; }
+    .input { flex-wrap:wrap; }
+    input { flex:1; min-width:160px; }
+    .pipeline { grid-template-columns:1fr; }
+    .check { min-height:132px; }
+    .check:not(:last-child)::after { content:"↓"; right:50%; top:auto; bottom:-19px; transform:translateX(50%); }
+    .result { grid-template-columns:1fr; }
+    .badge { grid-row:auto; width:max-content; }
+  }
+</style>
+</head>
+<body>
+<main class="lab">
+  <header>
+    <div>
+      <div class="eyebrow">READ SAFETY GATE</div>
+      <h1>输入文件名，观察 Read 的三道检测</h1>
+      <div class="status" id="status">先判断能不能读，再决定怎样读。</div>
+    </div>
+    <form class="input" id="form">
+      <label class="sr-only" for="filename">文件名</label>
+      <input id="filename" value="main.py" placeholder="例如 photo.png">
+      <button class="primary" type="submit">开始检测</button>
+    </form>
+    <div class="presets" aria-label="示例文件">
+      <button data-file="main.py">main.py</button>
+      <button data-file="photo.png">photo.png</button>
+      <button data-file="data.bin">data.bin</button>
+      <button data-file="report.pdf">report.pdf</button>
+      <button data-file="config.json">config.json</button>
+      <button data-file="broken.txt">broken.txt</button>
+    </div>
+  </header>
+
+  <section class="pipeline" aria-label="检测链路">
+    <article class="check" data-check="extension">
+      <div class="index">CHECK 01</div>
+      <h2>扩展名黑名单</h2>
+      <div class="question">是否明显属于图片、压缩包、音视频或可执行文件？</div>
+      <code class="sample" id="extensionSample">.py</code>
+      <div class="verdict" id="extensionVerdict">等待检测</div>
+    </article>
+    <article class="check" data-check="bytes">
+      <div class="index">CHECK 02</div>
+      <h2>文件头与 NUL 字节</h2>
+      <div class="question">前 16 字节是否包含 magic bytes 或 0x00？</div>
+      <code class="sample" id="bytesSample">—</code>
+      <div class="verdict" id="bytesVerdict">等待检测</div>
+    </article>
+    <article class="check" data-check="utf8">
+      <div class="index">CHECK 03</div>
+      <h2>UTF-8 解码</h2>
+      <div class="question">完整内容能否安全解码成文本？</div>
+      <code class="sample" id="utf8Sample">—</code>
+      <div class="verdict" id="utf8Verdict">等待检测</div>
+    </article>
+  </section>
+
+  <section class="result" id="result" aria-live="polite">
+    <div class="badge" id="badge">READY</div>
+    <strong id="resultTitle">等待输入</strong>
+    <p id="resultText">检测结果会说明在哪一层通过或被拦截。</p>
+  </section>
+</main>
+
+<script src="./viz-foundation.js"></script>
+<script>
+  var binaryExtensions = ["png","jpg","jpeg","gif","zip","rar","7z","exe","dll","mp3","mp4","woff","ttf","docx","xlsx","pptx"];
+  var cases = {
+    "data.bin": { bytes:"48 65 00 6C 6F …", byteFail:true, reason:"发现 NUL 字节（0x00）" },
+    "report.pdf": { bytes:"25 50 44 46 · %PDF", byteFail:true, reason:"发现 PDF magic bytes" },
+    "broken.txt": { bytes:"FF FE 61 00 …", utf8Fail:true, reason:"UTF-8 解码失败" }
+  };
+  var form = document.getElementById("form");
+  var input = document.getElementById("filename");
+  var statusEl = document.getElementById("status");
+  var result = document.getElementById("result");
+  var badge = document.getElementById("badge");
+  var resultTitle = document.getElementById("resultTitle");
+  var resultText = document.getElementById("resultText");
+  var runId = 0;
+
+  function delay(ms) {
+    if (window.VizLab && window.VizLab.prefersReducedMotion) return Promise.resolve();
+    return new Promise(function(resolve){ setTimeout(resolve, ms); });
+  }
+  function reset() {
+    document.querySelectorAll(".check").forEach(function(el){ el.className = "check"; });
+    ["extension","bytes","utf8"].forEach(function(name){
+      document.getElementById(name + "Verdict").textContent = "等待检测";
+    });
+    document.getElementById("bytesSample").textContent = "—";
+    document.getElementById("utf8Sample").textContent = "—";
+    result.className = "result";
+  }
+  function resolveCheck(name, pass, text) {
+    var el = document.querySelector('[data-check="' + name + '"]');
+    el.classList.remove("active");
+    el.classList.add(pass ? "pass" : "fail");
+    document.getElementById(name + "Verdict").textContent = (pass ? "✓ " : "× ") + text;
+  }
+  async function detect(filename) {
+    var token = ++runId;
+    reset();
+    filename = filename.trim() || "main.py";
+    var ext = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "(无扩展名)";
+    var special = cases[filename.toLowerCase()] || {};
+    document.getElementById("extensionSample").textContent = "." + ext;
+
+    var extNode = document.querySelector('[data-check="extension"]');
+    extNode.classList.add("active");
+    statusEl.textContent = "第 1 层：检查 ." + ext + " 是否属于明显的二进制类型。";
+    await delay(420); if (token !== runId) return;
+    var extensionFail = binaryExtensions.includes(ext);
+    resolveCheck("extension", !extensionFail, extensionFail ? "命中黑名单" : "未命中，继续");
+    if (extensionFail) return finish(false, filename, "扩展名已足够明确，无需把二进制内容塞进上下文。");
+
+    var bytesNode = document.querySelector('[data-check="bytes"]');
+    bytesNode.classList.add("active");
+    var bytes = special.bytes || "23 20 74 65 78 74 …";
+    document.getElementById("bytesSample").textContent = bytes;
+    statusEl.textContent = "第 2 层：读取少量文件头，识别 NUL 与 magic bytes。";
+    await delay(440); if (token !== runId) return;
+    resolveCheck("bytes", !special.byteFail, special.byteFail ? special.reason : "文件头正常，继续");
+    if (special.byteFail) return finish(false, filename, special.reason + "，停止读取。");
+
+    var utfNode = document.querySelector('[data-check="utf8"]');
+    utfNode.classList.add("active");
+    document.getElementById("utf8Sample").textContent = special.utf8Fail ? "UnicodeDecodeError" : "decode('utf-8') → OK";
+    statusEl.textContent = "第 3 层：确认内容可以作为 UTF-8 文本进入上下文。";
+    await delay(440); if (token !== runId) return;
+    resolveCheck("utf8", !special.utf8Fail, special.utf8Fail ? special.reason : "解码成功");
+    finish(!special.utf8Fail, filename, special.utf8Fail ? special.reason + "，停止读取。" : "三层检测均通过，可以按文本读取。");
+  }
+  function finish(pass, filename, explanation) {
+    result.className = "result " + (pass ? "pass" : "fail");
+    badge.textContent = pass ? "TEXT · PASS" : "BINARY · STOP";
+    resultTitle.textContent = filename;
+    resultText.textContent = explanation;
+    statusEl.textContent = pass ? "检测完成：允许 Read 返回文本。" : "检测完成：在最早可确定的一层拦截。";
+  }
+  form.addEventListener("submit", function(event){ event.preventDefault(); detect(input.value); });
+  document.querySelectorAll("[data-file]").forEach(function(button){
+    button.addEventListener("click", function(){ input.value = button.dataset.file; detect(button.dataset.file); });
+  });
+  detect(input.value);
+</script>
+</body>
+</html>

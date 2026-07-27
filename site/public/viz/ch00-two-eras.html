@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>同一个 Bug，两个时代</title>
+<style>
+:root{--bg:#faf9f5;--card:#fff;--border:#e8e4d8;--ink:#29261f;--text:#3d382e;--text2:#7d766a;--text3:#b3ac9d;--accent:#d97757;--green:#2e7d4f;--red:#c2402a;--teal:#0e7c66}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Inter',sans-serif;background:var(--bg);color:var(--text);padding:1.5rem 1rem;min-height:100vh}
+.wrap{max-width:960px;margin:0 auto}
+h2{font-size:1.2rem;font-weight:600;color:var(--ink);text-align:center;margin-bottom:0.3rem}
+.sub{text-align:center;font-size:0.78rem;color:var(--text2);margin-bottom:1.2rem}
+.arena{display:flex;gap:1rem;align-items:stretch}
+@media(max-width:700px){.arena{flex-direction:column}}
+
+/* 两侧面板 */
+.panel{flex:1;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.panel-head{padding:0.55rem 0.8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-head .era{font-family:'JetBrains Mono',monospace;font-size:0.72rem;font-weight:600}
+.panel-head .era.old{color:var(--red)}.panel-head .era.new{color:var(--green)}
+.panel-head .badge{font-size:0.64rem;padding:0.1rem 0.4rem;border-radius:4px}
+.badge-old{background:rgba(194,64,42,0.08);color:var(--red)}
+.badge-new{background:rgba(46,125,79,0.08);color:var(--green)}
+
+.panel-body{flex:1;padding:0.7rem 0.8rem;overflow-y:auto;font-size:0.78rem;line-height:1.7;min-height:320px}
+.panel-body .step{margin-bottom:0.5rem;padding:0.35rem 0.5rem;border-radius:6px;opacity:0;transform:translateY(4px);transition:opacity 0.3s,transform 0.3s,background 0.3s}
+.panel-body .step.show{opacity:1;transform:none}
+.panel-body .step.active{background:rgba(217,119,87,0.06)}
+
+.step .who{font-family:'JetBrains Mono',monospace;font-size:0.66rem;font-weight:600;margin-bottom:0.15rem}
+.step .who.human{color:var(--accent)}.step .who.model{color:var(--teal)}.step .who.agent{color:var(--green)}
+.step .act{color:var(--text)}
+.step code{font-family:'JetBrains Mono',monospace;font-size:0.72rem;background:rgba(0,0,0,0.04);padding:0.08rem 0.3rem;border-radius:3px}
+.step .tool-call{color:var(--teal);font-family:'JetBrains Mono',monospace;font-size:0.74rem}
+
+/* 计数器 */
+.counters{padding:0.55rem 0.8rem;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:0.4rem}
+.counter{font-family:'JetBrains Mono',monospace;font-size:0.68rem;padding:0.15rem 0.45rem;border-radius:5px;background:rgba(0,0,0,0.03)}
+.counter .num{font-weight:700;margin-right:0.2rem}
+.counter.bad .num{color:var(--red)}.counter.good .num{color:var(--green)}
+
+/* 控制 */
+.controls{display:flex;justify-content:center;gap:0.6rem;margin-top:1rem}
+.btn{font-family:'JetBrains Mono',monospace;font-size:0.76rem;padding:0.4rem 1rem;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;transition:all 0.15s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-go{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-go:hover{background:#c45f3c}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>同一个 Bug，两个时代</h2>
+  <div class="sub">ModuleNotFoundError: No module named 'config'</div>
+
+  <div class="arena">
+    <!-- 左：2022 -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="era old">2022 · 网页 ChatGPT</span>
+        <span class="badge badge-old">人工搬运</span>
+      </div>
+      <div class="panel-body" id="left"></div>
+      <div class="counters" id="cnt-left"></div>
+    </div>
+    <!-- 右：2025 -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="era new">2025 · Coding Agent</span>
+        <span class="badge badge-new">自动执行</span>
+      </div>
+      <div class="panel-body" id="right"></div>
+      <div class="counters" id="cnt-right"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="btn-replay">↻ 重播</button>
+    <button class="btn btn-go" id="btn-go">▶ 开始</button>
+  </div>
+</div>
+
+<script>
+const LEFT_STEPS = [
+  {who:'human',label:'人',act:'在终端运行 <code>python main.py</code>',adds:{cmd:1}},
+  {who:'human',label:'人',act:'看到报错,选中 traceback,复制',adds:{copy:1}},
+  {who:'human',label:'人',act:'切到浏览器,打开 ChatGPT',adds:{sw:1}},
+  {who:'human',label:'人',act:'粘贴报错,问"这是什么原因"',adds:{copy:1}},
+  {who:'model',label:'ChatGPT',act:'"请提供 main.py 的 import 部分和项目目录结构"'},
+  {who:'human',label:'人',act:'切回编辑器,打开 main.py,复制前 30 行',adds:{sw:1,copy:1,find:1}},
+  {who:'human',label:'人',act:'回终端跑 <code>tree -L 2</code>,复制输出',adds:{sw:1,cmd:1,copy:1}},
+  {who:'human',label:'人',act:'切回浏览器,粘贴代码和目录结构',adds:{sw:1,copy:1}},
+  {who:'model',label:'ChatGPT',act:'"把 <code>from config import settings</code> 改成 <code>from app.config import settings</code>"'},
+  {who:'human',label:'人',act:'切回编辑器,找到那行,手动修改',adds:{sw:1,find:1}},
+  {who:'human',label:'人',act:'回终端运行 <code>python main.py</code>',adds:{sw:1,cmd:1}},
+  {who:'human',label:'人',act:'新报错: <code>KeyError: DATABASE_URL</code>',adds:{}},
+  {who:'human',label:'人',act:'复制新 traceback,切到浏览器粘贴',adds:{sw:1,copy:1}},
+  {who:'model',label:'ChatGPT',act:'"请提供 .env 和读取 DATABASE_URL 的代码"'},
+  {who:'human',label:'人',act:'找 .env.example 和 settings.py,复制',adds:{find:1,copy:1,sw:1}},
+  {who:'human',label:'人',act:'来回还在继续……',adds:{sw:1}},
+];
+
+const RIGHT_STEPS = [
+  {who:'human',label:'用户',act:'"找到项目启动失败的原因,修好以后跑测试"'},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ bash</span> <code>python main.py</code>',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ read_file</span> <code>main.py</code> 前 50 行',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ grep</span> <code>"from config"</code>',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ glob</span> <code>"**/config*"</code>',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ edit_file</span> 修改导入路径',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ bash</span> <code>python main.py</code> → KeyError',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ read_file</span> <code>.env.example</code>',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ edit_file</span> 修改配置读取',adds:{}},
+  {who:'agent',label:'Agent',act:'<span class="tool-call">⏺ bash</span> <code>pytest -q</code> → <span style="color:var(--green)">8 passed</span>',adds:{}},
+];
+
+const leftEl=document.getElementById('left');
+const rightEl=document.getElementById('right');
+const cntLeftEl=document.getElementById('cnt-left');
+const cntRightEl=document.getElementById('cnt-right');
+
+let counts={sw:0,copy:0,find:0,cmd:0};
+
+function renderCounters(){
+  cntLeftEl.innerHTML=[
+    `<span class="counter bad"><span class="num">${counts.sw}</span>窗口切换</span>`,
+    `<span class="counter bad"><span class="num">${counts.copy}</span>复制粘贴</span>`,
+    `<span class="counter bad"><span class="num">${counts.find}</span>手动找文件</span>`,
+    `<span class="counter bad"><span class="num">${counts.cmd}</span>手动跑命令</span>`,
+  ].join('');
+  cntRightEl.innerHTML=[
+    `<span class="counter good"><span class="num">0</span>窗口切换</span>`,
+    `<span class="counter good"><span class="num">0</span>复制粘贴</span>`,
+    `<span class="counter good"><span class="num">0</span>手动找文件</span>`,
+    `<span class="counter good"><span class="num">0</span>手动跑命令</span>`,
+  ].join('');
+}
+
+function makeStep(s){
+  const d=document.createElement('div');d.className='step';
+  d.innerHTML=`<div class="who ${s.who}">${s.label}</div><div class="act">${s.act}</div>`;
+  return d;
+}
+
+async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+async function run(){
+  leftEl.innerHTML='';rightEl.innerHTML='';
+  counts={sw:0,copy:0,find:0,cmd:0};
+  renderCounters();
+  document.getElementById('btn-go').style.display='none';
+
+  // 左右同时推进,左边慢(人工),右边快(agent)
+  const leftEls=LEFT_STEPS.map(s=>{const el=makeStep(s);leftEl.appendChild(el);return{el,s}});
+  const rightEls=RIGHT_STEPS.map(s=>{const el=makeStep(s);rightEl.appendChild(el);return{el,s}});
+
+  let li=0,ri=0;
+  // 左边每步 700ms,右边每步 400ms,左边先走2步再右边开始
+  async function advanceLeft(){
+    if(li>=leftEls.length)return;
+    const{el,s}=leftEls[li];
+    // 去掉上一个的 active
+    if(li>0)leftEls[li-1].el.classList.remove('active');
+    el.classList.add('show','active');
+    if(s.adds){for(const[k,v]of Object.entries(s.adds))counts[k]=(counts[k]||0)+v;renderCounters()}
+    leftEl.scrollTop=leftEl.scrollHeight;
+    li++;
+  }
+  async function advanceRight(){
+    if(ri>=rightEls.length)return;
+    const{el,s}=rightEls[ri];
+    if(ri>0)rightEls[ri-1].el.classList.remove('active');
+    el.classList.add('show','active');
+    rightEl.scrollTop=rightEl.scrollHeight;
+    ri++;
+  }
+
+  // 左边先走2步
+  await advanceLeft();await sleep(600);
+  await advanceLeft();await sleep(600);
+
+  // 然后交替推进
+  while(li<leftEls.length||ri<rightEls.length){
+    if(li<leftEls.length){await advanceLeft();await sleep(550)}
+    if(ri<rightEls.length){await advanceRight();await sleep(350)}
+  }
+
+  // 右边很快就完了,左边还在继续——这个节奏差就是对比
+  while(li<leftEls.length){await advanceLeft();await sleep(550)}
+
+  document.getElementById('btn-go').style.display='';
+  document.getElementById('btn-go').textContent='▶ 再看一次';
+}
+
+document.getElementById('btn-go').addEventListener('click',run);
+document.getElementById('btn-replay').addEventListener('click',run);
+renderCounters();
+</script>
+</body>
+</html>

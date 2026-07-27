@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Read 工具路由 — 一个工具,五条路径</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f4f2ea; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e8e4d8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,'Inter',system-ui,sans-serif;
+  background:radial-gradient(1100px 700px at 25% -8%,#fefdf9 0%,var(--bg0) 60%);
+  color:var(--text);min-height:100vh;padding:2.4rem 1rem 3rem;
+}
+.wrap{max-width:860px;margin:0 auto}
+h1{
+  font-family:Georgia,'Songti SC','Times New Roman',serif;
+  font-size:1.45rem;font-weight:600;color:var(--ink);text-align:center;letter-spacing:0.01em;
+}
+.subtitle{text-align:center;font-size:0.8rem;color:var(--text2);margin:0.5rem 0 2rem}
+
+/* Layout */
+.main{display:flex;gap:1.2rem;align-items:flex-start}
+
+/* File type buttons */
+.filetypes{display:flex;flex-direction:column;gap:0.5rem;flex-shrink:0;width:120px}
+.ft-btn{
+  cursor:pointer;border:1px solid var(--border);border-radius:12px;
+  background:var(--card);padding:0.65rem 0.85rem;
+  font-family:'JetBrains Mono','SF Mono',monospace;font-size:0.85rem;
+  color:var(--text2);transition:all .2s;box-shadow:var(--shadow-sm);
+  display:flex;align-items:center;gap:0.5rem;
+}
+.ft-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.ft-btn .dot{width:8px;height:8px;border-radius:50%;background:var(--text3);transition:all .2s;flex-shrink:0}
+.ft-btn.active{color:var(--ink);font-weight:500;border-color:var(--active-color);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--active-color) 12%,transparent),var(--shadow-md)}
+.ft-btn.active .dot{background:var(--active-color);box-shadow:0 0 6px color-mix(in srgb,var(--active-color) 55%,transparent)}
+
+/* Flow area */
+.flow-area{
+  flex:1;min-height:280px;background:var(--card);border:1px solid var(--border);
+  border-radius:14px;padding:1.4rem;box-shadow:var(--shadow-md);position:relative;
+  overflow:hidden;
+}
+.flow-label{
+  font-family:'JetBrains Mono',monospace;font-size:0.72rem;font-weight:600;
+  letter-spacing:0.04em;margin-bottom:1rem;
+}
+.flow-steps{display:flex;flex-direction:column;gap:0;align-items:flex-start}
+.step-row{display:flex;align-items:center;gap:0;opacity:0;transform:translateY(8px);animation:stepIn .3s forwards}
+@keyframes stepIn{to{opacity:1;transform:translateY(0)}}
+
+.step-card{
+  background:var(--card2);border:1px solid var(--border);border-radius:10px;
+  padding:0.55rem 0.85rem;font-size:0.8rem;color:var(--ink);white-space:nowrap;
+  box-shadow:var(--shadow-sm);position:relative;
+}
+.step-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:50%;font-size:0.62rem;font-weight:600;
+  color:#fff;margin-right:0.45rem;flex-shrink:0;
+}
+.connector{
+  display:flex;align-items:center;margin-left:1.6rem;height:28px;opacity:0;
+  animation:connIn .25s forwards;
+}
+.conn-line{width:2px;height:100%}
+@keyframes connIn{to{opacity:1}}
+
+.placeholder{
+  display:flex;align-items:center;justify-content:center;height:200px;
+  color:var(--text3);font-size:0.85rem;
+}
+
+/* Insight */
+.insight{
+  margin-top:1.6rem;background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:0.85rem 1.1rem;box-shadow:var(--shadow-sm);
+  font-size:0.78rem;color:var(--text2);line-height:1.65;display:flex;gap:0.6rem;align-items:flex-start;
+}
+.insight-icon{font-size:1rem;flex-shrink:0;margin-top:0.1rem}
+.insight b{color:var(--ink);font-weight:600}
+
+/* Responsive */
+@media(max-width:600px){
+  .main{flex-direction:column}
+  .filetypes{flex-direction:row;width:100%;flex-wrap:wrap}
+  .ft-btn{flex:1;min-width:0;justify-content:center;padding:0.5rem 0.4rem;font-size:0.78rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>一个 Read 工具背后的不同读取路径</h1>
+  <p class="subtitle">点选文件类型,看 Read 工具如何分流处理</p>
+
+  <div class="main">
+    <div class="filetypes" id="filetypes">
+      <div class="ft-btn" data-type="py" style="--active-color:var(--teal)"><span class="dot"></span>.py</div>
+      <div class="ft-btn" data-type="pdf" style="--active-color:var(--purple)"><span class="dot"></span>.pdf</div>
+      <div class="ft-btn" data-type="png" style="--active-color:var(--red)"><span class="dot"></span>.png</div>
+      <div class="ft-btn" data-type="ipynb" style="--active-color:var(--accent)"><span class="dot"></span>.ipynb</div>
+      <div class="ft-btn" data-type="docx" style="--active-color:var(--green)"><span class="dot"></span>.docx</div>
+    </div>
+
+    <div class="flow-area" id="flowArea">
+      <div class="placeholder">← 选择一种文件类型</div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <span class="insight-icon">&#9670;</span>
+    <span><b>Read 是一个路由器。</b>模型调用的始终是 read_file，程序内部根据文件类型走不同路径：文本加行号，PDF 提取文字，二进制直接拒绝，Notebook 按 Cell 返回，Office 文档转换。一个入口，按类型分流。</span>
+  </div>
+</div>
+
+<script>
+const routes = {
+  py: {
+    label: '文本读取路径',
+    color: 'var(--teal)',
+    steps: ['检查文件大小', 'UTF-8 读取内容', '加行号标注', '返回带行号的文本']
+  },
+  pdf: {
+    label: 'PDF 提取路径',
+    color: 'var(--purple)',
+    steps: ['检查扩展名 .pdf', '调用 PDF 解析器', '提取文本内容', '返回纯文本']
+  },
+  png: {
+    label: '二进制拒绝路径',
+    color: 'var(--red)',
+    steps: ['检查扩展名 .png', '命中 BINARY_EXTENSIONS', '返回错误信息']
+  },
+  ipynb: {
+    label: 'Notebook 解析路径',
+    color: 'var(--accent)',
+    steps: ['检查扩展名 .ipynb', 'JSON 解析', '提取 cell 内容', '合并输出']
+  },
+  docx: {
+    label: '文档解析路径',
+    color: 'var(--green)',
+    steps: ['检查扩展名 .docx', '调用文档解析器', '提取正文', '返回文本']
+  }
+};
+
+const flowArea = document.getElementById('flowArea');
+const buttons = document.querySelectorAll('.ft-btn');
+let activeType = null;
+
+buttons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (type === activeType) return;
+    activeType = type;
+
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const route = routes[type];
+    flowArea.style.setProperty('--active-color', route.color);
+    renderFlow(route);
+  });
+});
+
+function renderFlow(route) {
+  const c = route.color;
+  const delay = (i) => `animation-delay:${i * 0.09}s`;
+  let html = `<div class="flow-label" style="color:${c}">${route.label}</div>`;
+  html += '<div class="flow-steps">';
+  route.steps.forEach((step, i) => {
+    if (i > 0) {
+      html += `<div class="connector" style="${delay(i * 2 - 1)}">
+        <div class="conn-line" style="background:${c}"></div>
+      </div>`;
+    }
+    html += `<div class="step-row" style="${delay(i * 2)}">
+      <div class="step-card"><span class="step-num" style="background:${c}">${i + 1}</span>${step}</div>
+    </div>`;
+  });
+  html += '</div>';
+  flowArea.innerHTML = html;
+}
+
+// Auto-select first
+buttons[0].click();
+</script>
+</body>
+</html>

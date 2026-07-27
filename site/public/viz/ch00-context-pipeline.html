@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一条消息进入 Coding Agent 后发生了什么</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg0:#faf9f5;--bg1:#f5f0e8;--card:#fff;--card2:#fbfaf6;--border:#e6dfd8;--border2:#d9d3c2;--ink:#29261f;--text:#3d382e;--text2:#7d766a;--text3:#b3ac9d;--accent:#d97757;--accent-deep:#c45f3c;--teal:#0e7c66;--green:#2e7d4f;--red:#c2402a;--purple:#8a63c9;--blue:#4a5eb8;--amber:#b8860b;--shadow-sm:0 1px 2px rgba(41,38,31,.05);--shadow-md:0 1px 3px rgba(41,38,31,.06),0 10px 28px -10px rgba(41,38,31,.14);--mono:'JetBrains Mono','SF Mono',monospace;--sans:-apple-system,'Inter',system-ui,sans-serif;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--mono);font-size:13px;background:radial-gradient(1200px 700px at 20% -5%,#fefdf9,var(--bg0) 60%);color:var(--ink);height:100vh;overflow:hidden;}
+.wrap{max-width:1400px;margin:0 auto;padding:12px 20px;height:100%;display:flex;flex-direction:column;}
+.hdr{margin-bottom:5px;flex-shrink:0;}.hdr h1{font-family:Georgia,'Songti SC',serif;font-size:16px;font-weight:600;}.hdr p{font-size:10px;color:var(--text2);margin-top:1px;font-family:var(--sans);}
+/* Pipeline SVG bar */
+.pipe-wrap{margin-bottom:5px;flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:9px;box-shadow:var(--shadow-sm);padding:6px 10px;overflow-x:auto;}
+.pipe-wrap svg{display:block;margin:0 auto;}
+.cr{display:flex;justify-content:center;align-items:center;gap:6px;margin-bottom:5px;flex-shrink:0;}
+.cb{padding:2px 10px;border:1px solid var(--border);border-radius:4px;background:var(--card);font-size:10px;cursor:pointer;font-family:inherit;color:var(--text);transition:all .15s;}.cb:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}.cb:disabled{opacity:.3;cursor:default;}
+.cb.pl{min-width:60px;}.cb.pl.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.sbs{display:flex;gap:2px;margin-left:4px;}.sbtn{padding:1px 6px;border:1px solid var(--border);border-radius:3px;background:var(--card);font-size:8px;cursor:pointer;font-family:inherit;color:var(--text2);}.sbtn.a{background:var(--ink);color:#fff;border-color:var(--ink);}
+.sla{margin-left:8px;font-size:10px;color:var(--text2);font-family:var(--sans);}.sla b{color:var(--accent);}
+
+/* Persistent token bar */
+.tkbar{display:flex;align-items:center;gap:6px;padding:5px 12px;background:var(--card);border:1px solid var(--border);border-radius:7px;margin-bottom:5px;flex-shrink:0;box-shadow:var(--shadow-sm);font-size:9px;color:var(--text2);}
+.tkbar .trk{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;position:relative;}
+.tkbar .fl{height:100%;background:var(--accent);border-radius:3px;transition:width .5s ease;}
+.tkbar .tn{font-weight:700;color:var(--accent);min-width:100px;text-align:right;font-variant-numeric:tabular-nums;transition:color .3s;}
+.tkbar .tn.warn{color:var(--red);}
+.tkbar .delta{font-size:8px;color:var(--green);margin-left:4px;opacity:0;transition:opacity .3s;}.tkbar .delta.show{opacity:1;}
+
+.grid{display:grid;grid-template-columns:1fr 320px;gap:8px;flex:1;min-height:0;}
+.sp{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-md);display:flex;flex-direction:column;}
+.sh{padding:5px 10px;background:var(--card2);border-bottom:1px solid var(--border);font-size:9px;color:var(--text2);display:flex;align-items:center;gap:5px;}
+.sh i{width:7px;height:7px;border-radius:50%;display:block;}.sh i:nth-child(1){background:#f3aba2}.sh i:nth-child(2){background:#f3d9a2}.sh i:nth-child(3){background:#b5d9b2}
+.sh .tg{margin-left:auto;font-size:7px;padding:1px 6px;border-radius:3px;font-weight:700;}
+.stg{flex:1;overflow:hidden;position:relative;padding:12px;}
+
+/* File tree — VS Code style */
+.ctx-split{display:grid;grid-template-columns:200px 1fr;gap:0;height:100%;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+.ftree{background:#f0ede5;border-right:1px solid var(--border);overflow-y:auto;padding:2px 0;font-size:9px;}
+.ftree-hdr{padding:3px 8px;font-size:7px;font-weight:700;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;}
+.fgrp{margin-bottom:1px;}
+.fgrp-hdr{display:flex;align-items:center;gap:3px;padding:2px 6px;font-size:8px;font-weight:700;color:var(--text2);cursor:pointer;user-select:none;border-radius:3px;}.fgrp-hdr:hover{background:rgba(0,0,0,.03);}
+.fgrp-hdr .chevron{font-size:7px;transition:transform .15s;display:inline-block;width:10px;text-align:center;color:var(--text3);}.fgrp-hdr.closed .chevron{transform:rotate(-90deg);}
+.fgrp-hdr .folder-ico{width:14px;height:10px;display:inline-block;}
+.fgrp-hdr .folder-ico svg{width:14px;height:10px;}
+.fgrp-body{padding-left:6px;}
+.fgrp-body.collapsed{display:none;}
+.fnode{display:flex;align-items:center;gap:4px;padding:2px 6px 2px 18px;font-size:9px;cursor:pointer;color:var(--text2);border-left:2px solid transparent;opacity:0;transform:translateX(-8px);transition:opacity .3s,transform .3s,background .1s,border-color .1s;border-radius:0 3px 3px 0;}
+.fnode.in{opacity:1;transform:translateX(0);}.fnode:hover{background:rgba(217,119,87,.04);}.fnode.sel{background:rgba(217,119,87,.15);border-left-color:var(--accent);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px rgba(217,119,87,.12);}
+.fnode .ftk{margin-left:auto;font-size:7px;color:var(--text3);font-weight:600;font-variant-numeric:tabular-nums;}.fnode.sel .ftk{color:var(--accent);}
+.fnode .fic{width:16px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.fnode .fic svg{width:14px;height:14px;}
+.fprev{background:var(--card);overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;}
+.fp-t{font-size:9px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:5px;}
+.fp-c{font-size:9px;color:var(--text);line-height:1.5;white-space:pre;flex:1;padding:6px 8px;background:var(--card2);border:1px solid var(--border);border-radius:5px;overflow:auto;font-family:var(--mono);}
+
+/* Blocks */
+.ab{display:flex;align-items:flex-start;gap:7px;padding:6px 10px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:9px;opacity:0;transform:translateX(-16px);transition:all .35s cubic-bezier(.34,1.3,.64,1);box-shadow:var(--shadow-sm);cursor:pointer;}.ab.in{opacity:1;transform:translateX(0);}.ab:hover{border-color:var(--accent);}
+.ab .al{font-weight:700;font-size:8px;letter-spacing:.03em;margin-bottom:1px;}.ab .ac{font-size:9px;color:var(--text2);line-height:1.35;white-space:pre-wrap;}
+.ico{width:16px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:3px;font-size:8px;font-weight:700;}
+
+/* Terminal */
+.tm{background:#2d2a24;border-radius:8px;overflow:hidden;box-shadow:var(--shadow-md);width:100%;max-width:480px;}
+.tm-bar{padding:3px 8px;background:#3d3830;display:flex;gap:3px;align-items:center;}.tm-bar i{width:6px;height:6px;border-radius:50%;display:block;}.tm-bar i:nth-child(1){background:#f3aba2}.tm-bar i:nth-child(2){background:#f3d9a2}.tm-bar i:nth-child(3){background:#b5d9b2}.tm-bar span{margin-left:4px;font-size:8px;color:#b3ac9d;}
+.tm-body{padding:6px 10px;color:#e8e4d8;font-size:10px;line-height:1.6;min-height:80px;}
+
+/* JSON */
+.jb{background:#2d2a24;border-radius:8px;padding:8px 12px;font-size:10px;line-height:1.55;color:#e8e4d8;max-width:440px;width:100%;box-shadow:var(--shadow-md);}
+.jl{opacity:0;transform:translateX(-5px);transition:all .22s;padding:1px 0;white-space:pre;}.jl.show{opacity:1;transform:translateX(0);}
+.jl[data-tip]:hover{background:rgba(217,119,87,.12);border-radius:3px;cursor:help;}
+.jl[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:calc(100% + 5px);top:0;padding:2px 6px;background:var(--ink);color:#fff;font-size:8px;border-radius:3px;white-space:nowrap;z-index:10;font-family:var(--sans);}
+.jk{color:#7ec4cf;}.js{color:#e8a87c;}
+
+.ins{padding:5px 8px;background:rgba(217,119,87,.04);border:1px solid rgba(217,119,87,.1);border-radius:6px;font-size:9px;color:var(--text);line-height:1.45;margin-top:auto;font-family:var(--sans);}
+
+/* Messages panel */
+.mp{background:var(--bg0);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-md);}
+.mh{padding:5px 10px;background:var(--card2);border-bottom:1px solid var(--border);font-size:9px;color:var(--text2);display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.mh i{width:7px;height:7px;border-radius:50%;display:block;}.mh i:nth-child(1){background:#f3aba2}.mh i:nth-child(2){background:#f3d9a2}.mh i:nth-child(3){background:#b5d9b2}
+.vt{font-size:8px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--card);cursor:pointer;color:var(--text2);font-family:inherit;margin-left:auto;}.vt:hover{border-color:var(--accent);color:var(--accent);}.vt.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+.cnt{font-size:8px;color:var(--text3);margin-left:4px;}
+.ms{flex:1;overflow-y:auto;padding:6px;scroll-behavior:smooth;}
+.mc{margin-bottom:4px;border-radius:6px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--border);overflow:hidden;box-shadow:var(--shadow-sm);transition:opacity .3s;}
+.mc.fresh{animation:fp .5s ease;}@keyframes fp{0%{box-shadow:0 0 0 0 rgba(217,119,87,.25)}50%{box-shadow:0 0 0 3px rgba(217,119,87,.1)}100%{box-shadow:var(--shadow-sm)}}
+@keyframes ci{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+.mc.old{opacity:.65;}.mc.s{border-left-color:var(--purple);}.mc.u{border-left-color:var(--blue);}.mc.a{border-left-color:var(--accent);}.mc.t{border-left-color:var(--green);}
+.mc .mch{padding:3px 7px;display:flex;align-items:center;gap:4px;}
+.mc .badge{font-size:6px;font-weight:700;letter-spacing:.05em;padding:1px 4px;border-radius:2px;text-transform:uppercase;}
+.bg-s{background:rgba(138,99,201,.1);color:var(--purple);}.bg-u{background:rgba(74,94,184,.1);color:var(--blue);}.bg-a{background:rgba(217,119,87,.1);color:var(--accent);}.bg-t{background:rgba(46,125,79,.1);color:var(--green);}
+.mc .mcd{padding:0 7px 4px;font-size:9px;color:var(--text);line-height:1.4;white-space:pre-wrap;word-break:break-all;}
+.mc{cursor:pointer;}.mc:hover{border-color:var(--border2);}
+.mc .mc-expand{display:none;margin:0 7px 5px;padding:5px 7px;background:#2d2a24;border-radius:4px;font-size:8px;line-height:1.45;color:#e8e4d8;white-space:pre;overflow-x:auto;font-family:var(--mono);}
+.mc.open .mc-expand{display:block;animation:ci .25s ease;}
+.mc .mc-tk{float:right;font-size:7px;color:var(--text3);font-weight:600;font-variant-numeric:tabular-nums;}
+.mc .tc{margin-top:2px;padding:3px 6px;background:var(--card2);border:1px solid var(--border);border-radius:3px;font-size:8px;}.mc .tcn{color:var(--accent);font-weight:700;}.mc .tca{color:var(--text2);}
+.rv{display:none;padding:6px;background:#2d2a24;font-size:9px;line-height:1.45;color:#e8e4d8;overflow-y:auto;flex:1;}.rv.show{display:block;}.rv .rk{color:#7ec4cf;}.rv .rs{color:#e8a87c;}.rv .rc{color:#8a9b78;}
+
+/* Loop replay */
+.replay-log{font-size:9px;color:var(--text2);line-height:1.5;max-width:400px;text-align:left;font-family:var(--sans);}
+.replay-line{opacity:0;transform:translateY(4px);transition:all .3s;padding:2px 0;border-bottom:1px solid rgba(0,0,0,.03);}
+.replay-line.show{opacity:1;transform:translateY(0);}
+.replay-line .rl-round{font-weight:700;color:var(--accent);font-size:8px;letter-spacing:.03em;}
+.replay-line .rl-tool{color:var(--teal);font-weight:600;font-family:var(--mono);}
+.replay-line .rl-tk{float:right;color:var(--text3);font-size:8px;font-variant-numeric:tabular-nums;}
+
+@media(max-width:900px){.grid{grid-template-columns:1fr;}.mp{max-height:200px;}.ctx-split{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hdr"><h1>一条消息进入 Coding Agent 后发生了什么</h1><p>按 → 逐步推进 · P 播放/暂停 · Step 2 点击文件查看内容 · Step 7 自动回放完整循环</p></div>
+<div class="pipe-wrap"><svg id="pipeSvg" viewBox="0 0 700 52" width="700" height="52"></svg></div>
+<div class="cr">
+  <button class="cb" id="prevB" disabled>&larr;</button>
+  <button class="cb pl" id="playB">&#9654; 播放</button>
+  <button class="cb" id="nextB">&rarr;</button>
+  <div class="sbs"><button class="sbtn" data-s="2200">慢</button><button class="sbtn a" data-s="3500">中</button><button class="sbtn" data-s="5500">详</button></div>
+  <span class="sla" id="sla"><b>1</b> · 用户输入</span>
+</div>
+
+<!-- Persistent token bar -->
+<div class="tkbar" id="tkbar">
+  <span>Context budget</span>
+  <div class="trk"><div class="fl" id="gtkFl" style="width:0"></div></div>
+  <span class="tn" id="gtkN">0 / 128,000</span>
+  <span class="delta" id="gtkD"></span>
+</div>
+
+<div class="grid">
+  <div class="sp"><div class="sh"><i></i><i></i><i></i><span style="margin-left:5px" id="stT">当前步骤</span><span class="tg" id="stTg">用户</span></div><div class="stg" id="stage"></div></div>
+  <div class="mp"><div class="mh"><i></i><i></i><i></i><span style="margin-left:3px">messages[]</span><button class="vt" id="rawT">{ } Raw</button><span class="cnt" id="mCnt">0</span></div><div class="ms" id="mScr"></div><div class="rv" id="rawV"></div></div>
+</div>
+</div>
+<script>
+const L=['用户输入','组装上下文','调用模型','解析响应','执行工具','结果回注','循环继续'];
+const TS=[{bg:'rgba(74,94,184,.1)',c:'var(--blue)',t:'用户'},{bg:'rgba(46,125,79,.1)',c:'var(--green)',t:'Runtime'},{bg:'rgba(217,119,87,.1)',c:'var(--accent)',t:'网络'},{bg:'rgba(217,119,87,.1)',c:'var(--accent)',t:'Runtime'},{bg:'rgba(14,124,102,.1)',c:'var(--teal)',t:'本地执行'},{bg:'rgba(138,99,201,.1)',c:'var(--purple)',t:'消息历史'},{bg:'rgba(46,125,79,.1)',c:'var(--green)',t:'Agent Loop'}];
+const SM=[[{r:'u',b:'bg-u',l:'USER',c:'找到 formatToolExecutorRef 函数，\n把注释从 compact 改成 human-readable。',tk:85,raw:'{"role":"user","content":"找到 formatToolExecutorRef 函数，\\n把注释从 compact 改成 human-readable。"}'}],[{r:'s',b:'bg-s',l:'SYSTEM',c:'你是一个代码助手……\n[.claude.md rules 已合并]',tk:2525,raw:'{"role":"system","content":"你是一个代码助手。需要本地文件内容时使用提供的工具...\\n\\n[.claude.md rules]\\n[CLAUDE.md rules]\\n[ai.txt rules]"}'}],[],[{r:'a',b:'bg-a',l:'ASSISTANT',c:'<div class="tc"><span class="tcn">&#9656; grep</span> <span class="tca">pattern: "formatToolExecutorRef"</span></div>',h:1,tk:150,raw:'{"role":"assistant","tool_calls":[{"id":"call_abc123","type":"function","function":{"name":"grep","arguments":"{\\"pattern\\":\\"formatToolExecutorRef\\"}"}}]}'}],[],[{r:'t',b:'bg-t',l:'TOOL',c:'tool_call_id: call_abc123\nsrc/tools/execution.ts:11:\nexport function formatToolExecutorRef...',tk:280,raw:'{"role":"tool","tool_call_id":"call_abc123","content":"src/tools/execution.ts:11:export function formatToolExecutorRef(ref: ToolExecutorRef): string {\\n..."}'}],[]];
+const RAW=[
+`<span class="rc">// Step 1</span>\nmessages = [{<span class="rk">"role"</span>:<span class="rs">"user"</span>, <span class="rk">"content"</span>:<span class="rs">"找到…"</span>}]`,
+`<span class="rc">// Step 2: +system +rules +tools</span>\nmessages = [\n  {<span class="rk">"role"</span>:<span class="rs">"system"</span>, …},\n  {<span class="rk">"role"</span>:<span class="rs">"user"</span>, …}\n]\ntools = [read_file, grep, edit_file, ...]`,
+`<span class="rc">// Step 3: sending to API</span>\n<span class="rc">// POST {messages, tools, model}</span>`,
+`<span class="rc">// Step 4: model returns</span>\nmessages[2] = {\n  <span class="rk">"role"</span>:<span class="rs">"assistant"</span>,\n  <span class="rk">"tool_calls"</span>:[{<span class="rk">"name"</span>:<span class="rs">"grep"</span>,…}]\n}`,
+`<span class="rc">// Step 5: local execution</span>\n<span class="rc">// grep("formatToolExecutorRef")</span>\n<span class="rc">// → "src/tools/execution.ts:11:…"</span>`,
+`<span class="rc">// Step 6: append result</span>\nmessages[3] = {\n  <span class="rk">"role"</span>:<span class="rs">"tool"</span>,\n  <span class="rk">"tool_call_id"</span>:<span class="rs">"call_abc123"</span>,\n  <span class="rk">"content"</span>:<span class="rs">"src/tools/…"</span>\n}`,
+`<span class="rc">// Step 7: loop back with 4 messages</span>\n<span class="rc">// Round 2: read_file → +2 msgs</span>\n<span class="rc">// Round 3: edit_file → +2 msgs</span>\n<span class="rc">// Round 4: text answer → done</span>`];
+
+// Token budget tracking
+const TK_TOTAL=128000;
+const TK_PER_STEP=[85, 2525, 0, 150, 0, 280, 0]; // cumulative deltas
+let gTokens=0;
+
+function updateTkBar(tokens, delta, showDelta){
+  gTokens=tokens;
+  const pct=(tokens/TK_TOTAL*100);
+  document.getElementById('gtkFl').style.width=pct+'%';
+  const tn=document.getElementById('gtkN');
+  tn.textContent=tokens.toLocaleString()+' / 128,000';
+  tn.classList.toggle('warn',tokens>10000);
+  const d=document.getElementById('gtkD');
+  if(delta>0&&showDelta!==false){d.textContent='+'+delta;d.classList.add('show');setTimeout(()=>d.classList.remove('show'),1200);}
+}
+
+// SVG icons
+const ICO={
+  md:`<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#b8860b" stroke-width="1.2"/><path d="M5 5h6M5 8h6M5 11h3" stroke="#b8860b" stroke-width=".8" stroke-linecap="round"/></svg>`,
+  txt:`<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#7d766a" stroke-width="1.2"/><path d="M5 5h6M5 8h4" stroke="#7d766a" stroke-width=".8" stroke-linecap="round"/></svg>`,
+  json:`<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#0e7c66" stroke-width="1.2"/><path d="M5 6c0-1.5 1-2 2-2M11 6c0-1.5-1-2-2-2M5 10c0 1.5 1 2 2 2M11 10c0 1.5-1 2-2 2" stroke="#0e7c66" stroke-width=".8" stroke-linecap="round"/></svg>`,
+  sys:`<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#8a63c9" stroke-width="1.2"/><circle cx="8" cy="7" r="2.5" stroke="#8a63c9" stroke-width=".8"/><path d="M8 4.5V3M8 11v-1.5M5.5 7H4M12 7h-1.5M6 5L5 4M11 10l-1-1M10 5l1-1M5 10l1-1" stroke="#8a63c9" stroke-width=".6" stroke-linecap="round"/></svg>`,
+  hist:`<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#7d766a" stroke-width="1.2"/><path d="M5 4h6M5 7h4M5 10h5" stroke="#7d766a" stroke-width=".8" stroke-linecap="round" opacity=".5"/></svg>`,
+  user:`<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#4a5eb8" stroke-width="1.2"/><circle cx="8" cy="6" r="2" stroke="#4a5eb8" stroke-width=".8"/><path d="M4.5 13c0-2 1.5-3.5 3.5-3.5s3.5 1.5 3.5 3.5" stroke="#4a5eb8" stroke-width=".8" stroke-linecap="round"/></svg>`,
+  folder:`<svg viewBox="0 0 16 12" fill="none"><path d="M1 2.5A1.5 1.5 0 012.5 1H6l1.5 2H13.5A1.5 1.5 0 0115 4.5v5.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 10V2.5z" stroke="currentColor" stroke-width="1.2"/></svg>`,
+};
+const TREE=[
+  {type:'group',label:'system',color:'var(--purple)',files:[
+    {id:'sys',icon:'sys',name:'system-prompt',ext:'',tokens:320,content:'你是一个代码助手。需要本地文件内容时\n使用提供的工具，不要猜测文件内容。\n读取大文件时应优先分段读取，\n不要一次请求全文。'},
+  ]},
+  {type:'group',label:'rules',color:'var(--amber)',files:[
+    {id:'claude',icon:'md',name:'.claude.md',ext:'.md',tokens:180,content:'# Project Rules\n\n项目使用 pnpm，不要用 npm install。\n修改文件后必须运行 pnpm lint。\n测试命令：pnpm vitest run。\n不要修改 dist/ 下的文件。'},
+    {id:'ai',icon:'txt',name:'ai.txt',ext:'.txt',tokens:95,content:'Respond in Chinese when the user writes\nin Chinese. Keep code comments in English.\nPrefer functional style over class-based.'},
+    {id:'clmd',icon:'md',name:'CLAUDE.md',ext:'.md',tokens:210,content:'# Workspace\n\nMonorepo with pnpm workspaces.\nEntry: src/cli/index.ts\nTest: pnpm vitest run\nLint: pnpm oxlint\n\n## Architecture\ngateway → agents → tools → channels'},
+  ]},
+  {type:'group',label:'history',color:'var(--text2)',files:[
+    {id:'hist',icon:'hist',name:'3 rounds',ext:'',tokens:1200,content:'user: "这个项目用什么包管理器？"\nassistant: "pnpm 11.2.2"\n\nuser: "列出 src/tools 目录"\nassistant: → list_dir\ntool: "availability.ts\\nexecution.ts…"\nassistant: "src/tools 下有 11 个文件"'},
+  ]},
+  {type:'group',label:'user',color:'var(--blue)',files:[
+    {id:'msg',icon:'user',name:'current message',ext:'',tokens:85,content:'找到 formatToolExecutorRef 函数，\n把它的注释从 compact diagnostic label\n改成 human-readable diagnostic label。'},
+  ]},
+  {type:'group',label:'tools',color:'var(--teal)',files:[
+    {id:'t1',icon:'json',name:'read_file.json',ext:'.json',tokens:92,content:'{\n  "type": "function",\n  "function": {\n    "name": "read_file",\n    "description": "读取 UTF-8 文本文件",\n    "parameters": {\n      "properties": {\n        "path": {"type": "string"},\n        "start_line": {"type": "integer"},\n        "end_line": {"type": "integer"}\n      },\n      "required": ["path"]\n    }\n  }\n}'},
+    {id:'t2',icon:'json',name:'grep.json',ext:'.json',tokens:88,content:'{\n  "type": "function",\n  "function": {\n    "name": "grep",\n    "description": "正则搜索文件内容",\n    "parameters": {\n      "properties": {\n        "pattern": {"type": "string"},\n        "path": {"type": "string"},\n        "include": {"type": "string"}\n      },\n      "required": ["pattern"]\n    }\n  }\n}'},
+    {id:'t3',icon:'json',name:'edit_file.json',ext:'.json',tokens:95,content:'{\n  "type": "function",\n  "function": {\n    "name": "edit_file",\n    "description": "局部替换文本文件",\n    "parameters": {\n      "properties": {\n        "path": {"type": "string"},\n        "old_string": {"type": "string"},\n        "new_string": {"type": "string"}\n      },\n      "required": ["path","old_string","new_string"]\n    }\n  }\n}'},
+    {id:'t4',icon:'json',name:'list_dir.json',ext:'.json',tokens:72,content:'{\n  "type": "function",\n  "function": {\n    "name": "list_dir",\n    "description": "列出指定目录下的文件和子目录",\n    "parameters": {\n      "properties": {\n        "path": {"type": "string"}\n      }\n    }\n  }\n}'},
+    {id:'t5',icon:'json',name:'glob.json',ext:'.json',tokens:78,content:'{\n  "type": "function",\n  "function": {\n    "name": "glob",\n    "description": "按文件名模式搜索路径",\n    "parameters": {\n      "properties": {\n        "pattern": {"type": "string"},\n        "path": {"type": "string"}\n      },\n      "required": ["pattern"]\n    }\n  }\n}'},
+    {id:'t6',icon:'json',name:'write_file.json',ext:'.json',tokens:85,content:'{\n  "type": "function",\n  "function": {\n    "name": "write_file",\n    "description": "创建新文件或覆盖",\n    "parameters": {\n      "properties": {\n        "path": {"type": "string"},\n        "content": {"type": "string"},\n        "overwrite": {"type": "boolean"}\n      },\n      "required": ["path","content"]\n    }\n  }\n}'},
+  ]},
+];
+
+// Build SVG pipeline
+const pipeSvg=document.getElementById('pipeSvg');
+const PIPE_W=700,SEG_W=82,SEG_H=30,GAP=16,Y0=11,ARROW_W=12;
+const PIPE_COLORS=['var(--blue)','var(--green)','var(--accent)','var(--accent)','var(--teal)','var(--purple)','var(--green)'];
+const SHORT_L=['输入','组装','调用','解析','执行','回注','循环'];
+function buildPipe(){
+  let html='<defs><marker id="pa" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0,6 2,0 4" fill="var(--border2)"/></marker></defs>';
+  const totalW=7*SEG_W+6*GAP;const x0=(PIPE_W-totalW)/2;
+  for(let i=0;i<7;i++){
+    const x=x0+i*(SEG_W+GAP);
+    html+=`<rect class="pseg" data-i="${i}" x="${x}" y="${Y0}" width="${SEG_W}" height="${SEG_H}" rx="6" fill="var(--bg1)" stroke="var(--border)" stroke-width="1.2" style="cursor:pointer;transition:all .25s"/>`;
+    html+=`<text class="ptxt" data-i="${i}" x="${x+SEG_W/2}" y="${Y0+SEG_H/2+1}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="var(--mono)" font-weight="600" fill="var(--text3)" style="pointer-events:none;transition:fill .25s">${i+1}. ${SHORT_L[i]}</text>`;
+    if(i<6){
+      const ax=x+SEG_W+2,ay=Y0+SEG_H/2;
+      html+=`<line class="parr" data-i="${i}" x1="${ax}" y1="${ay}" x2="${ax+GAP-4}" y2="${ay}" stroke="var(--border2)" stroke-width="1.2" marker-end="url(#pa)" style="transition:stroke .25s"/>`;
+    }
+  }
+  // Animated dot — will be updated per step
+  html+=`<circle id="pipeDot" r="4" fill="var(--accent)" opacity=".7"/>`;
+  // Store segment centers for dot animation
+  window._pipeCenters=Array.from({length:7},(_,i)=>({x:x0+i*(SEG_W+GAP)+SEG_W/2,y:Y0+SEG_H/2}));
+  pipeSvg.innerHTML=html;
+  // Click handlers
+  pipeSvg.querySelectorAll('.pseg').forEach(s=>s.onclick=()=>{stopP();goTo(+s.dataset.i);});
+}
+function updatePipe(step){
+  pipeSvg.querySelectorAll('.pseg').forEach(s=>{
+    const i=+s.dataset.i;
+    if(i<step){s.setAttribute('fill','var(--accent-deep)');s.setAttribute('stroke','var(--accent-deep)');s.setAttribute('stroke-width','1.5');}
+    else if(i===step){s.setAttribute('fill','var(--accent)');s.setAttribute('stroke','var(--accent)');s.setAttribute('stroke-width','2');}
+    else{s.setAttribute('fill','var(--bg1)');s.setAttribute('stroke','var(--border)');s.setAttribute('stroke-width','1.2');}
+  });
+  pipeSvg.querySelectorAll('.ptxt').forEach(t=>{
+    const i=+t.dataset.i;
+    t.setAttribute('fill',i<=step?'#fff':'var(--text3)');
+  });
+  pipeSvg.querySelectorAll('.parr').forEach(a=>{
+    const i=+a.dataset.i;
+    a.setAttribute('stroke',i<step?'var(--accent-deep)':'var(--border2)');
+  });
+  // Animate dot to current step position
+  const dot=document.getElementById('pipeDot');
+  if(dot&&window._pipeCenters){
+    const c=window._pipeCenters[step];
+    dot.setAttribute('cx',c.x);dot.setAttribute('cy',c.y);
+    dot.style.transition='cx .4s ease, cy .4s ease';
+  }
+}
+buildPipe();
+
+function stageHTML(s){switch(s){
+case 0:return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;"><div class="tm"><div class="tm-bar"><i></i><i></i><i></i><span>whale-cli</span></div><div class="tm-body" id="typeT"></div></div><div class="ins">你输入的内容只是 messages 的一部分。发送前，程序把它和 system prompt、rules、工具 schema 打包。</div></div>`;
+case 1:return`<div class="ctx-split"><div class="ftree"><div class="ftree-hdr">Context Sources</div><div id="flist"></div><div style="padding:4px 8px;font-size:7px;color:var(--accent);text-align:center;opacity:.7;margin-top:4px;">&#9650; 点击文件查看注入内容</div></div><div class="fprev" id="fprev"><div class="fp-t" id="fpT">点击左侧文件查看内容</div><div class="fp-c" id="fpC" style="color:var(--text3)">每个文件被读取后注入上下文。\n点击查看具体注入了什么。</div></div></div>`;
+case 2:return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;"><svg viewBox="0 0 400 170" style="width:100%;max-width:460px;height:175px;"><defs><marker id="ah" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0,6 2,0 4" fill="var(--accent)"/></marker></defs><rect x="60" y="110" width="280" height="45" rx="8" fill="var(--card)" stroke="var(--accent)" stroke-width="1.5"/><text x="200" y="130" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent)" font-weight="600">messages + tools</text><text x="200" y="145" text-anchor="middle" font-size="8" font-family="var(--mono)" fill="var(--text2)">POST /v1/chat/completions</text><line x1="200" y1="105" x2="200" y2="60" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#ah)" stroke-dasharray="4 3"><animate attributeName="stroke-dashoffset" from="20" to="0" dur="1s" repeatCount="indefinite"/></line><rect x="135" y="5" width="130" height="50" rx="25" fill="var(--card)" stroke="var(--accent)" stroke-width="1.5"/><text x="200" y="28" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent)" font-weight="700">LLM API</text><text x="200" y="42" text-anchor="middle" font-size="8" font-family="var(--mono)" fill="var(--text2)">cloud</text><rect x="135" y="5" width="130" height="50" rx="25" fill="none" stroke="var(--accent)" stroke-width="1" opacity=".3"><animate attributeName="opacity" values=".3;0;.3" dur="1.5s" repeatCount="indefinite"/></rect></svg><div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center;font-size:8px;font-family:var(--sans);"><span style="padding:2px 6px;background:rgba(138,99,201,.08);border-radius:3px;color:var(--purple)">system 320 tk</span><span style="padding:2px 6px;background:rgba(184,134,11,.08);border-radius:3px;color:var(--amber)">rules 485 tk</span><span style="padding:2px 6px;background:var(--bg1);border-radius:3px;color:var(--text2)">history 1200 tk</span><span style="padding:2px 6px;background:rgba(74,94,184,.08);border-radius:3px;color:var(--blue)">user 85 tk</span><span style="padding:2px 6px;background:rgba(14,124,102,.08);border-radius:3px;color:var(--teal)">tools 620 tk</span></div><div class="ins">上面的色块对应 Step 2 文件树中的每一组来源。模型收到的是 token 序列，不是文件。</div></div>`;
+case 3:return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;"><svg width="380" height="45" viewBox="0 0 380 45"><defs><marker id="ah2" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0,6 2,0 4" fill="var(--green)"/></marker></defs><rect x="120" y="2" width="140" height="36" rx="18" fill="var(--card)" stroke="var(--green)" stroke-width="1.5"/><text x="190" y="18" text-anchor="middle" font-size="9" font-family="var(--mono)" fill="var(--green)" font-weight="600">LLM API</text><text x="190" y="30" text-anchor="middle" font-size="7" font-family="var(--mono)" fill="var(--text2)">返回 tool_calls</text></svg><div class="jb" id="jBox"></div><div class="ins">模型没有"调用" grep -- 它只生成了 JSON。真正执行搜索的是本地程序。</div></div>`;
+case 4:return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;"><div class="tm" style="max-width:480px"><div class="tm-bar"><i></i><i></i><i></i><span>runtime</span></div><div class="tm-body" id="execT"></div></div><div class="ins">模型在云端等待，工具在你的电脑上执行。两者通过 messages 通信。</div></div>`;
+case 5:return`<div style="display:flex;flex-direction:column;gap:6px;height:100%;justify-content:center;"><div class="ab" style="border-left:3px solid var(--green)" data-d="60"><span class="ico" style="background:rgba(46,125,79,.1);color:var(--green)">R</span><div><div class="al" style="color:var(--green)">TOOL RESULT &rarr; messages.append()</div><div class="ac">{ role: "tool", tool_call_id: "call_abc123",\n  content: "src/tools/execution.ts:11:..." }</div></div></div><div class="ab" style="border-left:3px solid var(--accent)" data-d="250"><span class="ico" style="background:rgba(217,119,87,.1);color:var(--accent)">!</span><div><div class="al" style="color:var(--accent)">tool_call_id 必须匹配</div><div class="ac">模型可能一次发多个请求，id 用来配对结果。</div></div></div><div class="ins">Tool Result 留在 messages 里，后面每轮都带着。所以工具要控制返回量。</div></div>`;
+case 6:return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;"><svg viewBox="0 0 380 120" style="width:100%;max-width:400px;height:125px;" id="loopSvg"><defs><marker id="la" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0,6 2,0 4" fill="var(--accent)"/></marker></defs><rect x="100" y="8" width="100" height="30" rx="7" fill="var(--card)" stroke="var(--border)" stroke-width="1.5" class="lb" data-li="0"/><text x="150" y="27" text-anchor="middle" font-size="9" font-family="var(--mono)" fill="var(--text2)" font-weight="600" class="lt" data-li="0">组装</text><rect x="230" y="8" width="90" height="30" rx="7" fill="var(--card)" stroke="var(--border)" stroke-width="1.5" class="lb" data-li="1"/><text x="275" y="27" text-anchor="middle" font-size="9" font-family="var(--mono)" fill="var(--text2)" font-weight="600" class="lt" data-li="1">调用</text><rect x="230" y="62" width="90" height="30" rx="7" fill="var(--card)" stroke="var(--border)" stroke-width="1.5" class="lb" data-li="2"/><text x="275" y="81" text-anchor="middle" font-size="9" font-family="var(--mono)" fill="var(--text2)" font-weight="600" class="lt" data-li="2">解析</text><rect x="100" y="62" width="100" height="30" rx="7" fill="var(--card)" stroke="var(--border)" stroke-width="1.5" class="lb" data-li="3"/><text x="150" y="81" text-anchor="middle" font-size="9" font-family="var(--mono)" fill="var(--text2)" font-weight="600" class="lt" data-li="3">执行+回注</text><path d="M202 23 L228 23" fill="none" stroke="var(--border2)" stroke-width="1.5" marker-end="url(#la)"/><path d="M275 40 L275 60" fill="none" stroke="var(--border2)" stroke-width="1.5" marker-end="url(#la)"/><path d="M228 77 L202 77" fill="none" stroke="var(--border2)" stroke-width="1.5" marker-end="url(#la)"/><path d="M150 60 L150 40" fill="none" stroke="var(--border2)" stroke-width="1.5" marker-end="url(#la)"/><circle r="4" fill="var(--accent)" opacity=".85"><animateMotion dur="2.5s" repeatCount="indefinite" path="M150,23 L275,23 L275,77 L150,77 Z"/></circle></svg><div class="replay-log" id="replayLog"></div></div>`;
+}}
+
+// Replay data for Step 7
+const REPLAY_LINES=[
+  {round:'ROUND 1',tool:'grep',desc:'搜索函数定义',tk:'+430',delay:0},
+  {round:'',tool:'',desc:'result: execution.ts:11',tk:'',delay:300},
+  {round:'ROUND 2',tool:'read_file',desc:'读取 execution.ts 完整内容',tk:'+380',delay:800},
+  {round:'',tool:'',desc:'result: 26 lines returned',tk:'',delay:1100},
+  {round:'ROUND 3',tool:'edit_file',desc:'修改 JSDoc 注释 (compact→human-readable)',tk:'+220',delay:1600},
+  {round:'',tool:'',desc:'result: Applied edit, 1 lines → 1 lines',tk:'',delay:1900},
+  {round:'ROUND 4',tool:'edit_file',desc:'修改 diagnostics/logging 注释',tk:'+210',delay:2400},
+  {round:'',tool:'',desc:'result: Applied edit, 1 lines → 1 lines',tk:'',delay:2700},
+  {round:'DONE',tool:'',desc:'模型返回 content 但没有 tool_calls → 循环结束',tk:'',delay:3200},
+];
+
+function postRender(s){
+  // Update global token bar
+  let tk=0;for(let i=0;i<=s;i++)tk+=TK_PER_STEP[i];
+  updateTkBar(tk,TK_PER_STEP[s]);
+
+  if(s===0){const t=document.getElementById('typeT');const ls=['<span style="color:#7ec4cf">$</span> 找到 formatToolExecutorRef 函数，','  把注释从 compact 改成 human-readable。','','<span style="color:#7d766a">本地程序先接手。</span>'];let i=0;t.innerHTML='';!function go(){if(i>=ls.length)return;const e=document.createElement('div');e.innerHTML=ls[i]||'&nbsp;';e.style.cssText='opacity:0;transform:translateY(3px);transition:all .2s';t.appendChild(e);setTimeout(()=>{e.style.opacity='1';e.style.transform='translateY(0)';},15);i++;setTimeout(go,140);}();}
+
+  if(s===1){const fl=document.getElementById('flist'),fpT=document.getElementById('fpT'),fpC=document.getElementById('fpC');
+    let runTk=0,fileIdx=0;
+    TREE.forEach(grp=>{
+      const gEl=document.createElement('div');gEl.className='fgrp';
+      const hdr=document.createElement('div');hdr.className='fgrp-hdr';hdr.style.color=grp.color;
+      hdr.innerHTML=`<span class="chevron">&#9662;</span><span class="folder-ico" style="color:${grp.color}">${ICO.folder}</span>${grp.label}/`;
+      const body=document.createElement('div');body.className='fgrp-body';
+      hdr.onclick=()=>{hdr.classList.toggle('closed');body.classList.toggle('collapsed');};
+      grp.files.forEach(f=>{
+        const n=document.createElement('div');n.className='fnode';
+        n.innerHTML=`<span class="fic">${ICO[f.icon]||ICO.txt}</span><span>${f.name}</span><span class="ftk">${f.tokens}</span>`;
+        n.onclick=()=>{document.querySelectorAll('.fnode').forEach(x=>x.classList.remove('sel'));n.classList.add('sel');
+          fpT.innerHTML=`<span class="fic" style="display:inline-flex;vertical-align:middle;margin-right:3px">${ICO[f.icon]||ICO.txt}</span>${f.name} <span style="font-size:7px;color:var(--text3);margin-left:4px">${f.tokens} tokens</span>`;
+          fpC.style.color='var(--text)';fpC.textContent=f.content;};
+        body.appendChild(n);
+        const idx=fileIdx++;
+        setTimeout(()=>{n.classList.add('in');runTk+=f.tokens;updateTkBar(85+runTk,f.tokens,false);},idx*90+60);
+      });
+      gEl.appendChild(hdr);gEl.appendChild(body);fl.appendChild(gEl);
+    });
+    const allFiles=document.querySelectorAll('.fnode');
+    setTimeout(()=>{if(allFiles[0])allFiles[0].click();},TREE.reduce((a,g)=>a+g.files.length,0)*90+150);}
+
+  if(s===3){const b=document.getElementById('jBox');const ls=['{','  <span class="jk">"role"</span>: <span class="js">"assistant"</span>,','  <span class="jk">"tool_calls"</span>: [{','    <span class="jk">"id"</span>: <span class="js">"call_abc123"</span>,','    <span class="jk">"function"</span>: {','      <span class="jk">"name"</span>: <span class="js" style="color:var(--accent);font-weight:700">"grep"</span>,','      <span class="jk">"arguments"</span>: <span class="js">\'{"pattern":"formatToolExecutorRef"}\'</span>','    }','  }]','}'];
+    const tips=['','','','id 必须在结果中回传','','模型选择了 grep','参数是模型生成的 JSON','','',''];
+    b.innerHTML=ls.map((l,i)=>`<div class="jl" style="position:relative"${tips[i]?` data-tip="${tips[i]}"`:''}>${l}</div>`).join('');
+    document.querySelectorAll('.jl').forEach((e,i)=>{setTimeout(()=>e.classList.add('show'),i*70+50);});}
+
+  if(s===4){const t=document.getElementById('execT');const ls=['<span style="color:#7ec4cf">$</span> tool = toolset.get(<span style="color:#e8a87c">"grep"</span>)','<span style="color:#7ec4cf">$</span> result = tool(pattern=<span style="color:#e8a87c">"formatToolExecutorRef"</span>)','','<span style="color:#b5d9b2">src/tools/execution.ts:11:</span>','<span style="color:#b5d9b2">  export function formatToolExecutorRef(</span>','','<span style="color:#7d766a">OK</span>'];t.innerHTML='';
+    ls.forEach((l,i)=>{setTimeout(()=>{const e=document.createElement('div');e.innerHTML=l||'&nbsp;';e.style.cssText='opacity:0;transition:opacity .2s';t.appendChild(e);setTimeout(()=>e.style.opacity='1',10);},i*130);});}
+
+  if(s===5){document.querySelectorAll('.ab').forEach(b=>{setTimeout(()=>b.classList.add('in'),+b.dataset.d||0);});}
+
+  if(s===6){
+    // Loop node highlighting
+    let idx=0;const lbs=document.querySelectorAll('.lb'),lts=document.querySelectorAll('.lt');
+    const loopInt=setInterval(()=>{lbs.forEach((b,i)=>{b.setAttribute('stroke',i===idx?'var(--accent)':'var(--border)');b.setAttribute('stroke-width',i===idx?'2':'1.5');});lts.forEach((t,i)=>{t.setAttribute('fill',i===idx?'var(--accent)':'var(--text2)');});idx=(idx+1)%4;},625);
+    // Replay log
+    const log=document.getElementById('replayLog');
+    let replayTk=gTokens;
+    REPLAY_LINES.forEach(rl=>{
+      setTimeout(()=>{
+        const el=document.createElement('div');el.className='replay-line';
+        let html='';
+        if(rl.round)html+=`<span class="rl-round">${rl.round}</span> `;
+        if(rl.tool)html+=`<span class="rl-tool">${rl.tool}</span> `;
+        html+=rl.desc;
+        if(rl.tk){replayTk+=parseInt(rl.tk);html+=`<span class="rl-tk">${rl.tk} → ${replayTk.toLocaleString()}</span>`;updateTkBar(replayTk,parseInt(rl.tk));
+          // Also add messages to right panel
+          const mr=rl.round.includes('DONE')?null:{r:rl.tool==='grep'||rl.tool==='read_file'?'a':'a',b:'bg-a',l:'ASST',c:`${rl.tool}(…)`};
+          if(mr){allM.push(mr);allM.push({r:'t',b:'bg-t',l:'TOOL',c:rl.desc.replace('result: ','')});renderM();}
+        }
+        el.innerHTML=html;log.appendChild(el);
+        setTimeout(()=>el.classList.add('show'),20);
+      },rl.delay);
+    });
+  }
+}
+
+let cur=0,playing=false,playTimer=null,speed=3500,rawMode=false;
+const allM=[];
+const stage=document.getElementById('stage'),mScr=document.getElementById('mScr'),mCnt=document.getElementById('mCnt'),rawV=document.getElementById('rawV');
+
+function renderM(){
+  if(rawMode){mScr.style.display='none';rawV.classList.add('show');rawV.innerHTML='<pre>'+RAW[Math.min(cur,6)]+'</pre>';return;}
+  mScr.style.display='';rawV.classList.remove('show');mScr.innerHTML='';
+  const nc=(SM[cur]||[]).length;
+  allM.forEach((m,i)=>{const isNew=i>=allM.length-nc&&cur<7;const e=document.createElement('div');e.className='mc '+m.r+(isNew?' fresh':cur===6?'':' old');e.style.animation=(isNew||cur===6)?'ci .3s ease':'none';
+    let tkBadge=m.tk?`<span class="mc-tk">${m.tk} tk</span>`:'';
+    let expandDiv=m.raw?`<div class="mc-expand">${m.raw}</div>`:'';
+    e.innerHTML=`<div class="mch"><span class="badge ${m.b}">${m.l}</span>${tkBadge}</div><div class="mcd">${m.c}</div>${expandDiv}`;
+    if(m.raw)e.onclick=()=>e.classList.toggle('open');
+    mScr.appendChild(e);});
+  mCnt.textContent=allM.length+'';
+  setTimeout(()=>{mScr.scrollTop=mScr.scrollHeight;},30);
+}
+
+function goTo(step){
+  cur=step;allM.length=0;for(let i=0;i<=step;i++)(SM[i]||[]).forEach(m=>allM.push(m));
+  updatePipe(step);
+  document.getElementById('sla').innerHTML=`<b>${step+1}</b> · ${L[step]}`;
+  document.getElementById('stT').textContent=L[step];
+  const ts=TS[step];const tg=document.getElementById('stTg');tg.textContent=ts.t;tg.style.background=ts.bg;tg.style.color=ts.c;
+  document.getElementById('prevB').disabled=step===0;document.getElementById('nextB').innerHTML=step===6?'&#8634;':'&rarr;';
+  stage.innerHTML=stageHTML(step);renderM();setTimeout(()=>postRender(step),40);
+}
+
+function stopP(){playing=false;clearTimeout(playTimer);document.getElementById('playB').textContent='▶ 播放';document.getElementById('playB').classList.remove('on');}
+function startP(){playing=true;document.getElementById('playB').textContent='⏸';document.getElementById('playB').classList.add('on');tick();}
+function tick(){if(!playing)return;if(cur<6)playTimer=setTimeout(()=>{goTo(cur+1);tick();},speed);else stopP();}
+document.getElementById('prevB').onclick=()=>{stopP();if(cur>0)goTo(cur-1);};
+document.getElementById('nextB').onclick=()=>{stopP();goTo(cur===6?0:cur+1);};
+document.getElementById('playB').onclick=()=>{if(playing)stopP();else{if(cur===6)goTo(0);startP();}};
+document.getElementById('rawT').onclick=function(){rawMode=!rawMode;this.classList.toggle('on',rawMode);renderM();};
+document.querySelectorAll('.sbtn').forEach(b=>{b.onclick=()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('a'));b.classList.add('a');speed=+b.dataset.s;};});
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();stopP();goTo(cur===6?0:cur+1);}if(e.key==='ArrowLeft'){e.preventDefault();stopP();if(cur>0)goTo(cur-1);}if(e.key==='p'||e.key==='P'){e.preventDefault();if(playing)stopP();else startP();}});
+goTo(0);
+</script>
+</body>
+</html>
