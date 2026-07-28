@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schema Description 对比实验</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #faf9f5;
+  color: #29261f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #29261f;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  width: 100%;
+  max-width: 1100px;
+  margin-bottom: 28px;
+}
+
+.column {
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.column--bad {
+  border: 1.5px solid #d44040;
+}
+
+.column--good {
+  border: 1.5px solid #3daa5c;
+}
+
+.column__header {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.column--bad .column__header {
+  background: rgba(212, 64, 64, 0.12);
+  color: #c2402a;
+}
+
+.column--good .column__header {
+  background: rgba(61, 170, 92, 0.12);
+  color: #2e7d4f;
+}
+
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e6dfd8;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  background: #fbfaf6;
+  color: #7d766a;
+  border: none;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s;
+}
+
+.tab.active {
+  background: #f0ede5;
+  color: #29261f;
+  border-bottom: 2px solid currentColor;
+}
+
+.column--bad .tab.active { color: #c2402a; }
+.column--good .tab.active { color: #d97757; }
+
+.panel {
+  display: none;
+  padding: 14px;
+  background: #fbfaf6;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 340px;
+}
+
+.panel.active { display: block; }
+
+/* JSON rendering */
+.json-block {
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.json-key { color: #D77757; }
+.json-str { color: #e8b863; }
+.json-bracket { color: #6a6058; }
+.json-colon { color: #7d766a; }
+.json-number { color: #7ec4cf; }
+
+/* Trace rendering */
+.trace {
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+
+.trace-step {
+  margin-bottom: 10px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.trace-step.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.trace-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.trace-label--user { color: #7ec4cf; }
+.trace-label--model { color: #c4a7e7; }
+.trace-label--result { color: #c2402a; }
+.trace-label--result-ok { color: #2e7d4f; }
+
+.trace-content {
+  color: #3d382e;
+  padding-left: 8px;
+  border-left: 2px solid #e6dfd8;
+  margin-left: 2px;
+}
+
+.trace-content code {
+  background: rgba(215, 119, 87, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #D77757;
+  font-family: inherit;
+}
+
+.trace-content .error {
+  color: #c2402a;
+}
+
+.trace-content .success {
+  color: #2e7d4f;
+}
+
+/* Insight */
+.insight {
+  width: 100%;
+  max-width: 1100px;
+  background: #fbfaf6;
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin-bottom: 24px;
+}
+
+.insight__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8b863;
+  margin-bottom: 10px;
+}
+
+.insight__text {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #3d382e;
+}
+
+/* Comparison points */
+.points {
+  width: 100%;
+  max-width: 1100px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.point {
+  background: #fbfaf6;
+  border: 1px solid #e6dfd8;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.point__number {
+  font-size: 11px;
+  font-weight: 700;
+  color: #D77757;
+  margin-bottom: 6px;
+}
+
+.point__bad {
+  font-size: 11px;
+  color: #c2402a;
+  margin-bottom: 4px;
+  line-height: 1.5;
+}
+
+.point__good {
+  font-size: 11px;
+  color: #2e7d4f;
+  line-height: 1.5;
+}
+
+.point__bad::before { content: "x  "; font-weight: 700; }
+.point__good::before { content: "v  "; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<h1>Schema Description 质量对比实验</h1>
+
+<div class="columns">
+  <!-- Bad schema column -->
+  <div class="column column--bad">
+    <div class="column__header">差的 schema</div>
+    <div class="tab-bar">
+      <button class="tab active" data-target="bad-schema" data-group="bad">Schema</button>
+      <button class="tab" data-target="bad-trace" data-group="bad">模拟调用</button>
+    </div>
+    <div class="panel active" id="bad-schema">
+      <div class="json-block"><span class="json-bracket">{</span>
+  <span class="json-key">"name"</span><span class="json-colon">:</span> <span class="json-str">"read_file"</span>,
+  <span class="json-key">"description"</span><span class="json-colon">:</span> <span class="json-str">"读文件"</span>,
+  <span class="json-key">"parameters"</span><span class="json-colon">:</span> <span class="json-bracket">{</span>
+    <span class="json-key">"properties"</span><span class="json-colon">:</span> <span class="json-bracket">{</span>
+      <span class="json-key">"path"</span><span class="json-colon">:</span> <span class="json-bracket">{</span> <span class="json-key">"type"</span><span class="json-colon">:</span> <span class="json-str">"string"</span> <span class="json-bracket">}</span>
+    <span class="json-bracket">}</span>,
+    <span class="json-key">"required"</span><span class="json-colon">:</span> <span class="json-bracket">[</span><span class="json-str">"path"</span><span class="json-bracket">]</span>
+  <span class="json-bracket">}</span>
+<span class="json-bracket">}</span></div>
+    </div>
+    <div class="panel" id="bad-trace">
+      <div class="trace">
+        <div class="trace-step" data-delay="0">
+          <div class="trace-label trace-label--user">User</div>
+          <div class="trace-content">看看 src/auth 目录下的登录代码</div>
+        </div>
+        <div class="trace-step" data-delay="600">
+          <div class="trace-label trace-label--model">Model</div>
+          <div class="trace-content"><code>read_file({path: "src/auth"})</code></div>
+        </div>
+        <div class="trace-step" data-delay="1200">
+          <div class="trace-label trace-label--result">Result</div>
+          <div class="trace-content"><span class="error">Error: EISDIR - "src/auth" is a directory, not a file</span></div>
+        </div>
+        <div class="trace-step" data-delay="1800">
+          <div class="trace-label trace-label--model">Model</div>
+          <div class="trace-content">schema 没说不能传目录，模型只看到 "读文件" + path: string，猜测路径即可，结果传了目录。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Good schema column -->
+  <div class="column column--good">
+    <div class="column__header">好的 schema</div>
+    <div class="tab-bar">
+      <button class="tab active" data-target="good-schema" data-group="good">Schema</button>
+      <button class="tab" data-target="good-trace" data-group="good">模拟调用</button>
+    </div>
+    <div class="panel active" id="good-schema">
+      <div class="json-block"><span class="json-bracket">{</span>
+  <span class="json-key">"name"</span><span class="json-colon">:</span> <span class="json-str">"read_file"</span>,
+  <span class="json-key">"description"</span><span class="json-colon">:</span> <span class="json-str">"读取一个本地文本文件的内容并返回字符串。传入文件路径（不是目录）。支持 start_line/end_line 只读一段。"</span>,
+  <span class="json-key">"parameters"</span><span class="json-colon">:</span> <span class="json-bracket">{</span>
+    <span class="json-key">"properties"</span><span class="json-colon">:</span> <span class="json-bracket">{</span>
+      <span class="json-key">"path"</span><span class="json-colon">:</span> <span class="json-bracket">{</span>
+        <span class="json-key">"type"</span><span class="json-colon">:</span> <span class="json-str">"string"</span>,
+        <span class="json-key">"description"</span><span class="json-colon">:</span> <span class="json-str">"文件路径，必须是文件不是目录"</span>
+      <span class="json-bracket">}</span>,
+      <span class="json-key">"start_line"</span><span class="json-colon">:</span> <span class="json-bracket">{</span>
+        <span class="json-key">"type"</span><span class="json-colon">:</span> <span class="json-str">"integer"</span>,
+        <span class="json-key">"description"</span><span class="json-colon">:</span> <span class="json-str">"起始行号"</span>
+      <span class="json-bracket">}</span>,
+      <span class="json-key">"end_line"</span><span class="json-colon">:</span> <span class="json-bracket">{</span>
+        <span class="json-key">"type"</span><span class="json-colon">:</span> <span class="json-str">"integer"</span>,
+        <span class="json-key">"description"</span><span class="json-colon">:</span> <span class="json-str">"结束行号"</span>
+      <span class="json-bracket">}</span>
+    <span class="json-bracket">}</span>,
+    <span class="json-key">"required"</span><span class="json-colon">:</span> <span class="json-bracket">[</span><span class="json-str">"path"</span><span class="json-bracket">]</span>
+  <span class="json-bracket">}</span>
+<span class="json-bracket">}</span></div>
+    </div>
+    <div class="panel" id="good-trace">
+      <div class="trace">
+        <div class="trace-step" data-delay="0">
+          <div class="trace-label trace-label--user">User</div>
+          <div class="trace-content">看看 src/auth 目录下的登录代码</div>
+        </div>
+        <div class="trace-step" data-delay="600">
+          <div class="trace-label trace-label--model">Model</div>
+          <div class="trace-content"><code>glob({pattern: "src/auth/*.ts"})</code></div>
+        </div>
+        <div class="trace-step" data-delay="1200">
+          <div class="trace-label trace-label--result trace-label--result-ok">Result</div>
+          <div class="trace-content"><span class="success">["src/auth/login.ts", "src/auth/logout.ts", "src/auth/middleware.ts"]</span></div>
+        </div>
+        <div class="trace-step" data-delay="1800">
+          <div class="trace-label trace-label--model">Model</div>
+          <div class="trace-content"><code>read_file({path: "src/auth/login.ts", start_line: 1, end_line: 30})</code></div>
+        </div>
+        <div class="trace-step" data-delay="2400">
+          <div class="trace-label trace-label--result trace-label--result-ok">Result</div>
+          <div class="trace-content"><span class="success">Success - 返回 login.ts 前 30 行内容</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Insight -->
+<div class="insight">
+  <div class="insight__title">关键洞察</div>
+  <div class="insight__text">schema 的 description 是写给模型看的。模型靠这几句话决定什么时候调你的工具、传什么参数。写得好，模型一次就调对；写得差，可能传错参数或者根本不调。</div>
+</div>
+
+<!-- Three comparison points -->
+<div class="points">
+  <div class="point">
+    <div class="point__number">#1 工具描述</div>
+    <div class="point__bad">description 只写 "读文件"</div>
+    <div class="point__good">详细说明用途、输入限制、支持的功能</div>
+  </div>
+  <div class="point">
+    <div class="point__number">#2 参数描述</div>
+    <div class="point__bad">参数没有 description，模型靠猜</div>
+    <div class="point__good">每个参数都有 description，明确约束</div>
+  </div>
+  <div class="point">
+    <div class="point__number">#3 参数丰富度</div>
+    <div class="point__bad">只有一个 path，模型没有精确控制的选项</div>
+    <div class="point__good">提供 start_line / end_line，模型能精确读取</div>
+  </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const group = tab.dataset.group;
+    const target = tab.dataset.target;
+
+    // Deactivate all tabs in same group
+    document.querySelectorAll(`.tab[data-group="${group}"]`).forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+
+    // Show target panel, hide others in same column
+    const column = tab.closest('.column');
+    column.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(target).classList.add('active');
+
+    // If switching to trace, auto-play animation
+    if (target.includes('trace')) {
+      playTrace(target);
+    }
+  });
+});
+
+function playTrace(panelId) {
+  const panel = document.getElementById(panelId);
+  const steps = panel.querySelectorAll('.trace-step');
+
+  // Reset all steps
+  steps.forEach(step => step.classList.remove('visible'));
+
+  // Animate each step with delay
+  steps.forEach(step => {
+    const delay = parseInt(step.dataset.delay);
+    setTimeout(() => {
+      step.classList.add('visible');
+    }, delay + 100);
+  });
+}
+</script>
+</body>
+</html>

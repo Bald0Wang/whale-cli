@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schema Playground -- Description 如何影响模型行为</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #f5f5f0;
+  color: #24292e;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 32px 20px;
+}
+
+.container {
+  width: 100%;
+  max-width: 1160px;
+}
+
+/* ── Header ── */
+.header {
+  margin-bottom: 24px;
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #24292e;
+  margin-bottom: 4px;
+}
+.header .subtitle {
+  font-size: 12px;
+  color: #6a737d;
+  line-height: 1.5;
+}
+
+/* ── Version Selector ── */
+.version-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.version-bar .label {
+  font-size: 11px;
+  color: #6a737d;
+  margin-right: 6px;
+}
+.version-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  border: 1px solid #d1d5da;
+  background: #fff;
+  color: #586069;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.version-btn:hover {
+  border-color: #0366d6;
+  color: #0366d6;
+}
+.version-btn.active {
+  background: #0366d6;
+  border-color: #0366d6;
+  color: #fff;
+}
+
+/* ── Main Layout ── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 520px;
+}
+
+@media (max-width: 800px) {
+  .main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Panels ── */
+.panel {
+  background: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #fafbfc;
+  border-bottom: 1px solid #e1e4e8;
+  font-size: 12px;
+  font-weight: 600;
+  color: #24292e;
+}
+.panel-header .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot-blue { background: #0366d6; }
+.dot-green { background: #28a745; }
+.panel-body {
+  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Schema Card (Left Panel) ── */
+.schema-block {
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+}
+.schema-key { color: #005cc5; }
+.schema-str { color: #032f62; }
+.schema-brace { color: #6a737d; }
+.schema-desc {
+  color: #032f62;
+  background: #fff5b1;
+  padding: 1px 3px;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+.schema-comment {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.desc-note {
+  margin-top: 14px;
+  font-size: 11px;
+  color: #6a737d;
+  line-height: 1.6;
+  padding: 10px 12px;
+  background: #f6f8fa;
+  border-radius: 6px;
+  border-left: 3px solid #0366d6;
+}
+.desc-note strong {
+  color: #24292e;
+}
+
+/* ── Right Panel: Behavior Simulation ── */
+.task-box {
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 11px;
+  color: #24292e;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.task-label {
+  color: #6a737d;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Trace Steps ── */
+.trace-area {
+  min-height: 260px;
+  position: relative;
+}
+.trace-step {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  margin-bottom: 10px;
+}
+.trace-step.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.step-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.marker-blue { background: #dbedff; color: #0366d6; }
+.marker-orange { background: #fff3e0; color: #e36209; }
+.marker-red { background: #ffeef0; color: #d73a49; }
+.marker-green { background: #dcffe4; color: #28a745; }
+
+.step-content {
+  flex: 1;
+}
+.step-label {
+  font-size: 11px;
+  color: #6a737d;
+  margin-bottom: 3px;
+}
+.step-code {
+  font-size: 11px;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 4px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+.code-fn { color: #6f42c1; }
+.code-key { color: #005cc5; }
+.code-str { color: #032f62; }
+.code-num { color: #005cc5; }
+.code-comment { color: #6a737d; font-style: italic; }
+
+.step-note {
+  font-size: 10px;
+  color: #959da5;
+  margin-top: 4px;
+  padding-left: 2px;
+}
+
+/* ── Result Badge ── */
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  margin-top: 4px;
+}
+.badge-fail { background: #ffeef0; color: #d73a49; }
+.badge-ok { background: #dcffe4; color: #28a745; }
+
+/* ── Token Bar ── */
+.token-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e1e4e8;
+}
+.token-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #24292e;
+  margin-bottom: 10px;
+}
+.token-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.token-label {
+  font-size: 10px;
+  color: #586069;
+  width: 50px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.token-bar-bg {
+  flex: 1;
+  height: 20px;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.token-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+.fill-red { background: #d73a49; }
+.fill-green { background: #28a745; }
+.fill-blue { background: #0366d6; }
+.token-val {
+  font-size: 10px;
+  color: #586069;
+  width: 90px;
+  flex-shrink: 0;
+  text-align: left;
+}
+
+.token-verdict {
+  font-size: 11px;
+  color: #6a737d;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f6f8fa;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+.token-verdict strong {
+  color: #24292e;
+}
+.token-verdict .num-red { color: #d73a49; font-weight: 600; }
+.token-verdict .num-green { color: #28a745; font-weight: 600; }
+
+/* ── Footer ── */
+.footer {
+  margin-top: 20px;
+  font-size: 10px;
+  color: #959da5;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Schema Playground</h1>
+    <div class="subtitle">同一个任务，description 写法不同，模型行为天差地别。切换三个版本，观察 trace 变化。</div>
+  </div>
+
+  <!-- Version Selector -->
+  <div class="version-bar">
+    <span class="label">description 版本</span>
+    <button class="version-btn active" data-v="0" onclick="switchVersion(0)">极简版</button>
+    <button class="version-btn" data-v="1" onclick="switchVersion(1)">标准版</button>
+    <button class="version-btn" data-v="2" onclick="switchVersion(2)">详细版</button>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Left: Schema Card -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="dot dot-blue"></span>
+        Tool Schema
+      </div>
+      <div class="panel-body">
+        <div class="schema-block" id="schemaBlock"></div>
+        <div class="desc-note" id="descNote"></div>
+      </div>
+    </div>
+
+    <!-- Right: Behavior Simulation -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="dot dot-green"></span>
+        模型行为模拟
+      </div>
+      <div class="panel-body">
+        <div class="task-box">
+          <span class="task-label">User:</span>
+          <span>"读一下 src/main.py 的第 40-60 行"</span>
+        </div>
+        <div class="trace-area" id="traceArea"></div>
+        <div class="token-section" id="tokenSection"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">Ch02 Schema Playground -- 交互可视化组件</div>
+
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────
+const versions = [
+  {
+    // 极简版
+    desc: '读取文件内容',
+    note: '<strong>问题：</strong>没有提到任何参数。模型只知道"读文件"，不知道可以控制行范围。遇到"第 40-60 行"的需求时，它只能读全文再截取。',
+    trace: [
+      {
+        marker: 'blue', label: '模型推理',
+        code: '<span class="code-comment">// description 只说了"读取文件内容"</span>\n<span class="code-comment">// 没有提到行范围参数，我只能读全文</span>',
+        note: '模型不知道 start_line / end_line 参数的存在'
+      },
+      {
+        marker: 'orange', label: 'tool_use',
+        code: '<span class="code-fn">read_file</span>(<span class="code-key">"path"</span>: <span class="code-str">"src/main.py"</span>)',
+        note: '没有行范围参数，请求整个文件'
+      },
+      {
+        marker: 'red', label: 'tool_result',
+        code: '<span class="code-comment">// 返回 3000 行完整源码</span>\n<span class="code-str">"1  import sys\\n2  import os\\n3  ..."</span>\n<span class="code-comment">// ...省略 2980 行...</span>\n<span class="code-str">"3000  # EOF"</span>',
+        note: null
+      },
+      {
+        marker: 'red', label: '结果',
+        code: null,
+        badge: { type: 'fail', text: '全文 3000 行灌入 context' }
+      }
+    ],
+    tokens: {
+      current: { value: 18000, label: '极简版', pct: 100, cls: 'fill-red' },
+      compare: { value: 120, label: '标准版', pct: 0.67, cls: 'fill-green' },
+      verdict: '极简 description 导致模型读了全文：<span class="num-red">18,000 token</span>。标准版只需 <span class="num-green">120 token</span>，差 <strong>150 倍</strong>。'
+    }
+  },
+  {
+    // 标准版
+    desc: '读取指定路径的文件内容并返回。支持 start_line 和 end_line 参数控制读取范围。',
+    note: '<strong>关键改进：</strong>明确提到了 start_line / end_line 参数。模型知道可以只读一部分，遇到"第 40-60 行"时能精确映射。',
+    trace: [
+      {
+        marker: 'blue', label: '模型推理',
+        code: '<span class="code-comment">// description 说了"支持 start_line 和 end_line"</span>\n<span class="code-comment">// 用户要 40-60 行，直接映射参数</span>',
+        note: '模型从 description 中获知参数用途'
+      },
+      {
+        marker: 'green', label: 'tool_use',
+        code: '<span class="code-fn">read_file</span>(\n  <span class="code-key">"path"</span>: <span class="code-str">"src/main.py"</span>,\n  <span class="code-key">"start_line"</span>: <span class="code-num">40</span>,\n  <span class="code-key">"end_line"</span>: <span class="code-num">60</span>\n)',
+        note: '精确指定行范围'
+      },
+      {
+        marker: 'green', label: 'tool_result',
+        code: '<span class="code-str">"40  def main():\\n41      parser = ..."</span>\n<span class="code-comment">// 只返回 21 行</span>',
+        note: null
+      },
+      {
+        marker: 'green', label: '结果',
+        code: null,
+        badge: { type: 'ok', text: '精确读取 21 行' }
+      }
+    ],
+    tokens: {
+      current: { value: 120, label: '标准版', pct: 0.67, cls: 'fill-green' },
+      compare: { value: 18000, label: '极简版', pct: 100, cls: 'fill-red' },
+      verdict: '标准 description 让模型精确读取：<span class="num-green">120 token</span>。同样的任务，极简版消耗 <span class="num-red">18,000 token</span>。Description 多写两句话，省下 <strong>99.3%</strong> 的 context。'
+    }
+  },
+  {
+    // 详细版
+    desc: '读取指定路径的文件内容并返回带行号的格式化文本。对于大文件，建议使用 start_line/end_line 只读需要的部分，避免占用过多 context。二进制文件会被拒绝。',
+    note: '<strong>额外价值：</strong>不只告诉模型参数存在，还解释了<strong>为什么</strong>要用（避免占用 context）。模型会主动在更多场景下使用行范围，即使用户没明确要求。',
+    trace: [
+      {
+        marker: 'blue', label: '模型推理',
+        code: '<span class="code-comment">// description 说"建议使用 start_line/end_line"</span>\n<span class="code-comment">// 还提到了"避免占用过多 context"</span>\n<span class="code-comment">// 我应该主动控制范围，不浪费 token</span>',
+        note: '模型理解了行范围参数的目的，而不仅仅是语法'
+      },
+      {
+        marker: 'green', label: 'tool_use',
+        code: '<span class="code-fn">read_file</span>(\n  <span class="code-key">"path"</span>: <span class="code-str">"src/main.py"</span>,\n  <span class="code-key">"start_line"</span>: <span class="code-num">40</span>,\n  <span class="code-key">"end_line"</span>: <span class="code-num">60</span>\n)',
+        note: '同样精确指定行范围'
+      },
+      {
+        marker: 'green', label: 'tool_result',
+        code: '<span class="code-str">"40  def main():\\n41      parser = ..."</span>\n<span class="code-comment">// 只返回 21 行，带行号格式</span>',
+        note: null
+      },
+      {
+        marker: 'green', label: '结果',
+        code: null,
+        badge: { type: 'ok', text: '精确读取 + 主动节省 context' }
+      }
+    ],
+    tokens: {
+      current: { value: 120, label: '详细版', pct: 0.67, cls: 'fill-blue' },
+      compare: { value: 18000, label: '极简版', pct: 100, cls: 'fill-red' },
+      verdict: '详细版和标准版在这个任务上 token 消耗相同：<span class="num-green">120 token</span>。但详细版的真正价值在别处 -- 当用户说"看看这个文件"（没指定行号）时，模型也会<strong>主动</strong>只读前 100 行而非全文，因为 description 教会了它"避免占用过多 context"。'
+    }
+  }
+];
+
+// ── Render ─────────────────────────────────────────
+let currentVersion = 0;
+let animTimer = null;
+
+function renderSchema(idx) {
+  const v = versions[idx];
+  const descHtml = `<span class="schema-desc">${escHtml(v.desc)}</span>`;
+  document.getElementById('schemaBlock').innerHTML =
+    `<span class="schema-brace">{</span>\n` +
+    `  <span class="schema-key">"name"</span>: <span class="schema-str">"read_file"</span>,\n` +
+    `  <span class="schema-key">"description"</span>: ${descHtml},\n` +
+    `  <span class="schema-key">"parameters"</span>: <span class="schema-brace">{</span>\n` +
+    `    <span class="schema-key">"path"</span>: <span class="schema-str">"string"</span>,\n` +
+    `    <span class="schema-key">"start_line"</span>: <span class="schema-str">"integer"</span>,\n` +
+    `    <span class="schema-key">"end_line"</span>: <span class="schema-str">"integer"</span>\n` +
+    `  <span class="schema-brace">}</span>\n` +
+    `<span class="schema-brace">}</span>`;
+  document.getElementById('descNote').innerHTML = v.note;
+}
+
+function renderTrace(idx) {
+  const v = versions[idx];
+  const area = document.getElementById('traceArea');
+  area.innerHTML = '';
+
+  v.trace.forEach((step, i) => {
+    const el = document.createElement('div');
+    el.className = 'trace-step';
+
+    let inner = `<div class="step-row">`;
+    inner += `<div class="step-marker marker-${step.marker}">${i + 1}</div>`;
+    inner += `<div class="step-content">`;
+    inner += `<div class="step-label">${step.label}</div>`;
+
+    if (step.code) {
+      inner += `<div class="step-code">${step.code}</div>`;
+    }
+    if (step.badge) {
+      const bcls = step.badge.type === 'fail' ? 'badge-fail' : 'badge-ok';
+      inner += `<div class="result-badge ${bcls}">${step.badge.text}</div>`;
+    }
+    if (step.note) {
+      inner += `<div class="step-note">${step.note}</div>`;
+    }
+
+    inner += `</div></div>`;
+    el.innerHTML = inner;
+    area.appendChild(el);
+  });
+
+  // Staggered animation
+  if (animTimer) clearTimeout(animTimer);
+  const steps = area.querySelectorAll('.trace-step');
+  steps.forEach((s, i) => {
+    setTimeout(() => s.classList.add('visible'), 120 + i * 200);
+  });
+}
+
+function renderTokens(idx) {
+  const v = versions[idx];
+  const section = document.getElementById('tokenSection');
+  const t = v.tokens;
+
+  // We normalize bars: the larger one is 100% width
+  const maxVal = Math.max(t.current.value, t.compare.value);
+  const curPct = (t.current.value / maxVal) * 100;
+  const cmpPct = (t.compare.value / maxVal) * 100;
+
+  section.innerHTML = `
+    <div class="token-title">Token 消耗对比</div>
+    <div class="token-row">
+      <span class="token-label">${t.current.label}</span>
+      <div class="token-bar-bg">
+        <div class="token-bar-fill ${t.current.cls}" id="barCurrent" style="width: 0%">
+          ${t.current.value >= 1000 ? '' : ''}
+        </div>
+      </div>
+      <span class="token-val">${t.current.value.toLocaleString()} token</span>
+    </div>
+    <div class="token-row">
+      <span class="token-label">${t.compare.label}</span>
+      <div class="token-bar-bg">
+        <div class="token-bar-fill ${t.compare.cls}" id="barCompare" style="width: 0%">
+        </div>
+      </div>
+      <span class="token-val">${t.compare.value.toLocaleString()} token</span>
+    </div>
+    <div class="token-verdict">${t.verdict}</div>
+  `;
+
+  // Animate bars after a short delay
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const barC = document.getElementById('barCurrent');
+      const barM = document.getElementById('barCompare');
+      if (barC) barC.style.width = Math.max(curPct, 1.5) + '%';
+      if (barM) barM.style.width = Math.max(cmpPct, 1.5) + '%';
+    });
+  });
+}
+
+function switchVersion(idx) {
+  if (idx === currentVersion) return;
+  currentVersion = idx;
+
+  // Update buttons
+  document.querySelectorAll('.version-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.v) === idx);
+  });
+
+  // Reset trace steps to hidden for re-animation
+  document.querySelectorAll('.trace-step').forEach(s => s.classList.remove('visible'));
+
+  // Short delay for the "out" phase, then render new content
+  setTimeout(() => {
+    renderSchema(idx);
+    renderTrace(idx);
+    renderTokens(idx);
+  }, 150);
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Init ──
+renderSchema(0);
+renderTrace(0);
+renderTokens(0);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale CLI 教程</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,'Inter',system-ui,sans-serif;background:#faf9f5;color:#3d382e;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono','SF Mono','Cascadia Code',monospace}
+
+/* ═══ S1: 开幕 ═══ */
+#s1{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;background:#faf9f5;overflow:hidden}
+#s1 .fly-words{position:absolute;inset:0;pointer-events:none;perspective:800px;perspective-origin:50% 50%}
+#s1 .fly-words.interactive{pointer-events:auto}
+
+/* ─── Card-style flying words ─── */
+#s1 .fly-word{
+  position:absolute;left:50%;top:50%;
+  white-space:nowrap;opacity:0;
+  transform:translate(-50%,-50%) translate3d(0,0,-600px) scale(0.2);
+  animation:flyOut var(--dur) var(--delay) ease-out forwards;
+  cursor:default;
+  transition:opacity 0.2s,filter 0.2s,transform 0.15s,box-shadow 0.3s;
+  z-index:1;
+  /* card styling */
+  background:#fff;
+  border:1px solid #e6dfd8;
+  border-radius:10px;
+  padding:6px 14px 6px 26px;
+  box-shadow:0 2px 8px rgba(41,38,31,0.08);
+  display:flex;
+  align-items:center;
+  gap:0;
+  overflow:hidden;
+  max-height:36px;
+}
+#s1 .fly-word .card-dot{
+  position:absolute;left:10px;top:50%;
+  width:4px;height:4px;border-radius:50%;
+  transform:translateY(-50%);
+  flex-shrink:0;
+  transition:top 0.3s;
+}
+#s1 .fly-word .card-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(0.76rem,1.6vw,0.95rem);
+  font-weight:600;
+  color:#29261f;
+  white-space:nowrap;
+  line-height:1.4;
+}
+#s1 .fly-word .card-expand{
+  position:absolute;
+  left:0;right:0;top:100%;
+  padding:0 14px 8px 26px;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.25s;
+}
+#s1 .fly-word .card-divider{
+  height:1px;background:#e6dfd8;margin:4px 0 6px 0;
+}
+#s1 .fly-word .card-desc{
+  font-family:-apple-system,'Inter',sans-serif;
+  font-size:0.72rem;
+  font-weight:400;
+  color:#7d766a;
+  line-height:1.45;
+  white-space:normal;
+  margin-bottom:4px;
+}
+#s1 .fly-word .card-chapter{
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.64rem;
+  color:#b3ac9d;
+  white-space:nowrap;
+}
+
+/* hover expand */
+#s1 .fly-word:hover{
+  opacity:1!important;
+  filter:none!important;
+  transform:translate(-50%,-50%) translate3d(var(--tx),var(--ty),0) scale(1.05)!important;
+  z-index:10;
+  cursor:pointer;
+  max-height:120px;
+  overflow:visible;
+  box-shadow:0 4px 16px rgba(41,38,31,0.14);
+  transition:opacity 0.2s,filter 0.2s,transform 0.15s,box-shadow 0.3s,max-height 0.3s ease;
+}
+#s1 .fly-word:hover .card-expand{
+  opacity:1;
+  pointer-events:auto;
+}
+#s1 .fly-word:hover .card-dot{
+  top:15px;
+}
+
+@keyframes flyOut{
+  0%{opacity:0;transform:translate(-50%,-50%) translate3d(0,0,-600px) scale(0.2)}
+  25%{opacity:0.85}
+  100%{opacity:0.55;transform:translate(-50%,-50%) translate3d(var(--tx),var(--ty),0) scale(1)}
+}
+
+#s1 .question{font-size:clamp(1.6rem,5vw,3.2rem);font-weight:700;text-align:center;color:#29261f;letter-spacing:0.01em;line-height:1.5;max-width:750px;padding:0 2rem;opacity:0}
+#s1 .question.visible{animation:fadeUp 0.8s ease-out forwards}
+#s1 .question .accent{color:#d97757}
+#s1 .cursor-big{display:inline-block;width:3px;height:1.1em;background:#d97757;vertical-align:text-bottom;margin-left:2px;animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+#s1 .scroll-cue{position:absolute;left:50%;bottom:1.7rem;width:150px;height:142px;opacity:0;transform:translateX(-50%) translateY(18px) scale(0.88);transform-origin:50% 100%;transition:opacity 0.45s ease,transform 0.65s cubic-bezier(.2,.9,.25,1.2);pointer-events:none}
+#s1 .scroll-cue.visible{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+#s1 .scroll-cue.departing{opacity:0;transform:translateX(-50%) translateY(42px) scale(0.78);transition-duration:0.38s}
+#s1 .scroll-whale{position:absolute;left:50%;bottom:2.15rem;width:106px;height:auto;transform:translateX(-50%);image-rendering:pixelated;filter:drop-shadow(0 9px 15px rgba(53,112,164,0.18));z-index:2}
+#s1 .whale-glow{position:absolute;left:50%;bottom:2.8rem;width:180px;height:180px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(circle,rgba(100,180,220,0.25) 0%,rgba(100,180,220,0.08) 40%,transparent 70%);opacity:0;transition:opacity 0.6s;animation:none;z-index:1}
+#s1 .scroll-cue.visible .whale-glow{opacity:1;animation:glowPulse 2.5s ease-in-out infinite}
+@keyframes glowPulse{0%,100%{transform:translateX(-50%) scale(1);opacity:0.8}50%{transform:translateX(-50%) scale(1.15);opacity:1}}
+#s1 .whale-sparkles{position:absolute;left:50%;bottom:3rem;width:160px;height:120px;transform:translateX(-50%);pointer-events:none;z-index:1}
+#s1 .sparkle{position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(100,180,220,0.6);opacity:0}
+#s1 .scroll-cue.visible .sparkle{animation:sparkleUp var(--dur) ease-out var(--delay) infinite}
+@keyframes sparkleUp{0%{opacity:0;transform:translateY(0) scale(0.5)}20%{opacity:1;transform:translateY(-15px) scale(1)}100%{opacity:0;transform:translateY(-50px) scale(0.3)}}
+#s1 .scroll-hint{position:absolute;left:50%;bottom:-0.5rem;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;z-index:2}
+#s1 .scroll-chevron{width:18px;height:18px;border-right:2px solid rgba(100,180,220,0.5);border-bottom:2px solid rgba(100,180,220,0.5);transform:rotate(45deg);opacity:0;animation:chevronDrop 2s ease-in-out infinite}
+#s1 .scroll-chevron:nth-child(1){animation-delay:0s}
+#s1 .scroll-chevron:nth-child(2){animation-delay:0.2s}
+#s1 .scroll-chevron:nth-child(3){animation-delay:0.4s}
+@keyframes chevronDrop{0%,40%{opacity:0;transform:rotate(45deg) translateY(-6px)}50%{opacity:0.9}80%,100%{opacity:0;transform:rotate(45deg) translateY(4px)}}
+
+@media(max-width:720px){
+  #s1 .scroll-cue{bottom:1.2rem;height:126px}
+  #s1 .scroll-whale{width:88px}
+  #s1 .fly-word{padding:5px 10px 5px 22px;max-height:32px}
+  #s1 .fly-word .card-label{font-size:0.7rem}
+  #s1 .fly-word .card-dot{left:8px}
+  #s1 .fly-word .card-expand{padding:0 10px 6px 22px}
+}
+@media(prefers-reduced-motion:reduce){
+  #s1 .scroll-cue{transition:none}
+  #s1 .scroll-hint{animation:none}
+}
+
+/* ═══ S2: Viz 轮播（3D 环形） ═══ */
+#s2{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#faf9f5;padding:3rem 1.5rem;position:relative;overflow:hidden}
+.carousel-header{text-align:center;margin-bottom:1.5rem;opacity:0;transform:translateY(20px);transition:opacity 0.6s,transform 0.6s}
+.carousel-header.visible{opacity:1;transform:none}
+.carousel-header h2{font-size:clamp(1.1rem,2.5vw,1.5rem);font-weight:600;color:#29261f;margin-bottom:0.3rem}
+.carousel-header p{font-size:0.8rem;color:#7d766a}
+.carousel{position:relative;width:100%;max-width:1100px;opacity:0;transform:translateY(30px);transition:opacity 0.6s 0.15s,transform 0.6s 0.15s}
+.carousel.visible{opacity:1;transform:none}
+.carousel-scene{perspective:1200px;position:relative;width:100%;height:min(56vh,480px)}
+.carousel-item{position:absolute;left:50%;top:50%;width:62%;max-width:700px;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:#1c1816;box-shadow:0 8px 40px rgba(41,38,31,0.2);transition:transform 0.8s cubic-bezier(0.25,0.1,0.25,1),filter 0.8s ease,opacity 0.8s ease,box-shadow 0.8s ease;will-change:transform,filter,opacity;cursor:pointer}
+.carousel-item.active{cursor:default;box-shadow:0 16px 60px rgba(41,38,31,0.28)}
+.carousel-item iframe{width:200%;height:200%;border:none;transform:scale(0.5);transform-origin:top left;pointer-events:none}
+.carousel-item.active iframe{pointer-events:auto}
+.carousel-info{display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:1.5rem;min-height:1.5rem}
+.carousel-ch{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:#d97757;background:rgba(217,119,87,0.08);padding:0.1rem 0.4rem;border-radius:4px;transition:opacity 0.25s}
+.carousel-name{font-size:0.85rem;color:#3d382e;font-weight:500;transition:opacity 0.25s}
+.carousel-nav{display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:1rem}
+.carousel-dot{width:8px;height:8px;border-radius:50%;background:#d9d3c2;border:none;cursor:pointer;transition:background 0.3s,transform 0.3s;padding:0}
+.carousel-dot.active{background:#d97757;transform:scale(1.3)}
+.carousel-dot:hover:not(.active){background:#b3ac9d}
+@media(max-width:640px){
+  .carousel-item{width:78%;max-width:none}
+  .carousel-scene{height:min(45vh,360px)}
+}
+
+/* ═══ S3: 终端 ═══ */
+#s3{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#faf9f5;padding:3rem 1.5rem;position:relative}
+#s3::before{content:'';position:absolute;top:0;left:0;right:0;height:120px;background:linear-gradient(180deg,#faf9f5,transparent);z-index:1;pointer-events:none}
+.terminal-stage{width:min(100%,1040px);display:flex;justify-content:center;position:relative}
+.window{width:100%;max-width:860px;background:#111110;border-radius:12px;box-shadow:0 12px 50px rgba(41,38,31,0.18),0 2px 10px rgba(41,38,31,0.08);overflow:hidden;max-height:82vh;display:flex;flex-direction:column;opacity:0;transform:translateY(30px);transition:opacity 0.6s,transform 0.6s}
+.window.visible{opacity:1;transform:none}
+.titlebar{background:#1a1816;padding:0.5rem 0.75rem;display:flex;align-items:center;gap:7px;border-bottom:1px solid #2a261f;flex-shrink:0}
+.titlebar .dot{width:10px;height:10px;border-radius:50%}
+.titlebar .dot:nth-child(1){background:#ff5f57}.titlebar .dot:nth-child(2){background:#febc2e}.titlebar .dot:nth-child(3){background:#28c840}
+.titlebar .title{margin-left:auto;margin-right:auto;font-size:0.68rem;color:#5a5448}
+.term-body{flex:1;padding:1.2rem 1.4rem 1.5rem;overflow-y:auto;scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:#2a261f #111110;font-family:'JetBrains Mono',monospace;font-size:0.92rem;line-height:1.8;color:#c8c0b4}
+.term-body::-webkit-scrollbar{width:5px}.term-body::-webkit-scrollbar-thumb{background:#2a261f;border-radius:3px}
+.input-row{display:flex;align-items:center;padding:0.6rem 1.3rem;border-top:1px solid #2a261f;background:#0f0e0c;flex-shrink:0}
+.input-row .prompt{color:#d97757;margin-right:0.5rem;font-family:'JetBrains Mono',monospace;font-size:0.92rem}
+.input-row input{flex:1;min-width:0;background:transparent;border:none;outline:none;font-family:'JetBrains Mono',monospace;font-size:0.92rem;color:#e8e0d4;caret-color:#d97757}
+.input-row input::placeholder{color:#4a4438}
+.summon-btn{border:1px solid #44362f;border-radius:999px;background:#1a1816;color:#b9a99c;font-family:'JetBrains Mono',monospace;font-size:0.68rem;line-height:1;padding:0.48rem 0.65rem;margin-left:0.65rem;cursor:pointer;transition:border-color 0.2s,color 0.2s,background 0.2s;white-space:nowrap}
+.summon-btn:hover,.summon-btn:focus-visible{border-color:#d97757;color:#f2d4c8;background:#251b17;outline:none}
+.whale-companion{position:absolute;right:0;bottom:3.4rem;width:142px;opacity:0;transform:translateY(26px) scale(0.72) rotate(5deg);transform-origin:50% 100%;pointer-events:none;z-index:3;transition:opacity 0.34s ease,transform 0.48s cubic-bezier(.2,.9,.25,1.28);filter:drop-shadow(0 11px 18px rgba(53,112,164,0.2))}
+.whale-companion.summoned{opacity:1;transform:translateY(0) scale(1) rotate(0)}
+.whale-sprite{display:block;width:100%;height:auto;image-rendering:pixelated}
+.whale-note{position:absolute;right:86%;bottom:72%;width:max-content;max-width:190px;padding:0.55rem 0.7rem;border:1px solid #d7d1c7;border-radius:9px;background:#fffefa;color:#595248;font-family:'Noto Serif SC',serif;font-size:0.72rem;line-height:1.45;box-shadow:0 8px 24px rgba(41,38,31,0.09);opacity:0;transform:translateY(7px);transition:opacity 0.24s,transform 0.24s}
+.whale-companion.speaking .whale-note{opacity:1;transform:none}
+
+@media(max-width:720px){
+  .terminal-stage{width:100%}
+  .whale-companion{right:-0.25rem;bottom:3.1rem;width:88px}
+  .whale-note{right:58%;bottom:82%;max-width:150px;font-size:0.64rem}
+  .summon-btn{padding:0.44rem 0.55rem;font-size:0.62rem}
+}
+@media(prefers-reduced-motion:reduce){
+  .whale-companion,.whale-note{transition:none}
+}
+
+/* 终端文本 */
+.line{white-space:pre-wrap;word-break:break-all}
+.prompt-c{color:#d97757}.user-text{color:#e8e0d4;font-weight:500}
+.tool{color:#7ec384}.dim{color:#4a4438}
+.result{color:#7a7468;padding-left:1.5rem;display:block;font-size:0.85rem}
+.fname{color:#7eb8c9}.num{color:#d4a96a}.sub{color:#b4a0d4}
+.cursor-sm{display:inline-block;width:0.55em;height:1.1em;background:#d97757;vertical-align:text-bottom;animation:blink 1s step-end infinite}
+.spinner::after{content:'';display:inline-block;width:3px;height:3px;border-radius:50%;background:#5a5448;margin-left:2px;animation:dots 1.2s steps(3) infinite;box-shadow:6px 0 #5a5448,12px 0 #5a5448}
+@keyframes dots{to{opacity:0.2}}
+.fade-in{animation:fadeIn 0.3s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.gap{height:0.4rem}.gap-lg{height:0.9rem}
+.ch-line{display:block;padding:0.1rem 0.4rem;margin:0.06rem -0.4rem;border-radius:5px;transition:background 0.15s;cursor:pointer;text-decoration:none;color:inherit}
+.ch-line:hover{background:rgba(217,119,87,0.08)}
+.chnum{color:#d97757;font-weight:600}.chdesc{color:#b8b0a4}
+.ch-line:hover .chdesc{color:#e8e0d4}
+
+/* tooltip */
+.tip{position:relative;cursor:help;border-bottom:1px dotted rgba(255,255,255,0.12);transition:border-color 0.2s}
+.tip:hover{border-bottom-color:rgba(217,119,87,0.5)}
+.tip .card{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(4px);opacity:0;pointer-events:none;transition:opacity 0.2s,transform 0.2s;z-index:100;background:#1e1c18;border:1px solid #3a3428;border-radius:8px;padding:0.45rem 0.6rem;width:max-content;max-width:240px;box-shadow:0 6px 20px rgba(0,0,0,0.4);font-family:-apple-system,'Inter',sans-serif;font-size:0.72rem;line-height:1.5;color:#b8b0a4;text-align:left;white-space:normal;word-break:normal}
+.tip:hover .card{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.tip .card::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#3a3428}
+.card .q{color:#d97757;font-weight:500;display:block;margin-bottom:0.1rem}
+.card .ch-link{color:#7eb8c9;font-family:'JetBrains Mono',monospace;font-size:0.66rem}
+
+/* ═══ S4: 开始阅读 ═══ */
+#s4{min-height:40vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#faf9f5;gap:1rem;padding:3rem 1rem}
+#s4 .cta-text{font-size:clamp(0.9rem,2vw,1.1rem);color:#7d766a;text-align:center;opacity:0;transition:opacity 0.6s}
+#s4 .cta-text.visible{opacity:1}
+#s4 .cta-btn{font-family:'JetBrains Mono',monospace;font-size:0.88rem;color:#fff;background:#d97757;border:none;border-radius:8px;padding:0.7rem 2.2rem;text-decoration:none;transition:background 0.2s,transform 0.15s;box-shadow:0 2px 10px rgba(217,119,87,0.3);cursor:pointer;opacity:0;transform:translateY(10px);transition:opacity 0.5s 0.1s,transform 0.5s 0.1s,background 0.2s}
+#s4 .cta-btn.visible{opacity:1;transform:none}
+#s4 .cta-btn:hover{background:#c45f3c;transform:translateY(-1px)}
+#s4 .cta-meta{font-size:0.72rem;color:#b3ac9d}
+</style>
+</head>
+<body>
+
+<!-- S1: 开幕 -->
+<section id="s1">
+  <div class="fly-words" id="fly-words" aria-hidden="true"></div>
+  <div class="question" id="q-text"></div>
+  <div class="scroll-cue" id="scroll-cue" aria-hidden="true">
+    <div class="whale-glow"></div>
+    <div class="whale-sparkles" id="whale-sparkles"></div>
+    <img class="scroll-whale" id="scroll-whale" src="/assets/whale-summon/coding/00.png" alt="">
+    <div class="scroll-hint"><div class="scroll-chevron"></div><div class="scroll-chevron"></div><div class="scroll-chevron"></div></div>
+  </div>
+</section>
+
+<!-- S2: Viz 轮播（3D 环形） -->
+<section id="s2">
+  <div class="carousel-header" id="carousel-header">
+    <h2>答案就在教程里</h2>
+    <p>每一章都有交互式组件带你拆解</p>
+  </div>
+  <div class="carousel" id="carousel">
+    <div class="carousel-scene" id="carousel-scene"></div>
+    <div class="carousel-info">
+      <span class="carousel-ch" id="carousel-ch"></span>
+      <span class="carousel-name" id="carousel-name-text"></span>
+    </div>
+    <div class="carousel-nav" id="carousel-nav"></div>
+  </div>
+</section>
+
+<!-- S3: 终端 -->
+<section id="s3">
+  <div class="terminal-stage">
+    <div class="window" id="window">
+      <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">whale-cli</span></div>
+      <div class="term-body" id="term"></div>
+      <div class="input-row" id="input-row" style="display:none">
+        <span class="prompt">❯</span>
+        <input type="text" id="input" placeholder="输入 /help 看看有什么指令" autocomplete="off" spellcheck="false">
+        <button class="summon-btn" id="summon-btn" type="button" aria-controls="whale-companion" aria-expanded="false">召唤鲸宝</button>
+      </div>
+    </div>
+    <div class="whale-companion" id="whale-companion" role="status" aria-hidden="true">
+      <div class="whale-note" id="whale-note">收到，给你看看能做什么。</div>
+      <img class="whale-sprite" id="whale-sprite" src="/assets/whale-summon/idle/00.png" alt="鲸宝">
+    </div>
+  </div>
+</section>
+
+<!-- S4: CTA -->
+<section id="s4">
+  <div class="cta-text" id="s4-text">入门篇 6 章已上线 · 可运行代码 · 交互组件</div>
+  <a class="cta-btn" id="s4-btn" href="/ch00">从第 0 章开始</a>
+  <div class="cta-meta">开源 · 中文</div>
+</section>
+
+<script>
+const go=u=>(window.parent!==window?window.parent:window).location.href=u;
+const CH=[null,'/ch01','/ch02','/ch03','/ch04','/ch05','/ch06','/ch07','/ch08','/ch09','/ch10','/ch11','/ch12'];
+async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const WHALE_FRAMES={
+  idle:Array.from({length:6},(_,i)=>`/assets/whale-summon/idle/${String(i).padStart(2,'0')}.png`),
+  waving:Array.from({length:4},(_,i)=>`/assets/whale-summon/waving/${String(i).padStart(2,'0')}.png`),
+  coding:Array.from({length:6},(_,i)=>`/assets/whale-summon/coding/${String(i).padStart(2,'0')}.png`),
+};
+const IDLE_DURATIONS=[280,110,110,140,140,320];
+const CODING_DURATIONS=[150,130,130,150,190,210];
+Object.values(WHALE_FRAMES).flat().forEach(src=>{const img=new Image();img.src=src});
+
+/* ═══ Scroll 触发器 ═══ */
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')});
+},{threshold:0.15});
+
+/* ═══ 自动导览 ═══ */
+let userTouched=false;
+function onTouch(){userTouched=true;dismissScrollWhale()}
+window.addEventListener('wheel',onTouch,{once:true,passive:true});
+window.addEventListener('touchstart',onTouch,{once:true,passive:true});
+function autoScroll(el){if(!userTouched)el.scrollIntoView({behavior:'smooth',block:'start'})}
+
+/* ═══ 飞词（卡片版，12 个） ═══ */
+/*
+  Category dot colors:
+    terracotta #d97757 — core loop concepts
+    teal       #0e7c66 — tool concepts
+    blue       #5468c8 — context concepts
+    purple     #8a63c9 — advanced concepts
+*/
+const FLY_WORDS=[
+  {text:'Agent Loop',     dot:'#d97757', desc:'模型调工具、看结果、再调工具的循环',         ch:'Ch01'},
+  {text:'工具调用',        dot:'#d97757', desc:'模型返回 JSON 请求，程序执行对应函数',       ch:'Ch01'},
+  {text:'ReAct',          dot:'#d97757', desc:'想一步、做一步、看一步',                    ch:'Ch01'},
+  {text:'Harness',        dot:'#d97757', desc:'模型外面包的那一层工程代码',                 ch:'贯穿全篇'},
+  {text:'读文件',          dot:'#0e7c66', desc:'Read 工具：行范围、行号、二进制检测',         ch:'Ch03'},
+  {text:'代码修改',        dot:'#0e7c66', desc:'Write 创建文件，Edit 精确替换',             ch:'Ch04'},
+  {text:'搜索与定位',      dot:'#0e7c66', desc:'Glob 找文件名，Grep 找文件内容',            ch:'Ch05'},
+  {text:'任务拆解',        dot:'#0e7c66', desc:'TodoWrite 把复杂任务拆成清单',              ch:'Ch07'},
+  {text:'Context Engineering', dot:'#5468c8', desc:'管理模型每一轮能看到什么',              ch:'贯穿全篇'},
+  {text:'上下文组装',      dot:'#5468c8', desc:'system prompt + 工具 + 历史，每轮重新拼',   ch:'Ch09'},
+  {text:'MCP',            dot:'#8a63c9', desc:'让 Agent 接入外部服务的标准协议',            ch:'进阶篇'},
+  {text:'子 Agent',       dot:'#8a63c9', desc:'主 Agent 派子 Agent 并行工作',              ch:'进阶篇'},
+];
+
+const flyContainer=document.getElementById('fly-words');
+if(!reduceMotion){
+  const golden=Math.PI*(3-Math.sqrt(5));
+  let maxDelay=0;
+  FLY_WORDS.forEach((w,i)=>{
+    const el=document.createElement('div');
+    el.className='fly-word';
+
+    // category dot
+    const dot=document.createElement('span');
+    dot.className='card-dot';
+    dot.style.background=w.dot;
+    el.appendChild(dot);
+
+    // label
+    const label=document.createElement('span');
+    label.className='card-label';
+    label.textContent=w.text;
+    el.appendChild(label);
+
+    // expandable content (positioned absolutely below card)
+    const expand=document.createElement('div');
+    expand.className='card-expand';
+    expand.style.background='#fff';
+    expand.style.borderRadius='0 0 10px 10px';
+    expand.style.borderLeft='1px solid #e6dfd8';
+    expand.style.borderRight='1px solid #e6dfd8';
+    expand.style.borderBottom='1px solid #e6dfd8';
+
+    const divider=document.createElement('div');
+    divider.className='card-divider';
+    expand.appendChild(divider);
+
+    const desc=document.createElement('div');
+    desc.className='card-desc';
+    desc.textContent=w.desc;
+    expand.appendChild(desc);
+
+    const chRef=document.createElement('div');
+    chRef.className='card-chapter';
+    chRef.textContent=w.ch;
+    expand.appendChild(chRef);
+
+    el.appendChild(expand);
+
+    // positioning — larger radius spread for cards
+    const angle=golden*i;
+    const radius=0.48+0.28*Math.sqrt(i/FLY_WORDS.length);
+    const tx=Math.cos(angle)*radius*window.innerWidth*0.48;
+    const ty=Math.sin(angle)*radius*window.innerHeight*0.42;
+    el.style.setProperty('--tx',`${tx.toFixed(0)}px`);
+    el.style.setProperty('--ty',`${ty.toFixed(0)}px`);
+
+    // slower animation
+    const delay=0.4+i*0.18;
+    const dur=2.0+i*0.08;
+    el.style.setProperty('--delay',`${delay}s`);
+    el.style.setProperty('--dur',`${dur}s`);
+    if(delay+dur>maxDelay)maxDelay=delay+dur;
+
+    flyContainer.appendChild(el);
+  });
+  setTimeout(()=>flyContainer.classList.add('interactive'),maxDelay*1000+200);
+}
+
+/* ═══ 水花粒子 ═══ */
+const sparklesEl=document.getElementById('whale-sparkles');
+for(let i=0;i<8;i++){
+  const s=document.createElement('div');
+  s.className='sparkle';
+  s.style.setProperty('--dur',(1.5+i*0.3)+'s');
+  s.style.setProperty('--delay',(i*0.25)+'s');
+  s.style.left=(20+Math.floor(i*17))+'%';
+  s.style.bottom=(5+Math.floor((i%3)*15))+'%';
+  s.style.width=(3+i%2*2)+'px';
+  s.style.height=s.style.width;
+  sparklesEl.appendChild(s);
+}
+
+/* ═══ S1: 打字 ═══ */
+const qEl=document.getElementById('q-text');
+const scrollCue=document.getElementById('scroll-cue');
+const scrollWhale=document.getElementById('scroll-whale');
+let scrollWhaleTimer=null;
+function stopScrollWhale(){if(scrollWhaleTimer){clearTimeout(scrollWhaleTimer);scrollWhaleTimer=null}}
+function startScrollWhaleCoding(){
+  let index=0;
+  const next=()=>{
+    scrollWhale.src=WHALE_FRAMES.coding[index];
+    scrollWhaleTimer=setTimeout(next,reduceMotion?60000:CODING_DURATIONS[index]);
+    index=(index+1)%WHALE_FRAMES.coding.length;
+  };
+  stopScrollWhale();next();
+}
+function dismissScrollWhale(){
+  stopScrollWhale();
+  scrollCue.classList.remove('visible');
+  scrollCue.classList.add('departing');
+  scrollCue.setAttribute('aria-hidden','true');
+}
+async function typeQuestion(){
+  qEl.classList.add('visible');
+  await sleep(400);
+  const lines=[{text:'一条消息进入 Coding Agent 后，',cls:''},{text:'发生了什么？',cls:'accent'}];
+  for(const line of lines){
+    const span=document.createElement('span');
+    if(line.cls)span.className=line.cls;
+    qEl.appendChild(span);
+    for(const ch of line.text){span.textContent+=ch;await sleep(60+Math.random()*25)}
+    await sleep(200);
+  }
+  const cur=document.createElement('span');cur.className='cursor-big';qEl.appendChild(cur);
+  await sleep(1000);cur.style.transition='opacity 0.5s';cur.style.opacity='0';
+  if(!userTouched){
+    scrollCue.classList.add('visible');
+    scrollCue.setAttribute('aria-hidden','false');
+    startScrollWhaleCoding();
+  }
+  await sleep(reduceMotion?1500:3000);
+  if(!userTouched){dismissScrollWhale();await sleep(300)}
+  autoScroll(document.getElementById('s2'));
+}
+typeQuestion();
+const firstSceneObserver=new IntersectionObserver(entries=>{if(!entries[0].isIntersecting)dismissScrollWhale()},{threshold:0.15});
+firstSceneObserver.observe(document.getElementById('s1'));
+
+/* ═══ S2: 3D 环形轮播 ═══ */
+const CAROUSEL_ITEMS=[
+  {ch:'Ch00',name:'一轮完整的工具调用长什么样',src:'/viz/ch00-full-turn.html'},
+  {ch:'Ch01',name:'messages 是怎么膨胀的',src:'/viz/ch01-session-waterfall.html'},
+  {ch:'Ch04',name:'改错了怎么办——自我修正',src:'/viz/ch04-edit-self-correct.html'},
+  {ch:'Ch05',name:'25000 个文件怎么缩到 18 个',src:'/viz/ch05-search-funnel.html'},
+  {ch:'Ch00',name:'51 步调用的时间线',src:'/viz/ch00-gantt-timeline.html'},
+  {ch:'Ch05',name:'暴力搜 vs 精准搜的 token 代价',src:'/viz/ch05-token-battle.html'},
+  {ch:'Ch09',name:'上下文是怎么一层层拼出来的',src:'/viz/ch09-prompt-layers.html'},
+  {ch:'Ch09',name:'哪些 token 在浪费预算',src:'/viz/ch09-context-heatmap.html'},
+];
+
+const scene=document.getElementById('carousel-scene');
+const chLabel=document.getElementById('carousel-ch');
+const nameLabel=document.getElementById('carousel-name-text');
+const navContainer=document.getElementById('carousel-nav');
+const TOTAL=CAROUSEL_ITEMS.length;
+let currentSlide=0;
+let carouselTimer=null;
+let carouselPaused=false;
+
+const cItems=CAROUSEL_ITEMS.map((item,i)=>{
+  const el=document.createElement('div');
+  el.className='carousel-item';
+  el.dataset.index=i;
+  el.dataset.src=item.src;
+  el.addEventListener('click',()=>{
+    const idx=parseInt(el.dataset.index);
+    if(idx!==currentSlide){goToSlide(idx);resetTimer()}
+  });
+  scene.appendChild(el);
+  return el;
+});
+
+CAROUSEL_ITEMS.forEach((_,i)=>{
+  const dot=document.createElement('button');
+  dot.className='carousel-dot'+(i===0?' active':'');
+  dot.addEventListener('click',()=>{goToSlide(i);resetTimer()});
+  navContainer.appendChild(dot);
+});
+
+function loadItem(i){
+  const el=cItems[i];
+  if(el.querySelector('iframe'))return;
+  const iframe=document.createElement('iframe');
+  iframe.src=el.dataset.src;
+  el.appendChild(iframe);
+}
+
+function updateInfo(i){
+  const item=CAROUSEL_ITEMS[i];
+  chLabel.style.opacity='0';nameLabel.style.opacity='0';
+  setTimeout(()=>{
+    chLabel.textContent=item.ch;nameLabel.textContent=item.name;
+    chLabel.style.opacity='1';nameLabel.style.opacity='1';
+  },200);
+}
+
+function updatePositions(){
+  const dots=navContainer.querySelectorAll('.carousel-dot');
+  cItems.forEach((el,i)=>{
+    let offset=i-currentSlide;
+    if(offset>TOTAL/2)offset-=TOTAL;
+    if(offset<-TOTAL/2)offset+=TOTAL;
+    const absOff=Math.abs(offset);
+    if(absOff>2){
+      el.style.transform='translate(-50%,-50%) translateX('+(offset>0?110:-110)+'%) translateZ(-500px) rotateY('+(offset>0?-35:35)+'deg) scale(0.3)';
+      el.style.filter='blur(8px)';el.style.opacity='0';el.style.zIndex='0';
+      el.classList.remove('active');
+    }else{
+      const xPct=offset*48;
+      const z=-absOff*180;
+      const ry=-offset*18;
+      const sc=1-absOff*0.2;
+      const bl=absOff*3.5;
+      const op=1-absOff*0.28;
+      el.style.transform='translate(-50%,-50%) translateX('+xPct+'%) translateZ('+z+'px) rotateY('+ry+'deg) scale('+sc+')';
+      el.style.filter=absOff?'blur('+bl+'px)':'none';
+      el.style.opacity=String(op);
+      el.style.zIndex=String(10-absOff);
+      if(offset===0){
+        el.classList.add('active');
+        loadItem(i);loadItem((i+1)%TOTAL);loadItem((i-1+TOTAL)%TOTAL);
+      }else{el.classList.remove('active')}
+    }
+    dots[i].classList.toggle('active',i===currentSlide);
+  });
+  updateInfo(currentSlide);
+}
+
+function goToSlide(i){if(i===currentSlide)return;currentSlide=i;updatePositions()}
+function nextSlide(){goToSlide((currentSlide+1)%TOTAL)}
+function startCarousel(){if(!carouselTimer)carouselTimer=setInterval(()=>{if(!carouselPaused)nextSlide()},4500)}
+function stopCarousel(){clearInterval(carouselTimer);carouselTimer=null}
+function resetTimer(){stopCarousel();startCarousel()}
+
+const carouselEl=document.getElementById('carousel');
+carouselEl.addEventListener('mouseenter',()=>{carouselPaused=true});
+carouselEl.addEventListener('mouseleave',()=>{carouselPaused=false});
+
+let touchStartX=0;
+scene.addEventListener('touchstart',e=>{touchStartX=e.touches[0].clientX},{passive:true});
+scene.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-touchStartX;
+  if(Math.abs(dx)>50){if(dx<0)nextSlide();else goToSlide((currentSlide-1+TOTAL)%TOTAL);resetTimer()}
+},{passive:true});
+
+loadItem(0);loadItem(1);loadItem(TOTAL-1);
+updatePositions();
+
+let fastSpinDone=false;
+async function fastSpinThenSlow(){
+  if(fastSpinDone)return startCarousel();
+  fastSpinDone=true;
+  for(let i=0;i<TOTAL;i++){
+    await new Promise(r=>setTimeout(r,280));
+    nextSlide();
+  }
+  startCarousel();
+}
+fastSpinThenSlow();
+
+const carouselObs=new IntersectionObserver(entries=>{
+  if(entries[0].isIntersecting){if(fastSpinDone)startCarousel();else fastSpinThenSlow()}else{stopCarousel()}
+},{threshold:0.1});
+carouselObs.observe(carouselEl);
+observer.observe(document.getElementById('carousel-header'));
+observer.observe(carouselEl);
+
+/* ═══ S3: 终端 ═══ */
+const term=document.getElementById('term');
+const inputRow=document.getElementById('input-row');
+const inputEl=document.getElementById('input');
+const summonBtn=document.getElementById('summon-btn');
+const whaleCompanion=document.getElementById('whale-companion');
+const whaleSprite=document.getElementById('whale-sprite');
+const whaleNote=document.getElementById('whale-note');
+let whaleTimer=null;
+let whaleSpeechTimer=null;
+function T(text,tip){return`<span class="tip">${text}<span class="card">${tip}</span></span>`}
+function scroll2(){term.scrollTop=term.scrollHeight}
+function append(html,cls){const d=document.createElement('div');if(cls)d.className=cls;d.innerHTML=html;term.appendChild(d);scroll2();return d}
+
+function stopWhaleAnimation(){if(whaleTimer){clearTimeout(whaleTimer);whaleTimer=null}}
+function playWhaleFrames(state,durations,onDone){
+  stopWhaleAnimation();
+  const frames=WHALE_FRAMES[state];
+  if(reduceMotion){whaleSprite.src=frames[state==='waving'?1:0];return}
+  let index=0;
+  const next=()=>{
+    whaleSprite.src=frames[index];
+    const delay=Array.isArray(durations)?durations[index]:durations;
+    index+=1;
+    if(index<frames.length)whaleTimer=setTimeout(next,delay);
+    else if(onDone)whaleTimer=setTimeout(onDone,delay);
+  };
+  next();
+}
+function startWhaleIdle(){
+  let index=0;
+  const next=()=>{
+    whaleSprite.src=WHALE_FRAMES.idle[index];
+    whaleTimer=setTimeout(next,reduceMotion?60000:IDLE_DURATIONS[index]);
+    index=(index+1)%WHALE_FRAMES.idle.length;
+  };
+  stopWhaleAnimation();next();
+}
+function summonWhale(message='收到，给你看看能做什么。'){
+  whaleNote.textContent=message;
+  whaleCompanion.classList.add('summoned','speaking');
+  whaleCompanion.setAttribute('aria-hidden','false');
+  summonBtn.setAttribute('aria-expanded','true');
+  clearTimeout(whaleSpeechTimer);
+  whaleSpeechTimer=setTimeout(()=>whaleCompanion.classList.remove('speaking'),3600);
+  playWhaleFrames('waving',150,startWhaleIdle);
+}
+function resetWhale(){
+  stopWhaleAnimation();clearTimeout(whaleSpeechTimer);
+  whaleCompanion.classList.remove('summoned','speaking');
+  whaleCompanion.setAttribute('aria-hidden','true');
+  summonBtn.setAttribute('aria-expanded','false');
+  whaleSprite.src=WHALE_FRAMES.idle[0];
+}
+
+const SCRIPT=[
+  {type:'type',text:'我能在 Whale CLI 教程学到什么',delay:38},
+  {type:'pause',ms:400},
+  {type:'tool',html:`${T('<span class="tool">⏺ read_file</span>','<span class="q">模型怎么读文件？</span>带行号、行范围、二进制检测。<br><span class="ch-link">→ Ch03</span>')}(${T('<span class="fname">"docs/ch00.md"</span>','模型自己从 schema 里知道要传 path。')}, ${T('start=<span class="num">1</span>, end=<span class="num">12</span>','<span class="q">为什么限制行范围？</span>3000 行全读，一次占 context 的 9%。')})`,loadMs:400},
+  {type:'result',lines:['⎿ # 第 0 章 · 开篇','  一条消息进入 Coding Agent 后，到底发生了什么？'],lineDelay:70},
+  {type:'gap'},
+  {type:'tool',html:`${T('<span class="tool">⏺ grep</span>','<span class="q">怎么在几万个文件里找到要改的？</span><br><span class="ch-link">→ Ch05</span>')}(${T('<span class="fname">"@tool|def read_file"</span>','模型需要搜一类模式，所以要支持正则。')}, path=<span class="fname">"code/"</span>)`,loadMs:300},
+  {type:'result',lines:['⎿ <span class="num">42</span> matches across <span class="num">11</span> chapters','  code/chapter-01/main.py: while True:  # agent loop','  ...'],lineDelay:50},
+  {type:'gap'},
+  {type:'tool',html:`${T('<span class="tool">⏺ bash</span>','<span class="q">模型能跑任意 shell 命令？</span>能。所以要截断、设超时、拦危险命令。<br><span class="ch-link">→ Ch06</span>')}(<span class="fname">"wc -l code/chapter-*/tools/*.py | tail -1"</span>)`,loadMs:250},
+  {type:'result',lines:['⎿ <span class="num">1847</span> total'],lineDelay:0},
+  {type:'gap'},
+  {type:'tool',html:`${T('<span class="sub">⏺ Agent</span>','<span class="q">agent 里还能套 agent？</span><br><span class="ch-link">→ 进阶篇</span>')}(<span class="fname">"分析教程章节结构"</span>)`,loadMs:500},
+  {type:'result',lines:['⎿ 入门篇 6 章已上线，逐章加工具，每章配代码和交互组件。'],lineDelay:0},
+  {type:'gap-lg'},
+  {type:'answer',lines:[
+    {html:'<span style="color:#5a5448">─── 已上线 ───</span>'},
+    {html:'<span class="chnum">Ch00</span>  <span class="chdesc">开篇</span>',ch:0},
+    {html:'<span class="chnum">Ch01</span>  <span class="chdesc">最小 Agent Loop</span>',ch:1},
+    {html:'<span class="chnum">Ch02</span>  <span class="chdesc">工具的统一管理</span>',ch:2},
+    {html:'<span class="chnum">Ch03</span>  <span class="chdesc">读文件：Read</span>',ch:3},
+    {html:'<span class="chnum">Ch04</span>  <span class="chdesc">写文件：Write 与 Edit</span>',ch:4},
+    {html:'<span class="chnum">Ch05</span>  <span class="chdesc">搜文件：Glob 与 Grep</span>',ch:5},
+    {html:'<span style="color:#5a5448">─── 即将上线 ───</span>'},
+    {html:'<span class="chnum" style="opacity:0.45">Ch06</span>  <span class="chdesc" style="opacity:0.45">运行与验证：Bash</span>'},
+    {html:'<span class="chnum" style="opacity:0.45">Ch07</span>  <span class="chdesc" style="opacity:0.45">任务拆解：TodoWrite</span>'},
+    {html:'<span class="chnum" style="opacity:0.45">Ch08</span>  <span class="chdesc" style="opacity:0.45">项目规则与环境感知</span>'},
+    {html:'<span class="chnum" style="opacity:0.45">Ch09</span>  <span class="chdesc" style="opacity:0.45">上下文组装</span>'},
+    {html:'<span class="chnum" style="opacity:0.45">Ch10</span>  <span class="chdesc" style="opacity:0.45">会话持久化</span>'},
+    {html:'<span class="chnum" style="opacity:0.45">Ch11</span>  <span class="chdesc" style="opacity:0.45">上下文压缩</span>'},
+    {html:'<span class="chnum" style="opacity:0.45">Ch12</span>  <span class="chdesc" style="opacity:0.45">操作审批</span>'},
+  ],lineDelay:80},
+  {type:'gap-lg'},
+  {type:'final'},
+];
+
+let termPlayed=false;
+async function runTerm(){
+  if(termPlayed)return;termPlayed=true;term.innerHTML='';
+  for(const step of SCRIPT){
+    switch(step.type){
+      case'type':{append('<span class="prompt-c">❯</span> <span class="user-text" id="typing"></span>','line');const el=document.getElementById('typing');for(let i=0;i<step.text.length;i++){el.textContent+=step.text[i];scroll2();await sleep(step.delay+Math.random()*20)}el.removeAttribute('id');break}
+      case'pause':await sleep(step.ms);break;
+      case'tool':{append(step.html,'line fade-in');const sp=append('<span class="spinner"></span>','result');scroll2();await sleep(step.loadMs);sp.remove();break}
+      case'result':{for(const l of step.lines){append(l,'result fade-in');if(step.lineDelay)await sleep(step.lineDelay)}await sleep(200);break}
+      case'answer':{for(const item of step.lines){if(item.ch){const a=document.createElement('a');a.className='ch-line fade-in';a.innerHTML=item.html;a.href=CH[item.ch];a.onclick=e=>{e.preventDefault();go(CH[item.ch])};term.appendChild(a)}else append(item.html,'line fade-in');scroll2();await sleep(step.lineDelay)}break}
+      case'gap':append('','gap');break;
+      case'gap-lg':append('','gap-lg');break;
+      case'final':{
+        append('<span class="dim" style="color:#5a5448">输入 <span style="color:#d97757">/help</span> 试试</span>','line fade-in');
+        inputRow.style.display='flex';inputEl.focus();
+        break}
+    }
+  }
+}
+
+const termObs=new IntersectionObserver(entries=>{if(entries[0].isIntersecting)runTerm()},{threshold:0.25});
+termObs.observe(document.getElementById('window'));
+observer.observe(document.getElementById('window'));
+
+const COMMANDS={
+  '/help':()=>['<span style="color:#5a5448">可用指令：</span>','','  <span style="color:#d97757">/chapters</span>  <span style="color:#8a8578">查看全部章节</span>','  <span style="color:#d97757">/tools</span>     <span style="color:#8a8578">入门篇实现的工具</span>','  <span style="color:#d97757">/demo</span>      <span style="color:#8a8578">重播演示</span>','  <span style="color:#d97757">/clear</span>     <span style="color:#8a8578">清空终端</span>','  <span style="color:#d97757">/start</span>     <span style="color:#8a8578">开始阅读</span>','  <span style="color:#d97757">/ch01</span> ~ <span style="color:#d97757">/ch12</span>  <span style="color:#8a8578">跳转章节</span>'],
+  '/chapters':()=>SCRIPT.find(s=>s.type==='answer').lines.map(i=>i.ch?`<a class="ch-line" href="${CH[i.ch]}" onclick="event.preventDefault();go('${CH[i.ch]}')">${i.html}</a>`:i.html),
+  '/tools':()=>['<span style="color:#5a5448">入门篇实现的工具：</span>','','  <span class="tool">read_file</span>   读文件','  <span class="tool">edit_file</span>   局部替换','  <span class="tool">write_file</span>  创建/覆盖文件','  <span class="tool">glob</span>        列文件路径','  <span class="tool">grep</span>        搜索文件内容','  <span class="tool">bash</span>        执行命令','  <span class="tool">todo_write</span>  任务管理'],
+  '/demo':()=>'__replay__','/clear':()=>'__clear__','/start':()=>{go('/ch00');return['跳转中...']},
+};
+for(let i=0;i<=12;i++)COMMANDS[`/ch${String(i).padStart(2,'0')}`]=()=>{go(CH[i]||'/ch00');return['跳转中...']};
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function handleInput(text){
+  text=text.trim();if(!text)return;
+  append(`<span class="prompt-c">❯</span> <span class="user-text">${escHtml(text)}</span>`,'line');append('','gap');
+  const cmd=text.toLowerCase();
+  if(COMMANDS[cmd]){
+    if(cmd==='/help')summonWhale(whaleCompanion.classList.contains('summoned')?'我还在，继续问吧。':'收到，给你看看能做什么。');
+    const r=COMMANDS[cmd]();
+    if(r==='__replay__'){inputRow.style.display='none';resetWhale();termPlayed=false;runTerm();return}
+    if(r==='__clear__'){term.innerHTML='';return}
+    if(Array.isArray(r))r.forEach(l=>{if(l.startsWith('<a ')){const d=document.createElement('div');d.innerHTML=l;term.appendChild(d.firstChild)}else append(l,'line fade-in')});
+  }else if(text.startsWith('/')){append(`<span style="color:#5a5448">未知指令。输入 <span style="color:#d97757">/help</span> 查看可用指令。</span>`,'line fade-in');
+  }else{append('<span style="color:#5a5448">输入 <span style="color:#d97757">/help</span> 查看可用指令，或 <span style="color:#d97757">/start</span> 开始阅读。</span>','line fade-in')}
+  append('','gap');scroll2();
+}
+inputEl.addEventListener('keydown',e=>{if(e.key==='Enter'){const t=inputEl.value;inputEl.value='';handleInput(t)}});
+summonBtn.addEventListener('click',()=>handleInput('/help'));
+
+/* ═══ S4 ═══ */
+observer.observe(document.getElementById('s4-text'));
+observer.observe(document.getElementById('s4-btn'));
+document.getElementById('s4-btn').addEventListener('click',e=>{e.preventDefault();go('/ch00')});
+</script>
+</body>
+</html>

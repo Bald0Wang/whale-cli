@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edit 定位 · 数第几个 vs 抄内容</title>
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f4f2ea; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e8e4d8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9; --amber:#c98a2a;
+  --syn-comment:#8a9b78; --syn-kw:#9d4eb8; --syn-def:#2563a8; --syn-str:#b35c2a; --syn-plain:#4a463c;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:-apple-system,'Inter',system-ui,sans-serif;
+  background:radial-gradient(1100px 700px at 25% -8%, #fefdf9 0%, var(--bg0) 60%);
+  color:var(--text); min-height:100vh; padding:2.2rem 1rem 3rem;
+}
+.wrap { max-width:920px; margin:0 auto; }
+h1 { font-family:Georgia,'Songti SC','Times New Roman',serif; font-size:1.4rem; font-weight:600; color:var(--ink); text-align:center; }
+.subtitle { text-align:center; font-size:0.82rem; color:var(--text2); margin:0.5rem 0 1.5rem; }
+.subtitle b { color:var(--accent); font-weight:600; }
+
+/* 任务卡 */
+.task {
+  display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;
+  background:var(--card); border:1px solid var(--border); border-radius:12px;
+  padding:0.7rem 1.05rem; margin-bottom:1.1rem; font-size:0.83rem; box-shadow:var(--shadow-sm);
+}
+.task .pin { color:var(--teal); font-size:0.95rem; }
+.task b { color:var(--ink); }
+.task code { font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.77rem; color:var(--teal); background:rgba(14,124,102,0.08); padding:0.12rem 0.4rem; border-radius:5px; }
+
+.layout { display:flex; gap:1rem; align-items:flex-start; }
+@media (max-width:760px){ .layout{ flex-direction:column; } }
+
+/* 文件卡 */
+.filecard { flex:1; min-width:0; background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-md); }
+.filebar { display:flex; align-items:center; gap:5px; padding:0.55rem 0.8rem; background:var(--card2); border-bottom:1px solid var(--border); }
+.filebar i { width:9px; height:9px; border-radius:50%; }
+.filebar i:nth-child(1){background:#f3aba2}.filebar i:nth-child(2){background:#f3d9a2}.filebar i:nth-child(3){background:#b5d9b2}
+.filebar span { margin-left:0.4rem; font-family:'JetBrains Mono',monospace; font-size:0.69rem; color:var(--text2); }
+.code { padding:0.5rem 0; font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.8rem; }
+.row { display:flex; align-items:stretch; position:relative; transition:background .25s; min-height:1.62rem; }
+.row .gut { width:2.9rem; flex-shrink:0; text-align:right; padding-right:0.7rem; color:var(--text3); user-select:none; position:relative; }
+.row .ln { line-height:1.62rem; }
+.row .src { flex:1; white-space:pre; line-height:1.62rem; padding-right:0.6rem; color:var(--syn-plain); }
+.row.blank .src { min-height:1.62rem; }
+/* 语法微高亮 */
+.k { color:var(--syn-kw); } .d { color:var(--syn-def); } .s { color:var(--syn-str); } .n { color:var(--teal); }
+.tgt { color:var(--syn-plain); border-radius:3px; padding:0 1px; }
+
+/* 内容命中态（绿框块） */
+.row.hit .src .tgt { background:rgba(46,125,79,0.14); }
+.block-top { box-shadow: inset 0 2px 0 var(--green); }
+.block-bot { box-shadow: inset 0 -2px 0 var(--green); }
+.block-mid, .block-top, .block-bot { background:rgba(46,125,79,0.07); }
+.block-top.block-bot { box-shadow: inset 0 2px 0 var(--green), inset 0 -2px 0 var(--green); }
+.row.blockedge .src { border-left:2px solid var(--green); }
+/* 抄内容 唯一/歧义 */
+.row.hitok { background:rgba(46,125,79,0.07); }
+.amb { background:rgba(201,138,42,0.10) !important; }
+.amb .src { border-left:2px solid var(--amber); }
+
+/* index 环 */
+.ring { position:absolute; left:0.5rem; top:50%; transform:translateY(-50%); width:1.05rem; height:1.05rem; border-radius:50%; border:2px solid var(--accent); box-shadow:0 0 0 3px rgba(217,119,87,0.12); transition:opacity .2s; }
+.row.idxrow { background:rgba(217,119,87,0.06); }
+
+/* 目标标记 */
+.goalmark { position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); font-size:0.8rem; }
+.row.goalrow .src { text-decoration:underline dashed rgba(14,124,102,0.5); text-underline-offset:3px; }
+
+/* 控制面板 */
+.panel { width:322px; flex-shrink:0; display:flex; flex-direction:column; gap:0.8rem; }
+@media (max-width:760px){ .panel{ width:100%; } }
+.ctl { background:var(--card); border:1px solid var(--border); border-radius:13px; padding:0.85rem 0.95rem; box-shadow:var(--shadow-sm); }
+.ctl h3 { font-size:0.8rem; color:var(--ink); display:flex; align-items:center; gap:0.4rem; margin-bottom:0.15rem; }
+.ctl h3 .swatch { width:0.85rem; height:0.85rem; border-radius:50%; flex-shrink:0; }
+.ctl .lead { font-size:0.71rem; color:var(--text2); line-height:1.5; margin-bottom:0.7rem; }
+.ctl .lead code { font-family:'JetBrains Mono',monospace; font-size:0.68rem; background:var(--bg1); padding:0.05rem 0.3rem; border-radius:4px; color:var(--text); }
+
+/* stepper */
+.stepper { display:flex; gap:0.4rem; margin-bottom:0.6rem; }
+.stepper button { flex:1; font-family:'JetBrains Mono',monospace; font-size:0.85rem; padding:0.35rem 0; border-radius:8px; border:1px solid var(--border2); background:var(--card2); color:var(--text2); cursor:pointer; transition:all .15s; }
+.stepper button:hover { border-color:var(--accent); }
+.stepper button.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; box-shadow:0 2px 8px -2px rgba(217,119,87,0.5); }
+
+/* slider */
+.sld { width:100%; margin:0.3rem 0 0.55rem; -webkit-appearance:none; appearance:none; height:5px; border-radius:3px; background:linear-gradient(90deg,var(--green),#9ed0b3); outline:none; }
+.sld::-webkit-slider-thumb { -webkit-appearance:none; width:17px; height:17px; border-radius:50%; background:#fff; border:2px solid var(--green); cursor:pointer; box-shadow:var(--shadow-sm); }
+.sld::-moz-range-thumb { width:17px; height:17px; border-radius:50%; background:#fff; border:2px solid var(--green); cursor:pointer; }
+.sldlab { display:flex; justify-content:space-between; font-size:0.66rem; color:var(--text3); font-family:'JetBrains Mono',monospace; }
+
+/* verdict */
+.verdict { font-size:0.73rem; line-height:1.55; padding:0.5rem 0.6rem; border-radius:8px; font-family:'JetBrains Mono',monospace; }
+.verdict.ok { background:rgba(46,125,79,0.09); color:var(--green); }
+.verdict.bad { background:rgba(194,64,42,0.08); color:var(--red); }
+.verdict.warn { background:rgba(201,138,42,0.10); color:var(--amber); }
+.verdict b { font-weight:700; }
+
+/* mutation toggle */
+.mut { background:linear-gradient(180deg,#fff,#fbf7f2); border:1px solid var(--border2); border-radius:13px; padding:0.8rem 0.95rem; box-shadow:var(--shadow-sm); }
+.mut .row2 { display:flex; align-items:center; justify-content:space-between; gap:0.6rem; }
+.mut .mtitle { font-size:0.78rem; color:var(--ink); }
+.mut .mdesc { font-size:0.68rem; color:var(--text2); margin-top:0.25rem; line-height:1.45; }
+.switch { position:relative; width:44px; height:24px; flex-shrink:0; cursor:pointer; }
+.switch input { opacity:0; width:0; height:0; }
+.slider2 { position:absolute; inset:0; background:var(--border2); border-radius:24px; transition:.25s; }
+.slider2:before { content:''; position:absolute; height:18px; width:18px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.25s; box-shadow:var(--shadow-sm); }
+.switch input:checked + .slider2 { background:var(--accent); }
+.switch input:checked + .slider2:before { transform:translateX(20px); }
+
+/* 底部结语 */
+.takeaway { margin-top:1.2rem; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:10px; padding:0.8rem 1.05rem; font-size:0.8rem; line-height:1.6; color:var(--text); box-shadow:var(--shadow-sm); }
+.takeaway b { color:var(--ink); }
+.takeaway .hl-a { color:var(--accent-deep); font-weight:600; }
+.takeaway .hl-g { color:var(--green); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>两种指法：数第几个 · 还是 · 抄一段内容</h1>
+  <div class="subtitle">同一个改动，同一个模型。它该<b>产出一个序号</b>，还是<b>照抄一段文本</b>？拨一拨，再点“文件变了”看谁扛得住</div>
+
+  <div class="task">
+    <span class="pin">◎</span>
+    <b>任务</b>：把 <code>transform</code> 函数里的 <code>return result</code> 改掉 —— 注意，<code>return result</code> 在文件里不止一处。
+  </div>
+
+  <div class="layout">
+    <div class="filecard">
+      <div class="filebar"><i></i><i></i><i></i><span id="fname">utils.py</span></div>
+      <div class="code" id="code"></div>
+    </div>
+
+    <div class="panel">
+      <div class="ctl">
+        <h3><span class="swatch" style="background:var(--accent)"></span>指法一：数第几个</h3>
+        <div class="lead">让模型报 <code>occurrence=N</code>。要报对，它得先把文件从头扫一遍、数出这是第几个。</div>
+        <div class="stepper" id="stepper">
+          <button data-n="1">第 1 个</button>
+          <button data-n="2" class="on">第 2 个</button>
+          <button data-n="3">第 3 个</button>
+        </div>
+        <div class="verdict" id="v-idx">—</div>
+      </div>
+
+      <div class="ctl">
+        <h3><span class="swatch" style="background:var(--green)"></span>指法二：抄一段内容</h3>
+        <div class="lead">模型多抄几行上下文当 <code>old_string</code>，直到这段文本在全文里只出现一次。</div>
+        <input type="range" min="1" max="3" value="1" class="sld" id="slider">
+        <div class="sldlab"><span>只抄 return 那行</span><span>连抄 3 行</span></div>
+        <div class="verdict" id="v-ctn" style="margin-top:0.55rem;">—</div>
+      </div>
+
+      <div class="mut">
+        <div class="row2">
+          <div>
+            <div class="mtitle">🔀 文件变了</div>
+            <div class="mdesc">在文件开头插入一个新函数（它也有一行 <code>return result</code>）</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="mutate"><span class="slider2"></span></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="takeaway" id="takeaway"></div>
+</div>
+
+<script>
+// ── 两种文件状态：纯文本行数组，一切命中都从这里实算 ──
+const FILE_BASE = [
+  { t:"def process(data):", tk:[["def ","k"],["process","d"],["(data):","p"]] },
+  { t:"    result = transform(data)", tk:[["    result = ","p"],["transform","d"],["(data)","p"]] },
+  { t:"    return result", tk:[["    ","p"],["return ","k"],["result","p"]], ret:true },
+  { t:"", blank:true },
+  { t:"def transform(data):", tk:[["def ","k"],["transform","d"],["(data):","p"]] },
+  { t:"    result = data.upper()", tk:[["    result = data.","p"],["upper","d"],["()","p"]], key:true },
+  { t:"    return result", tk:[["    ","p"],["return ","k"],["result","p"]], ret:true, goal:true },
+];
+const NEWFN = [
+  { t:"def normalize(data):", tk:[["def ","k"],["normalize","d"],["(data):","p"]] },
+  { t:"    result = data.strip()", tk:[["    result = data.","p"],["strip","d"],["()","p"]] },
+  { t:"    return result", tk:[["    ","p"],["return ","k"],["result","p"]], ret:true },
+  { t:"", blank:true },
+];
+
+const TARGET = "return result";            // 指法一数的东西 / 指法二最内层
+const state = { n:2, ctx:1, mutated:false };
+
+function curFile(){ return state.mutated ? NEWFN.concat(FILE_BASE) : FILE_BASE.slice(); }
+
+// 找出所有 return result 所在的行 index
+function retRows(file){ return file.map((r,i)=>r.ret?i:-1).filter(i=>i>=0); }
+// 目标行（transform 里的 return，靠 goal 标记跟着文件走 —— 内容定位，不是序号）
+function goalRow(file){ return file.findIndex(r=>r.goal); }
+
+// 指法二：从目标 return 行往上取 ctx 行，拼成 old_string，数它在全文出现几次
+function contentBlock(file){
+  const g = goalRow(file);
+  const start = g - (state.ctx - 1);
+  const lines = [];
+  for(let i=start;i<=g;i++) lines.push(file[i].t);
+  const block = lines.join("\n");
+  // 数 block 在全文出现几次（按行滑窗，实算）
+  const allText = file.map(r=>r.t);
+  let count=0; const hitStarts=[];
+  for(let i=0;i+lines.length<=allText.length;i++){
+    let ok=true;
+    for(let j=0;j<lines.length;j++){ if(allText[i+j]!==lines[j]){ok=false;break;} }
+    if(ok){ count++; hitStarts.push(i); }
+  }
+  return { start, end:g, count, hitStarts, span:lines.length };
+}
+
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function renderTokens(r){
+  if(r.blank) return "";
+  return r.tk.map(([txt,cls])=>{
+    // 把 "return result" 里的 result 也算 target 高亮交给 hit 态处理，这里只上语法色
+    return `<span class="${cls}">${esc(txt)}</span>`;
+  }).join("");
+}
+
+function render(){
+  const file = curFile();
+  const rets = retRows(file);
+  const idxTarget = rets[state.n-1];           // 第 N 个 return（可能 undefined）
+  const goal = goalRow(file);
+  const blk = contentBlock(file);
+  const codeEl = document.getElementById("code");
+
+  codeEl.innerHTML = file.map((r,i)=>{
+    const cls = ["row"];
+    if(r.blank) cls.push("blank");
+    let gutExtra = "", srcExtra="";
+    // 指法一：红环 + 行底色
+    if(i===idxTarget){ cls.push("idxrow"); gutExtra = `<span class="ring"></span>`; }
+    // 指法二：绿框块（唯一=绿，歧义=橙）
+    const inBlock = i>=blk.start && i<=blk.end;
+    let blockAmb=false;
+    // 若歧义，其它命中处标橙
+    if(blk.count>1){
+      for(const hs of blk.hitStarts){ if(hs!==blk.start && i>=hs && i<hs+blk.span){ blockAmb=true; } }
+    }
+    if(inBlock){
+      cls.push("blockedge");
+      if(blk.count===1) cls.push("hitok"); else cls.push("amb");
+    } else if(blockAmb){ cls.push("amb"); }
+    // 目标行
+    if(i===goal){ cls.push("goalrow"); srcExtra = `<span class="goalmark">🎯</span>`; }
+
+    const gut = i+1;
+    return `<div class="${cls.join(" ")}">
+      <div class="gut">${gutExtra}<span class="ln">${gut}</span></div>
+      <div class="src">${renderTokens(r)}${srcExtra}</div>
+    </div>`;
+  }).join("");
+
+  // ── verdict：指法一 ──
+  const vIdx = document.getElementById("v-idx");
+  if(idxTarget===undefined){
+    vIdx.className="verdict warn"; vIdx.innerHTML = `第 ${state.n} 个 return 不存在（全文只有 ${rets.length} 个）`;
+  } else {
+    const hitGoal = idxTarget===goal;
+    vIdx.className = "verdict " + (hitGoal?"ok":"bad");
+    const fnName = funcOf(file, idxTarget);
+    vIdx.innerHTML = hitGoal
+      ? `occurrence=${state.n} → 命中第 ${idxTarget+1} 行（<b>${fnName}</b>）→ ✓ 正好是目标`
+      : `occurrence=${state.n} → 命中第 ${idxTarget+1} 行（<b>${fnName}</b>）→ ✗ 目标在 transform，改错了`;
+  }
+
+  // ── verdict：指法二 ──
+  const vCtn = document.getElementById("v-ctn");
+  if(blk.count>1){
+    vCtn.className="verdict warn";
+    vCtn.innerHTML = `old_string 命中 <b>${blk.count}</b> 处 → 不唯一，工具会拒绝，让你再多抄一行`;
+  } else {
+    const fnName = funcOf(file, blk.end);
+    const hitGoal = blk.end===goal;
+    vCtn.className="verdict " + (hitGoal?"ok":"bad");
+    vCtn.innerHTML = `old_string 命中 <b>1</b> 处 → 第 ${blk.end+1} 行（<b>${fnName}</b>）→ ${hitGoal?"✓ 锁在目标上":"✗ 锁错了"}`;
+  }
+
+  updateTakeaway(file, idxTarget, goal, blk);
+}
+
+// 判断某行属于哪个函数（往上找最近的 def）
+function funcOf(file, row){
+  for(let i=row;i>=0;i--){
+    const m = file[i].t.match(/^def (\w+)/);
+    if(m) return m[1];
+  }
+  return "?";
+}
+
+function updateTakeaway(file, idxTarget, goal, blk){
+  const el = document.getElementById("takeaway");
+  const idxOk = idxTarget===goal;
+  const ctnOk = blk.count===1 && blk.end===goal;
+  if(!state.mutated){
+    if(blk.count>1){
+      el.innerHTML = `<b>此刻：</b>指法二还没抄够——<span class="hl-g">old_string 撞了 ${blk.count} 处</span>，工具直接拒绝。它不替你猜，逼你把范围说清楚。往右拉滑块，看它收敛到唯一。`;
+    } else {
+      el.innerHTML = `<b>此刻两种指法都命中了目标。</b> 但代价不同：<span class="hl-a">「第 2 个」要模型先数数</span>（数数是它最不稳的活）；<span class="hl-g">「抄一段」只要它照抄看过的文本</span>（这是它最擅长的）。现在按一下右下角<b>「文件变了」</b>——看谁还站得住。`;
+    }
+  } else {
+    el.innerHTML = `<b>文件开头插了个新函数，多出一个 return result。</b> ` +
+      `<span class="hl-a">「第 2 个」现在指向了 ${idxOk?"目标":funcOf(file,idxTarget)+" 的 return —— 漂走了"}</span>：序号是相对位置，文件一动就错位。` +
+      ` 而<span class="hl-g">「抄内容」还锁在 transform 的 return 上</span>：内容没变，锚点就不会漂。<br>` +
+      `<b>这就是为什么各家都把定位交给「内容」而不是「序号」：模型只需要负责它扛得住的那件事——把看过的一段文本照抄出来。</b>`;
+  }
+}
+
+// ── 事件 ──
+document.querySelectorAll("#stepper button").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    state.n = +b.dataset.n;
+    document.querySelectorAll("#stepper button").forEach(x=>x.classList.toggle("on", x===b));
+    render();
+  });
+});
+document.getElementById("slider").addEventListener("input", e=>{ state.ctx=+e.target.value; render(); });
+document.getElementById("mutate").addEventListener("change", e=>{
+  state.mutated = e.target.checked;
+  document.getElementById("fname").textContent = state.mutated ? "utils.py  (改动后)" : "utils.py";
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edit 修正挑战</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #faf9f5;
+  --surface: #fff;
+  --border: #e8e5e0;
+  --text: #2c2c2c;
+  --text2: #888;
+  --accent: #d97757;
+  --teal: #0e7c66;
+  --green: #2e7d4f;
+  --red: #c2402a;
+  --red-bg: #fef2f2;
+  --green-bg: #ecfdf5;
+  --amber: #b8860b;
+  --amber-bg: #fffbeb;
+  --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+
+.container { max-width: 960px; margin: 0 auto; }
+
+h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  font-size: 0.82rem;
+  color: var(--text2);
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.subtitle code {
+  font-family: var(--mono);
+  background: #f0efeb;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.78rem;
+}
+
+/* Layout: two panels */
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 720px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  background: #f5f4f0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.panel-header .dot-row {
+  display: flex;
+  gap: 4px;
+}
+.panel-header .dot-row span {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.panel-header .dot-row span:nth-child(1) { background: #f87171; }
+.panel-header .dot-row span:nth-child(2) { background: #fbbf24; }
+.panel-header .dot-row span:nth-child(3) { background: #34d399; }
+
+/* Code file panel */
+.code-area {
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.8;
+  overflow-x: auto;
+}
+
+.code-line {
+  display: flex;
+  padding: 0 0.9rem;
+  transition: background 0.3s;
+  white-space: pre;
+}
+
+.code-line.scanning {
+  background: rgba(217, 119, 87, 0.08);
+}
+
+.code-line.match-found {
+  background: rgba(14, 124, 102, 0.12);
+}
+
+.code-line.match-fail {
+  background: rgba(194, 64, 42, 0.08);
+}
+
+.code-line.edited {
+  background: var(--green-bg);
+}
+
+.line-num {
+  color: #bbb;
+  min-width: 2.5em;
+  text-align: right;
+  padding-right: 1em;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-content {
+  flex: 1;
+}
+
+/* Scan pointer */
+.code-line .scan-indicator {
+  opacity: 0;
+  color: var(--accent);
+  margin-right: 0.3em;
+  transition: opacity 0.15s;
+}
+
+.code-line.scanning .scan-indicator {
+  opacity: 1;
+}
+
+/* Input panel */
+.input-area {
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.input-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 0.25rem;
+}
+
+.input-label .hint {
+  color: var(--red);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+textarea.edit-input {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  padding: 0.6rem 0.8rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: #fefefe;
+  color: var(--text);
+  resize: vertical;
+  min-height: 3rem;
+  transition: border-color 0.2s, background 0.2s;
+  width: 100%;
+}
+
+textarea.edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+textarea.edit-input.error {
+  border-color: var(--red);
+  background: var(--red-bg);
+}
+
+textarea.edit-input.success {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+
+.new-string-preview {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  padding: 0.5rem 0.8rem;
+  background: var(--green-bg);
+  border: 1px dashed var(--green);
+  border-radius: 6px;
+  color: var(--green);
+  white-space: pre;
+}
+
+.new-string-label {
+  font-size: 0.7rem;
+  color: var(--green);
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.btn-execute {
+  padding: 0.5rem 1.2rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  align-self: flex-start;
+}
+
+.btn-execute:hover { background: #c4623f; }
+
+.btn-execute:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn-execute.running {
+  background: var(--text2);
+}
+
+/* Result area */
+.result-area {
+  min-height: 1rem;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.result-fail {
+  background: var(--red-bg);
+  border: 1px solid rgba(194, 64, 42, 0.2);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  animation: resultIn 0.3s ease;
+}
+
+.result-fail .result-title {
+  color: var(--red);
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.result-success {
+  background: var(--green-bg);
+  border: 1px solid rgba(46, 125, 79, 0.2);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  animation: resultIn 0.3s ease;
+}
+
+.result-success .result-title {
+  color: var(--green);
+  font-weight: 700;
+}
+
+@keyframes resultIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Diff view inside result */
+.diff-block {
+  margin-top: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.73rem;
+  line-height: 1.8;
+}
+
+.diff-yours {
+  background: rgba(194, 64, 42, 0.08);
+  border-left: 3px solid var(--red);
+  padding: 0.25rem 0.6rem;
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 2px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.diff-actual {
+  background: rgba(14, 124, 102, 0.08);
+  border-left: 3px solid var(--teal);
+  padding: 0.25rem 0.6rem;
+  border-radius: 0 4px 4px 0;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.diff-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text2);
+  margin-right: 0.5em;
+}
+
+.diff-char-wrong {
+  background: rgba(194, 64, 42, 0.25);
+  color: var(--red);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.diff-char-right {
+  background: rgba(14, 124, 102, 0.25);
+  color: var(--teal);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Suggestion button */
+.btn-use-suggestion {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.8rem;
+  background: transparent;
+  border: 1px solid var(--teal);
+  color: var(--teal);
+  border-radius: 5px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-use-suggestion:hover {
+  background: var(--teal);
+  color: #fff;
+}
+
+/* Attempt counter */
+.attempt-log {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.attempt-log-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 0.4rem;
+}
+
+.attempt-entries {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.attempt-entry {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  animation: resultIn 0.3s ease;
+}
+
+.attempt-entry.fail {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid rgba(194, 64, 42, 0.15);
+}
+
+.attempt-entry.success {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid rgba(46, 125, 79, 0.15);
+}
+
+/* Insight */
+.insight {
+  background: var(--amber-bg);
+  border-left: 3px solid var(--amber);
+  border-radius: 0 8px 8px 0;
+  padding: 0.7rem 1rem;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.5s ease;
+}
+
+.insight.show {
+  opacity: 1;
+  max-height: 200px;
+}
+
+.insight strong { color: var(--amber); }
+
+/* Reset button */
+.btn-reset {
+  padding: 0.35rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: var(--text2);
+  transition: all 0.15s;
+  margin-top: 0.8rem;
+}
+
+.btn-reset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* No-attempts placeholder */
+.no-attempts {
+  font-size: 0.72rem;
+  color: #ccc;
+  font-style: italic;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Edit 修正挑战</h1>
+  <p class="subtitle">你来扮演模型。下面是一个真实的代码文件，你要写出正确的 <code>old_string</code> 才能完成编辑。输入框里预填的内容有个小错误 -- 你能找到吗？</p>
+
+  <div class="workspace">
+    <!-- Left: code file -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot-row"><span></span><span></span><span></span></div>
+        src/tools/execution.ts
+      </div>
+      <div class="code-area" id="codeArea"></div>
+    </div>
+
+    <!-- Right: edit input -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot-row"><span></span><span></span><span></span></div>
+        Edit Tool
+      </div>
+      <div class="input-area">
+        <div>
+          <div class="input-label">old_string <span class="hint">(必须与文件内容完全一致)</span></div>
+          <textarea class="edit-input" id="oldStringInput" rows="2" spellcheck="false"></textarea>
+        </div>
+        <div>
+          <div class="new-string-label">new_string (替换为)</div>
+          <div class="new-string-preview" id="newStringPreview"></div>
+        </div>
+        <button class="btn-execute" id="btnExecute" onclick="executeEdit()">执行 Edit</button>
+        <div class="result-area" id="resultArea"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attempt log -->
+  <div class="attempt-log">
+    <div class="attempt-log-title">执行记录</div>
+    <div class="attempt-entries" id="attemptEntries">
+      <span class="no-attempts" id="noAttempts">尚未执行</span>
+    </div>
+  </div>
+
+  <div class="insight" id="insight">
+    <strong>你刚刚体验了模型的自我修正循环。</strong>当 Edit 的 old_string 不匹配时，Claude Code 不会只说 "not found" -- 它会把文件中最接近的内容也返回给模型。模型一看 diff 就知道自己哪里写错了，一次修正就能成功。这个设计把"盲目重试"变成了"精确修正"。
+  </div>
+
+  <button class="btn-reset" onclick="resetAll()">重置挑战</button>
+</div>
+
+<script>
+// ---- Data ----
+var FILE_LINES = [
+  'import { ToolRef } from "./registry";',
+  '',
+  'export function resolveExecutor(ref: ToolRef): string {',
+  '  switch (ref.category) {',
+  '    case "core":',
+  '      return `core:${ref.executorId}`;',
+  '    case "plugin":',
+  '      return `plugin/${ref.executorId}`;',
+  '    case "custom":',
+  '      return `custom.${ref.executorId}`;',
+  '    default:',
+  '      throw new Error(`Unknown category: ${ref.category}`);',
+  '  }',
+  '}',
+];
+
+// The correct old_string (line index 5, the "core:" line)
+var CORRECT_OLD = '      return `core:${ref.executorId}`;';
+
+// The wrong prefill: uses a dot instead of colon
+var WRONG_PREFILL = '      return `core.${ref.executorId}`;';
+
+// What we want to replace it with
+var NEW_STRING = '      return `core/${ref.executorId}`;';
+
+// ---- State ----
+var attempts = [];
+var succeeded = false;
+
+// ---- Init ----
+function init() {
+  renderCode(-1, null);
+  document.getElementById('oldStringInput').value = WRONG_PREFILL;
+  document.getElementById('newStringPreview').textContent = NEW_STRING;
+}
+
+function renderCode(highlightLine, highlightClass) {
+  var area = document.getElementById('codeArea');
+  area.innerHTML = '';
+  for (var i = 0; i < FILE_LINES.length; i++) {
+    var line = FILE_LINES[i];
+    var div = document.createElement('div');
+    div.className = 'code-line';
+    if (highlightLine === i && highlightClass) {
+      div.classList.add(highlightClass);
+    }
+    div.setAttribute('data-line', i);
+
+    var numSpan = document.createElement('span');
+    numSpan.className = 'line-num';
+    numSpan.textContent = i + 1;
+
+    var indicator = document.createElement('span');
+    indicator.className = 'scan-indicator';
+    indicator.textContent = '▶';
+
+    var contentSpan = document.createElement('span');
+    contentSpan.className = 'line-content';
+    contentSpan.textContent = line;
+
+    div.appendChild(numSpan);
+    div.appendChild(indicator);
+    div.appendChild(contentSpan);
+    area.appendChild(div);
+  }
+}
+
+function renderCodeEdited(editedLineIdx, newContent) {
+  var area = document.getElementById('codeArea');
+  area.innerHTML = '';
+  for (var i = 0; i < FILE_LINES.length; i++) {
+    var line = FILE_LINES[i];
+    var div = document.createElement('div');
+    div.className = 'code-line';
+    var displayLine = (i === editedLineIdx) ? newContent : line;
+    if (i === editedLineIdx) div.classList.add('edited');
+
+    var numSpan = document.createElement('span');
+    numSpan.className = 'line-num';
+    numSpan.textContent = i + 1;
+
+    var indicator = document.createElement('span');
+    indicator.className = 'scan-indicator';
+    indicator.textContent = '▶';
+
+    var contentSpan = document.createElement('span');
+    contentSpan.className = 'line-content';
+    contentSpan.textContent = displayLine;
+
+    div.appendChild(numSpan);
+    div.appendChild(indicator);
+    div.appendChild(contentSpan);
+    area.appendChild(div);
+  }
+}
+
+// ---- Edit execution ----
+function executeEdit() {
+  if (succeeded) return;
+
+  var btn = document.getElementById('btnExecute');
+  var input = document.getElementById('oldStringInput');
+  var resultArea = document.getElementById('resultArea');
+
+  var userOldString = input.value;
+  btn.disabled = true;
+  btn.classList.add('running');
+  btn.textContent = '扫描中...';
+  resultArea.innerHTML = '';
+  input.classList.remove('error', 'success');
+
+  // Reset code highlights
+  renderCode(-1, null);
+
+  // Animate scanning line by line
+  var lines = document.querySelectorAll('#codeArea .code-line');
+  var lineIdx = 0;
+  var trimmedInput = userOldString.trim();
+
+  function scanNext() {
+    if (lineIdx > 0) {
+      lines[lineIdx - 1].classList.remove('scanning');
+    }
+
+    if (lineIdx >= lines.length) {
+      // Done scanning, no exact match found
+      finishScan(false, trimmedInput, -1);
+      return;
+    }
+
+    lines[lineIdx].classList.add('scanning');
+
+    // Check for exact match
+    if (FILE_LINES[lineIdx] === trimmedInput && trimmedInput === CORRECT_OLD) {
+      var matchIdx = lineIdx;
+      setTimeout(function() {
+        lines[matchIdx].classList.remove('scanning');
+        lines[matchIdx].classList.add('match-found');
+        setTimeout(function() {
+          finishScan(true, trimmedInput, matchIdx);
+        }, 300);
+      }, 150);
+      return;
+    }
+
+    lineIdx++;
+    setTimeout(scanNext, 100);
+  }
+
+  setTimeout(scanNext, 80);
+}
+
+function finishScan(found, trimmedInput, matchIdx) {
+  var btn = document.getElementById('btnExecute');
+  var input = document.getElementById('oldStringInput');
+  var resultArea = document.getElementById('resultArea');
+
+  if (found) {
+    // SUCCESS
+    succeeded = true;
+    input.classList.add('success');
+
+    setTimeout(function() {
+      renderCodeEdited(matchIdx, NEW_STRING);
+
+      btn.textContent = '执行 Edit';
+      btn.disabled = true;
+      btn.classList.remove('running');
+
+      addAttempt(true);
+
+      resultArea.innerHTML =
+        '<div class="result-success">' +
+        '<div class="result-title">✓ 匹配成功 — 编辑已应用</div>' +
+        '<div style="margin-top:0.3rem;color:var(--green)">第 ' + (matchIdx + 1) + ' 行已替换</div>' +
+        '</div>';
+
+      document.getElementById('insight').classList.add('show');
+    }, 300);
+  } else {
+    // FAILURE -- find closest match
+    input.classList.add('error');
+
+    addAttempt(false);
+
+    // Find closest matching line
+    var closest = findClosest(trimmedInput);
+    var closestLine = FILE_LINES[closest.idx];
+
+    // Highlight the closest line
+    renderCode(closest.idx, 'match-fail');
+
+    var diffHtml = buildCharDiff(trimmedInput, closestLine);
+
+    resultArea.innerHTML =
+      '<div class="result-fail">' +
+      '<div class="result-title">✗ old_string not found in execution.ts</div>' +
+      '<div style="margin-top:0.3rem;color:var(--text2);font-size:0.7rem">0 个精确匹配 — 最接近的在第 ' + (closest.idx + 1) + ' 行：</div>' +
+      '<div class="diff-block">' +
+      '<div class="diff-yours"><span class="diff-label">− 你的输入</span>' + diffHtml.yours + '</div>' +
+      '<div class="diff-actual"><span class="diff-label">+ 实际内容</span>' + diffHtml.actual + '</div>' +
+      '</div>' +
+      '<button class="btn-use-suggestion" onclick="useSuggestion()">使用建议内容</button>' +
+      '</div>';
+
+    btn.textContent = '执行 Edit';
+    btn.disabled = false;
+    btn.classList.remove('running');
+  }
+}
+
+// ---- Closest match (Levenshtein-based) ----
+function findClosest(input) {
+  var bestIdx = 0;
+  var bestDist = Infinity;
+
+  for (var i = 0; i < FILE_LINES.length; i++) {
+    if (FILE_LINES[i].trim() === '') continue;
+    var d = levenshtein(input, FILE_LINES[i]);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+
+  return { idx: bestIdx, dist: bestDist };
+}
+
+function levenshtein(a, b) {
+  var m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  var prev = [];
+  for (var k = 0; k <= n; k++) prev[k] = k;
+  var curr = new Array(n + 1);
+  for (var i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (var j = 1; j <= n; j++) {
+      var cost = a[i-1] === b[j-1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j-1] + 1, prev[j-1] + cost);
+    }
+    var tmp = prev;
+    prev = curr;
+    curr = tmp;
+  }
+  return prev[n];
+}
+
+// ---- Character-level diff for display ----
+function buildCharDiff(yours, actual) {
+  var lcs = computeLCS(yours, actual);
+
+  // Build yours HTML
+  var yoursHtml = '';
+  var ptr = 0;
+  for (var i = 0; i < yours.length; i++) {
+    if (ptr < lcs.length && lcs[ptr].ai === i) {
+      yoursHtml += escapeHtml(yours[i]);
+      ptr++;
+    } else {
+      yoursHtml += '<span class="diff-char-wrong">' + escapeHtml(yours[i]) + '</span>';
+    }
+  }
+
+  // Build actual HTML
+  var actualHtml = '';
+  ptr = 0;
+  for (var j = 0; j < actual.length; j++) {
+    if (ptr < lcs.length && lcs[ptr].bi === j) {
+      actualHtml += escapeHtml(actual[j]);
+      ptr++;
+    } else {
+      actualHtml += '<span class="diff-char-right">' + escapeHtml(actual[j]) + '</span>';
+    }
+  }
+
+  return { yours: yoursHtml, actual: actualHtml };
+}
+
+function computeLCS(a, b) {
+  var m = a.length, n = b.length;
+  var dp = [];
+  for (var i = 0; i <= m; i++) {
+    dp[i] = new Array(n + 1);
+    for (var j = 0; j <= n; j++) dp[i][j] = 0;
+  }
+  for (var i = 1; i <= m; i++) {
+    for (var j = 1; j <= n; j++) {
+      if (a[i-1] === b[j-1]) {
+        dp[i][j] = dp[i-1][j-1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
+      }
+    }
+  }
+  var result = [];
+  var i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (a[i-1] === b[j-1]) {
+      result.unshift({ ai: i-1, bi: j-1 });
+      i--; j--;
+    } else if (dp[i-1][j] > dp[i][j-1]) {
+      i--;
+    } else {
+      j--;
+    }
+  }
+  return result;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ---- Suggestion ----
+function useSuggestion() {
+  var input = document.getElementById('oldStringInput');
+  input.value = CORRECT_OLD;
+  input.classList.remove('error');
+
+  // Brief flash to show it changed
+  input.style.transition = 'background 0.3s';
+  input.style.background = 'rgba(14, 124, 102, 0.08)';
+  setTimeout(function() { input.style.background = ''; }, 600);
+}
+
+// ---- Attempts ----
+function addAttempt(success) {
+  var noAttempts = document.getElementById('noAttempts');
+  if (noAttempts) noAttempts.remove();
+
+  var container = document.getElementById('attemptEntries');
+  var num = attempts.length + 1;
+  attempts.push(success);
+
+  var entry = document.createElement('span');
+  entry.className = 'attempt-entry ' + (success ? 'success' : 'fail');
+  entry.textContent = '#' + num + ' ' + (success ? '✓ 匹配成功' : '✗ 未匹配');
+  container.appendChild(entry);
+}
+
+// ---- Reset ----
+function resetAll() {
+  attempts = [];
+  succeeded = false;
+
+  document.getElementById('oldStringInput').value = WRONG_PREFILL;
+  document.getElementById('oldStringInput').classList.remove('error', 'success');
+  document.getElementById('oldStringInput').style.background = '';
+  document.getElementById('resultArea').innerHTML = '';
+  document.getElementById('insight').classList.remove('show');
+
+  var entries = document.getElementById('attemptEntries');
+  entries.innerHTML = '<span class="no-attempts" id="noAttempts">尚未执行</span>';
+
+  var btn = document.getElementById('btnExecute');
+  btn.disabled = false;
+  btn.textContent = '执行 Edit';
+  btn.classList.remove('running');
+
+  renderCode(-1, null);
+}
+
+// ---- Boot ----
+init();
+</script>
+</body>
+</html>

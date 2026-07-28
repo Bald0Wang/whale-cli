@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Loop: Think - Tool - Result</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0: #faf9f5;
+  --bg1: #f4f2ec;
+  --ink: #29261f;
+  --text: #3d382e;
+  --text2: #7d766a;
+  --accent: #d97757;
+  --accent-deep: #c45f3c;
+  --teal: #0e7c66;
+  --teal-light: #e8f5f1;
+  --blue: #4a7fd4;
+  --blue-light: #eaf0fa;
+  --orange-light: #fdf0ea;
+  --teal-bg: #e6f4f0;
+  --border: #e5e2da;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg0);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  padding: 24px 16px;
+}
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+  font-family: var(--sans);
+}
+
+.header p {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+
+/* Task Bar */
+.task-bar {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.task-prompt {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  flex: 1;
+}
+
+.task-prompt::before {
+  content: '> ';
+  color: var(--accent);
+}
+
+/* Main Layout */
+.main-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  gap: 14px;
+  min-height: 520px;
+}
+
+/* Toolbox Panel */
+.toolbox {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 12px;
+}
+
+.tool-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.2s;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  user-select: none;
+}
+
+.tool-item:hover {
+  background: var(--bg1);
+}
+
+.tool-item.enabled {
+  border-color: var(--teal);
+  background: var(--teal-light);
+}
+
+.tool-item.active-tool {
+  border-color: var(--accent);
+  background: var(--orange-light);
+  box-shadow: 0 0 0 2px rgba(217,119,87,0.15);
+}
+
+.tool-toggle {
+  width: 28px;
+  height: 16px;
+  border-radius: 8px;
+  background: #d5d0c8;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.tool-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+
+.tool-item.enabled .tool-toggle {
+  background: var(--teal);
+}
+
+.tool-item.enabled .tool-toggle::after {
+  transform: translateX(12px);
+}
+
+.tool-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.tool-desc {
+  font-size: 10px;
+  color: var(--text2);
+  margin-top: 1px;
+}
+
+.toolbox-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  padding: 3px 0;
+}
+
+.stat-value {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.stat-value.good {
+  color: var(--teal);
+}
+
+/* Center: SVG Data Flow */
+.flow-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.flow-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.flow-header .panel-title {
+  margin-bottom: 0;
+}
+
+.phase-indicator {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: var(--bg1);
+  color: var(--text2);
+  transition: background 0.3s, color 0.3s;
+}
+
+.phase-indicator.phase-think {
+  background: var(--orange-light);
+  color: var(--accent);
+}
+
+.phase-indicator.phase-tool {
+  background: var(--teal-light);
+  color: var(--teal);
+}
+
+.phase-indicator.phase-result {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.flow-svg-wrap {
+  flex: 1;
+  position: relative;
+}
+
+.flow-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Controls bar */
+.controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg1);
+}
+
+.ctrl-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ctrl-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--orange-light);
+}
+
+.ctrl-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ctrl-btn.running {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.loop-counter {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  margin-left: auto;
+}
+
+.loop-counter span {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Right Panel: Messages Stack */
+.messages-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.messages-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.msg-count-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.msg-count-label span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.token-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+}
+
+.token-label span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.messages-stack {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 400px;
+}
+
+.msg-card {
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  border-left: 3px solid;
+  cursor: pointer;
+  transition: transform 0.2s ease-out, box-shadow 0.15s, opacity 0.3s ease-out;
+  position: relative;
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.msg-card.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.msg-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.msg-card.role-user {
+  background: var(--blue-light);
+  border-left-color: var(--blue);
+}
+
+.msg-card.role-assistant {
+  background: var(--orange-light);
+  border-left-color: var(--accent);
+}
+
+.msg-card.role-tool-use {
+  background: var(--teal-light);
+  border-left-color: var(--teal);
+}
+
+.msg-card.role-tool-result {
+  background: #f3f2ee;
+  border-left-color: #9e9a92;
+}
+
+.msg-role {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+
+.msg-card.role-user .msg-role { color: var(--blue); }
+.msg-card.role-assistant .msg-role { color: var(--accent); }
+.msg-card.role-tool-use .msg-role { color: var(--teal); }
+.msg-card.role-tool-result .msg-role { color: #7d766a; }
+
+.msg-preview {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.msg-tokens {
+  font-size: 9px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+/* Hover tooltip */
+.msg-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 100;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 12px 14px;
+  border-radius: 8px;
+  max-width: 400px;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg-tooltip.show {
+  display: block;
+}
+
+/* Insight bar */
+.insight-bar {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  background: var(--bg1);
+  min-height: 42px;
+}
+
+.insight-bar .insight-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+  .flow-svg-wrap {
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 600px) {
+  .task-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Agent Loop: Think - Tool - Result</h1>
+    <p>打开/关闭工具，观察 Agent 循环次数和 messages[] 的变化</p>
+  </div>
+
+  <div class="task-bar">
+    <span class="task-label">Task</span>
+    <span class="task-prompt">把 src/api.py 里的 fetch_data 函数改成异步的</span>
+  </div>
+
+  <div class="main-layout">
+    <!-- Left: Toolbox -->
+    <div class="toolbox">
+      <div class="panel-title">Agent 工具箱</div>
+
+      <div class="tool-item enabled" data-tool="Read">
+        <div class="tool-toggle"></div>
+        <div>
+          <div class="tool-name">读文件</div>
+          <div class="tool-desc">打开项目里的代码看内容</div>
+        </div>
+      </div>
+
+      <div class="tool-item" data-tool="Grep">
+        <div class="tool-toggle"></div>
+        <div>
+          <div class="tool-name">搜代码</div>
+          <div class="tool-desc">按关键词在项目里搜索</div>
+        </div>
+      </div>
+
+      <div class="tool-item" data-tool="Edit">
+        <div class="tool-toggle"></div>
+        <div>
+          <div class="tool-name">改代码</div>
+          <div class="tool-desc">直接修改项目文件</div>
+        </div>
+      </div>
+
+      <div class="tool-item" data-tool="Bash">
+        <div class="tool-toggle"></div>
+        <div>
+          <div class="tool-name">跑命令</div>
+          <div class="tool-desc">在终端执行测试和构建</div>
+        </div>
+      </div>
+
+      <div class="toolbox-footer">
+        <div class="stat-row">
+          <span>API 调用次数</span>
+          <span class="stat-value" id="api-count">0</span>
+        </div>
+        <div class="stat-row">
+          <span>循环次数</span>
+          <span class="stat-value" id="loop-count">0</span>
+        </div>
+        <div class="stat-row">
+          <span>任务状态</span>
+          <span class="stat-value" id="task-status">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Data Flow SVG -->
+    <div class="flow-panel">
+      <div class="flow-header">
+        <div class="flow-header-left">
+          <div class="panel-title">数据流</div>
+          <div class="phase-indicator" id="phase-indicator">idle</div>
+        </div>
+      </div>
+      <div class="flow-svg-wrap">
+        <svg class="flow-svg" id="flow-svg" viewBox="0 0 560 420" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#d97757" />
+            </marker>
+            <marker id="arrow-teal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#0e7c66" />
+            </marker>
+            <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#4a7fd4" />
+            </marker>
+            <marker id="arrow-gray" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#d5d0c8" />
+            </marker>
+          </defs>
+
+          <!-- Background grid -->
+          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f0ede6" stroke-width="0.5"/>
+          </pattern>
+          <rect width="560" height="420" fill="url(#grid)" />
+
+          <!-- LLM Brain (center-top) -->
+          <g id="node-llm">
+            <rect x="210" y="30" width="140" height="50" rx="12" fill="#fff" stroke="#d5d0c8" stroke-width="1.5"/>
+            <text x="280" y="51" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600" fill="#29261f" text-anchor="middle">LLM</text>
+            <text x="280" y="68" font-family="JetBrains Mono, monospace" font-size="9" fill="#7d766a" text-anchor="middle">think + decide</text>
+          </g>
+
+          <!-- Tool Router (center) -->
+          <g id="node-router">
+            <rect x="220" y="170" width="120" height="40" rx="10" fill="#fff" stroke="#d5d0c8" stroke-width="1.5"/>
+            <text x="280" y="195" font-family="JetBrains Mono, monospace" font-size="11" font-weight="500" fill="#3d382e" text-anchor="middle">tool_router</text>
+          </g>
+
+          <!-- Tool nodes (bottom row) -->
+          <g id="node-read" class="tool-node" data-tool="Read">
+            <rect x="30" y="280" width="100" height="44" rx="8" fill="#fff" stroke="#d5d0c8" stroke-width="1.5"/>
+            <text x="80" y="298" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#7d766a" text-anchor="middle">读文件</text>
+            <text x="80" y="314" font-family="JetBrains Mono, monospace" font-size="8" fill="#b0ab9f" text-anchor="middle">file -> text</text>
+          </g>
+          <g id="node-grep" class="tool-node" data-tool="Grep">
+            <rect x="160" y="280" width="100" height="44" rx="8" fill="#fff" stroke="#d5d0c8" stroke-width="1.5"/>
+            <text x="210" y="298" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#7d766a" text-anchor="middle">搜代码</text>
+            <text x="210" y="314" font-family="JetBrains Mono, monospace" font-size="8" fill="#b0ab9f" text-anchor="middle">pattern -> matches</text>
+          </g>
+          <g id="node-edit" class="tool-node" data-tool="Edit">
+            <rect x="300" y="280" width="100" height="44" rx="8" fill="#fff" stroke="#d5d0c8" stroke-width="1.5"/>
+            <text x="350" y="298" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#7d766a" text-anchor="middle">改代码</text>
+            <text x="350" y="314" font-family="JetBrains Mono, monospace" font-size="8" fill="#b0ab9f" text-anchor="middle">old -> new</text>
+          </g>
+          <g id="node-bash" class="tool-node" data-tool="Bash">
+            <rect x="430" y="280" width="100" height="44" rx="8" fill="#fff" stroke="#d5d0c8" stroke-width="1.5"/>
+            <text x="480" y="298" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#7d766a" text-anchor="middle">跑命令</text>
+            <text x="480" y="314" font-family="JetBrains Mono, monospace" font-size="8" fill="#b0ab9f" text-anchor="middle">cmd -> stdout</text>
+          </g>
+
+          <!-- File system -->
+          <g id="node-fs">
+            <rect x="180" y="370" width="200" height="36" rx="6" fill="#f4f2ec" stroke="#e5e2da" stroke-width="1"/>
+            <text x="280" y="393" font-family="JetBrains Mono, monospace" font-size="10" fill="#7d766a" text-anchor="middle">filesystem / terminal</text>
+          </g>
+
+          <!-- Static arrows (gray, dormant) -->
+          <path id="path-llm-router" d="M 280,80 L 280,170" fill="none" stroke="#e5e2da" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-gray)"/>
+          <path id="path-router-read" d="M 240,210 L 80,280" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-gray)"/>
+          <path id="path-router-grep" d="M 265,210 L 210,280" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-gray)"/>
+          <path id="path-router-edit" d="M 300,210 L 350,280" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-gray)"/>
+          <path id="path-router-bash" d="M 320,210 L 480,280" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-gray)"/>
+          <path id="path-read-fs" d="M 80,324 L 230,370" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3"/>
+          <path id="path-grep-fs" d="M 210,324 L 250,370" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3"/>
+          <path id="path-edit-fs" d="M 350,324 L 310,370" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3"/>
+          <path id="path-bash-fs" d="M 480,324 L 330,370" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3"/>
+          <path id="path-result-return" d="M 280,280 C 520,260 520,80 350,55" fill="none" stroke="#e5e2da" stroke-width="1" stroke-dasharray="4,3"/>
+
+          <!-- Animation layer -->
+          <g id="anim-layer"></g>
+        </svg>
+      </div>
+      <div class="controls-bar">
+        <button class="ctrl-btn" id="btn-run">Run</button>
+        <button class="ctrl-btn" id="btn-step">Step</button>
+        <button class="ctrl-btn" id="btn-reset">Reset</button>
+        <div class="loop-counter">
+          循环 <span id="current-loop">0</span> / <span id="total-loops">?</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Messages Stack -->
+    <div class="messages-panel">
+      <div class="messages-header">
+        <div>
+          <div class="panel-title" style="margin-bottom:2px">messages[]</div>
+          <div class="msg-count-label">长度: <span id="msg-count">0</span></div>
+        </div>
+        <div class="token-label">~<span id="token-count">0</span> tokens</div>
+      </div>
+      <div class="messages-stack" id="messages-stack"></div>
+      <div class="insight-bar" id="insight-bar">
+        <div class="insight-label">Insight</div>
+        <div id="insight-text" style="margin-top:3px; font-size:12px; color:#3d382e;">
+          切换左侧工具开关，然后点 Run 观察差异
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="msg-tooltip" id="msg-tooltip"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// SIMULATION ENGINE
+// ══════════════════════════════════════════════════════════════════
+
+const toolState = { Read: true, Grep: false, Edit: false, Bash: false };
+
+let simRunning = false;
+let simStepMode = false;
+let simStepResolve = null;
+let simAbort = false;
+
+const animLayer = document.getElementById('anim-layer');
+const msgsStack = document.getElementById('messages-stack');
+const msgCountEl = document.getElementById('msg-count');
+const tokenCountEl = document.getElementById('token-count');
+const apiCountEl = document.getElementById('api-count');
+const loopCountEl = document.getElementById('loop-count');
+const currentLoopEl = document.getElementById('current-loop');
+const totalLoopsEl = document.getElementById('total-loops');
+const phaseEl = document.getElementById('phase-indicator');
+const taskStatusEl = document.getElementById('task-status');
+const insightTextEl = document.getElementById('insight-text');
+const tooltipEl = document.getElementById('msg-tooltip');
+const btnRun = document.getElementById('btn-run');
+const btnStep = document.getElementById('btn-step');
+const btnReset = document.getElementById('btn-reset');
+
+let apiCalls = 0;
+let loopCount = 0;
+let totalTokens = 0;
+
+// ══════════════════════════════════════════════════════════════════
+// TOOL TOGGLE
+// ══════════════════════════════════════════════════════════════════
+
+document.querySelectorAll('.tool-item').forEach(function(el) {
+  el.addEventListener('click', function() {
+    if (simRunning) return;
+    var tool = el.dataset.tool;
+    toolState[tool] = !toolState[tool];
+    el.classList.toggle('enabled', toolState[tool]);
+    updateToolNodeVisuals();
+    updatePrediction();
+  });
+});
+
+function updateToolNodeVisuals() {
+  document.querySelectorAll('.tool-node').forEach(function(g) {
+    var tool = g.dataset.tool;
+    var rect = g.querySelector('rect');
+    var texts = g.querySelectorAll('text');
+    if (toolState[tool]) {
+      rect.setAttribute('fill', '#fff');
+      rect.setAttribute('stroke', '#0e7c66');
+      rect.setAttribute('stroke-width', '2');
+      texts[0].setAttribute('fill', '#0e7c66');
+      texts[1].setAttribute('fill', '#0e7c66');
+    } else {
+      rect.setAttribute('fill', '#f9f8f5');
+      rect.setAttribute('stroke', '#e5e2da');
+      rect.setAttribute('stroke-width', '1.5');
+      texts[0].setAttribute('fill', '#c5c0b8');
+      texts[1].setAttribute('fill', '#d5d0c8');
+    }
+  });
+}
+
+function updatePrediction() {
+  var plan = computePlan();
+  totalLoopsEl.textContent = plan.loops;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SIMULATION PLAN
+// ══════════════════════════════════════════════════════════════════
+
+function computePlan() {
+  var has = function(t) { return toolState[t]; };
+  var steps = [];
+
+  // User message always first
+  steps.push({
+    role: 'user',
+    preview: '把 fetch_data 改成异步的',
+    content: '{\n  "role": "user",\n  "content": "把 src/api.py 里的 fetch_data 函数改成异步的"\n}',
+    tokens: 32,
+    phase: 'user'
+  });
+
+  if (has('Grep') && has('Read') && has('Edit') && has('Bash')) {
+    // OPTIMAL: 3 loops
+    steps.push({ role: 'assistant', preview: '用 Grep 搜索 fetch_data 的位置', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": {\n    "name": "Grep",\n    "input": {\n      "pattern": "def fetch_data",\n      "path": "src/"\n    }\n  }\n}', tokens: 58, phase: 'think', thinkText: '需要找到 fetch_data，用 Grep 搜索位置' });
+    steps.push({ role: 'tool-use', preview: 'Grep("def fetch_data", src/)', tool: 'Grep', content: '{\n  "role": "tool",\n  "tool_use_id": "grep_001",\n  "content": "src/api.py:3: def fetch_data(url):"\n}', tokens: 45, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'src/api.py:3  def fetch_data(url):', content: '{\n  "role": "tool_result",\n  "content": "src/api.py:3: def fetch_data(url):\\n"\n}', tokens: 28, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '读取 src/api.py 并 Edit 改成异步', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": [\n    { "name": "Read", "input": { "path": "src/api.py" } },\n    { "name": "Edit", "input": {\n      "path": "src/api.py",\n      "old": "import requests\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()",\n      "new": "import aiohttp\\nasync def fetch_data(url):\\n    async with aiohttp.ClientSession() as s:\\n        resp = await s.get(url)\\n        return await resp.json()"\n    }}\n  ]\n}', tokens: 168, phase: 'think', thinkText: '读取代码并一步到位改成 aiohttp 异步' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/api.py)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_001",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 42, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'import requests | def fetch_data(url): ...', content: '{\n  "role": "tool_result",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 42, phase: 'result' });
+    steps.push({ role: 'tool-use', preview: 'Edit(src/api.py) requests -> aiohttp', tool: 'Edit', content: '{\n  "role": "tool",\n  "tool_use_id": "edit_001",\n  "content": "Applied 1 edit to src/api.py"\n}', tokens: 38, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'Applied 1 edit to src/api.py', content: '{\n  "role": "tool_result",\n  "content": "Applied 1 edit to src/api.py"\n}', tokens: 22, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '跑测试确认改动没问题', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": {\n    "name": "Bash",\n    "input": { "command": "pytest tests/ -v" }\n  }\n}', tokens: 52, phase: 'think', thinkText: '改完了，跑测试验证' });
+    steps.push({ role: 'tool-use', preview: 'Bash(pytest tests/ -v)', tool: 'Bash', content: '{\n  "role": "tool",\n  "tool_use_id": "bash_001",\n  "content": "pytest tests/ -v"\n}', tokens: 40, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: '3 passed in 0.82s', content: '{\n  "role": "tool_result",\n  "content": "tests/test_api.py::test_fetch_success PASSED\\ntests/test_api.py::test_fetch_timeout PASSED\\ntests/test_api.py::test_fetch_404 PASSED\\n\\n3 passed in 0.82s"\n}', tokens: 68, phase: 'result' });
+    steps.push({ role: 'assistant', preview: 'fetch_data 已改成异步，测试通过', content: '{\n  "role": "assistant",\n  "content": "已将 fetch_data 改成异步实现。用 aiohttp 替换了 requests，三项测试全部通过。"\n}', tokens: 45, phase: 'done' });
+
+    return { steps: steps, loops: 3 };
+
+  } else if (has('Read') && has('Edit') && has('Bash')) {
+    // 4 loops: no Grep
+    steps.push({ role: 'assistant', preview: '没有 Grep，先读 src/ 目录', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "src/" } }\n}', tokens: 55, phase: 'think', thinkText: '没有搜索工具，先读 src/ 目录列表' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_001",\n  "content": "api.py\\nconfig.py\\nutils.py\\nmodels/"\n}', tokens: 30, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'api.py  config.py  utils.py  models/', content: '{\n  "role": "tool_result",\n  "content": "api.py\\nconfig.py\\nutils.py\\nmodels/"\n}', tokens: 25, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '看到 api.py，读取内容', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "src/api.py" } }\n}', tokens: 48, phase: 'think', thinkText: '看到目录有 api.py，读取它' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/api.py)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_002",\n  "content": "Read src/api.py"\n}', tokens: 35, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'import requests | def fetch_data(url): ...', content: '{\n  "role": "tool_result",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 42, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: 'Edit 改成异步', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Edit", "input": { "path": "src/api.py", "old": "...", "new": "..." } }\n}', tokens: 120, phase: 'think', thinkText: '找到了 fetch_data，改成 aiohttp' });
+    steps.push({ role: 'tool-use', preview: 'Edit(src/api.py) requests -> aiohttp', tool: 'Edit', content: '{\n  "role": "tool",\n  "tool_use_id": "edit_001",\n  "content": "Applied 1 edit"\n}', tokens: 38, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'Applied 1 edit to src/api.py', content: '{\n  "role": "tool_result",\n  "content": "Applied 1 edit to src/api.py"\n}', tokens: 22, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '跑测试确认', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Bash", "input": { "command": "pytest tests/ -v" } }\n}', tokens: 52, phase: 'think', thinkText: '改完了，跑测试验证' });
+    steps.push({ role: 'tool-use', preview: 'Bash(pytest tests/ -v)', tool: 'Bash', content: '{\n  "role": "tool",\n  "tool_use_id": "bash_001",\n  "content": "pytest tests/ -v"\n}', tokens: 40, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: '3 passed in 0.82s', content: '{\n  "role": "tool_result",\n  "content": "3 passed in 0.82s"\n}', tokens: 30, phase: 'result' });
+    steps.push({ role: 'assistant', preview: '已改成异步，测试通过', content: '{\n  "role": "assistant",\n  "content": "已将 fetch_data 改成异步实现，测试通过。"\n}', tokens: 40, phase: 'done' });
+
+    return { steps: steps, loops: 4 };
+
+  } else if (has('Read') && has('Edit')) {
+    // 3 loops but no verify
+    steps.push({ role: 'assistant', preview: '读取 src/ 目录', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "src/" } }\n}', tokens: 50, phase: 'think', thinkText: '先看 src/ 目录结构' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_001",\n  "content": "Read src/"\n}', tokens: 30, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'api.py  config.py  utils.py  models/', content: '{\n  "role": "tool_result",\n  "content": "api.py\\nconfig.py\\nutils.py\\nmodels/"\n}', tokens: 25, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '读取 src/api.py 内容', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "src/api.py" } }\n}', tokens: 48, phase: 'think', thinkText: '读取 api.py 的内容' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/api.py)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_002",\n  "content": "Read src/api.py"\n}', tokens: 35, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'import requests | def fetch_data(url): ...', content: '{\n  "role": "tool_result",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 42, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: 'Edit 改成 aiohttp 异步', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Edit", "input": { "path": "src/api.py", "old": "...", "new": "..." } }\n}', tokens: 120, phase: 'think', thinkText: '改成 aiohttp 异步实现' });
+    steps.push({ role: 'tool-use', preview: 'Edit(src/api.py) requests -> aiohttp', tool: 'Edit', content: '{\n  "role": "tool",\n  "tool_use_id": "edit_001",\n  "content": "Applied 1 edit"\n}', tokens: 38, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'Applied 1 edit to src/api.py', content: '{\n  "role": "tool_result",\n  "content": "Applied 1 edit to src/api.py"\n}', tokens: 22, phase: 'result' });
+    steps.push({ role: 'assistant', preview: '已改成异步（无法验证，没有 Bash）', content: '{\n  "role": "assistant",\n  "content": "已改成异步。注意: 没有运行环境，无法验证改动是否正确。建议手动跑 pytest 确认。"\n}', tokens: 55, phase: 'done' });
+
+    return { steps: steps, loops: 3, warning: '没有 Bash 工具，无法自动验证改动' };
+
+  } else if (has('Read') && has('Grep')) {
+    // 2 loops: find & read but NOT modify
+    steps.push({ role: 'assistant', preview: 'Grep 搜索 fetch_data', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Grep", "input": { "pattern": "def fetch_data", "path": "src/" } }\n}', tokens: 58, phase: 'think', thinkText: '用 Grep 找到 fetch_data' });
+    steps.push({ role: 'tool-use', preview: 'Grep("def fetch_data", src/)', tool: 'Grep', content: '{\n  "role": "tool",\n  "tool_use_id": "grep_001",\n  "content": "src/api.py:3: def fetch_data(url):"\n}', tokens: 40, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'src/api.py:3  def fetch_data(url):', content: '{\n  "role": "tool_result",\n  "content": "src/api.py:3: def fetch_data(url):"\n}', tokens: 28, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: 'Read src/api.py', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "src/api.py" } }\n}', tokens: 48, phase: 'think', thinkText: '读取完整内容' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/api.py)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_001",\n  "content": "Read src/api.py"\n}', tokens: 35, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'import requests | def fetch_data(url): ...', content: '{\n  "role": "tool_result",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 42, phase: 'result' });
+    steps.push({ role: 'assistant', preview: '找到了代码，但没有 Edit 工具', content: '{\n  "role": "assistant",\n  "content": "找到 fetch_data 在 src/api.py:3。它用 requests.get 同步请求。要改成异步需要 Edit 工具，但我没有修改文件的能力。以下是改法建议: ..."\n}', tokens: 85, phase: 'done' });
+
+    return { steps: steps, loops: 2, warning: '没有 Edit 工具，只能给建议无法修改' };
+
+  } else if (has('Read')) {
+    // Read only = 6 loops
+    steps.push({ role: 'assistant', preview: '只有 Read，从根目录开始', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "." } }\n}', tokens: 45, phase: 'think', thinkText: '没有搜索工具，从根目录开始找' });
+    steps.push({ role: 'tool-use', preview: 'Read(.)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_001",\n  "content": "src/  tests/  README.md  setup.py"\n}', tokens: 28, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'src/  tests/  README.md  setup.py', content: '{\n  "role": "tool_result",\n  "content": "src/\\ntests/\\nREADME.md\\nsetup.py"\n}', tokens: 22, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '读 src/ 目录', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "src/" } }\n}', tokens: 42, phase: 'think', thinkText: '看到 src/ 目录，继续往下读' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_002",\n  "content": "api.py\\nconfig.py\\nutils.py\\nmodels/"\n}', tokens: 30, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'api.py  config.py  utils.py  models/', content: '{\n  "role": "tool_result",\n  "content": "api.py\\nconfig.py\\nutils.py\\nmodels/"\n}', tokens: 25, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '读 src/api.py', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "src/api.py" } }\n}', tokens: 48, phase: 'think', thinkText: '看到 api.py，应该在这里' });
+    steps.push({ role: 'tool-use', preview: 'Read(src/api.py)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_003",\n  "content": "Read src/api.py"\n}', tokens: 35, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'import requests | def fetch_data(url): ...', content: '{\n  "role": "tool_result",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 42, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '看看测试怎么调用的', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "tests/" } }\n}', tokens: 42, phase: 'think', thinkText: '读 tests/ 看看有没有现有测试' });
+    steps.push({ role: 'tool-use', preview: 'Read(tests/)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_004",\n  "content": "test_api.py\\ntest_config.py"\n}', tokens: 28, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'test_api.py  test_config.py', content: '{\n  "role": "tool_result",\n  "content": "test_api.py\\ntest_config.py"\n}', tokens: 20, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '读 test_api.py', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Read", "input": { "path": "tests/test_api.py" } }\n}', tokens: 50, phase: 'think', thinkText: '读测试文件了解用法' });
+    steps.push({ role: 'tool-use', preview: 'Read(tests/test_api.py)', tool: 'Read', content: '{\n  "role": "tool",\n  "tool_use_id": "read_005",\n  "content": "Read tests/test_api.py"\n}', tokens: 35, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'def test_fetch_success(): ...', content: '{\n  "role": "tool_result",\n  "content": "import pytest\\nfrom src.api import fetch_data\\n\\ndef test_fetch_success():\\n    ..."\n}', tokens: 40, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '理解了代码，但没有 Edit 无法修改', content: '{\n  "role": "assistant",\n  "content": "找到了 fetch_data，它在 src/api.py 第3行，用 requests.get 同步请求。\\n\\n但我没有 Edit 工具，无法修改文件。请给我 Edit 权限。"\n}', tokens: 120, phase: 'done' });
+
+    return { steps: steps, loops: 6, warning: '只有 Read，需要 6 轮才能理解代码，且无法修改' };
+
+  } else if (has('Grep')) {
+    // Grep only
+    steps.push({ role: 'assistant', preview: 'Grep 搜索 fetch_data', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Grep", "input": { "pattern": "def fetch_data" } }\n}', tokens: 50, phase: 'think', thinkText: '搜索 fetch_data 的位置' });
+    steps.push({ role: 'tool-use', preview: 'Grep("def fetch_data")', tool: 'Grep', content: '{\n  "role": "tool",\n  "tool_use_id": "grep_001",\n  "content": "src/api.py:3: def fetch_data(url):"\n}', tokens: 35, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'src/api.py:3  def fetch_data(url):', content: '{\n  "role": "tool_result",\n  "content": "src/api.py:3: def fetch_data(url):"\n}', tokens: 28, phase: 'result' });
+    steps.push({ role: 'assistant', preview: '找到位置但没有 Read/Edit 无法继续', content: '{\n  "role": "assistant",\n  "content": "找到 fetch_data 在 src/api.py:3，但没有 Read 无法查看代码，也没有 Edit 无法修改。"\n}', tokens: 70, phase: 'done' });
+
+    return { steps: steps, loops: 1, warning: '只有 Grep，找到位置但无法读取或修改' };
+
+  } else if (has('Edit')) {
+    // Edit only
+    steps.push({ role: 'assistant', preview: '有 Edit 但不知道文件内容，盲改', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Edit", "input": { "path": "src/api.py", "old": "def fetch_data", "new": "async def fetch_data" } }\n}', tokens: 65, phase: 'think', thinkText: '没有 Read，只能猜测内容尝试 Edit' });
+    steps.push({ role: 'tool-use', preview: 'Edit(src/api.py) -- 盲猜', tool: 'Edit', content: '{\n  "role": "tool",\n  "tool_use_id": "edit_001",\n  "content": "ERROR: old_string not found in file"\n}', tokens: 40, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'ERROR: old_string not found in file', content: '{\n  "role": "tool_result",\n  "content": "ERROR: old_string not found in file. The exact string was not found."\n}', tokens: 35, phase: 'result' });
+    steps.push({ role: 'assistant', preview: '盲改失败，需要 Read 先看代码', content: '{\n  "role": "assistant",\n  "content": "Edit 失败了，因为我猜的代码内容不对。需要 Read 工具先读取文件内容。"\n}', tokens: 60, phase: 'done' });
+
+    return { steps: steps, loops: 1, warning: '只有 Edit 无法定位代码，盲改失败' };
+
+  } else if (has('Bash')) {
+    // Bash only
+    steps.push({ role: 'assistant', preview: '用 Bash 查看和修改文件', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Bash", "input": { "command": "cat src/api.py" } }\n}', tokens: 50, phase: 'think', thinkText: '用 cat 读文件，用 sed 改文件' });
+    steps.push({ role: 'tool-use', preview: 'Bash(cat src/api.py)', tool: 'Bash', content: '{\n  "role": "tool",\n  "tool_use_id": "bash_001",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 45, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: 'import requests | def fetch_data(url): ...', content: '{\n  "role": "tool_result",\n  "content": "import requests\\n\\ndef fetch_data(url):\\n    resp = requests.get(url)\\n    return resp.json()"\n}', tokens: 42, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '用 sed 替换代码', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Bash", "input": { "command": "sed -i ..." } }\n}', tokens: 80, phase: 'think', thinkText: '用 sed 一行行替换（容易出错）' });
+    steps.push({ role: 'tool-use', preview: 'Bash(sed -i ... src/api.py)', tool: 'Bash', content: '{\n  "role": "tool",\n  "tool_use_id": "bash_002",\n  "content": "(no output)"\n}', tokens: 30, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: '(no output)', content: '{\n  "role": "tool_result",\n  "content": ""\n}', tokens: 10, phase: 'result' });
+
+    steps.push({ role: 'assistant', preview: '验证修改结果', content: '{\n  "role": "assistant",\n  "content": null,\n  "tool_use": { "name": "Bash", "input": { "command": "cat src/api.py && pytest tests/ -v" } }\n}', tokens: 55, phase: 'think', thinkText: '确认改对了，再跑测试' });
+    steps.push({ role: 'tool-use', preview: 'Bash(cat + pytest)', tool: 'Bash', content: '{\n  "role": "tool",\n  "tool_use_id": "bash_003",\n  "content": "3 passed"\n}', tokens: 50, phase: 'tool' });
+    steps.push({ role: 'tool-result', preview: '3 passed in 0.82s', content: '{\n  "role": "tool_result",\n  "content": "3 passed in 0.82s"\n}', tokens: 30, phase: 'result' });
+    steps.push({ role: 'assistant', preview: '用 Bash 完成了（sed 替换不够安全）', content: '{\n  "role": "assistant",\n  "content": "已用 sed 修改完成，测试通过。但用 sed 做代码替换容易出错，Edit 工具更安全。"\n}', tokens: 55, phase: 'done' });
+
+    return { steps: steps, loops: 3, warning: '只有 Bash，用 sed 替换不安全' };
+
+  } else {
+    // No tools
+    steps.push({ role: 'assistant', preview: '没有任何工具，只能给建议', content: '{\n  "role": "assistant",\n  "content": "要把 fetch_data 改成异步，一般步骤是: 把 requests 换成 aiohttp，加 async/await。但我没有任何工具，无法读取或修改你的代码。"\n}', tokens: 95, phase: 'done' });
+    return { steps: steps, loops: 0, warning: '没有工具，只能给通用建议' };
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// SVG ANIMATION
+// ══════════════════════════════════════════════════════════════════
+
+function setPhase(phase) {
+  phaseEl.className = 'phase-indicator';
+  if (phase === 'think' || phase === 'user') {
+    phaseEl.textContent = 'thinking';
+    phaseEl.classList.add('phase-think');
+  } else if (phase === 'tool') {
+    phaseEl.textContent = 'tool call';
+    phaseEl.classList.add('phase-tool');
+  } else if (phase === 'result') {
+    phaseEl.textContent = 'result';
+    phaseEl.classList.add('phase-result');
+  } else if (phase === 'done') {
+    phaseEl.textContent = 'done';
+  } else {
+    phaseEl.textContent = 'idle';
+  }
+}
+
+function highlightNode(id, color) {
+  var node = document.getElementById(id);
+  if (!node) return;
+  var rect = node.querySelector('rect');
+  var texts = node.querySelectorAll('text');
+  if (rect) {
+    rect.setAttribute('fill', color);
+    rect.setAttribute('stroke', color);
+  }
+  texts.forEach(function(t) { t.setAttribute('fill', '#fff'); });
+}
+
+function resetNode(id) {
+  var node = document.getElementById(id);
+  if (!node) return;
+  var rect = node.querySelector('rect');
+  var texts = node.querySelectorAll('text');
+  if (rect) {
+    rect.setAttribute('fill', '#fff');
+    rect.setAttribute('stroke', '#d5d0c8');
+    rect.setAttribute('stroke-width', '1.5');
+  }
+  if (texts[0]) texts[0].setAttribute('fill', '#29261f');
+  if (texts[1]) texts[1].setAttribute('fill', '#7d766a');
+}
+
+function resetAllNodes() {
+  ['node-llm', 'node-router'].forEach(resetNode);
+  document.querySelectorAll('.tool-node').forEach(function(g) {
+    var tool = g.dataset.tool;
+    var rect = g.querySelector('rect');
+    var texts = g.querySelectorAll('text');
+    if (toolState[tool]) {
+      rect.setAttribute('fill', '#fff');
+      rect.setAttribute('stroke', '#0e7c66');
+      rect.setAttribute('stroke-width', '2');
+      texts[0].setAttribute('fill', '#0e7c66');
+      texts[1].setAttribute('fill', '#0e7c66');
+    } else {
+      rect.setAttribute('fill', '#f9f8f5');
+      rect.setAttribute('stroke', '#e5e2da');
+      rect.setAttribute('stroke-width', '1.5');
+      texts[0].setAttribute('fill', '#c5c0b8');
+      texts[1].setAttribute('fill', '#d5d0c8');
+    }
+  });
+  ['path-llm-router','path-router-read','path-router-grep','path-router-edit','path-router-bash','path-result-return','path-read-fs','path-grep-fs','path-edit-fs','path-bash-fs'].forEach(function(id) {
+    var p = document.getElementById(id);
+    if (p) {
+      p.setAttribute('stroke', '#e5e2da');
+      p.setAttribute('stroke-width', id === 'path-llm-router' ? '1.5' : '1');
+      if (id.indexOf('path-router-') === 0 || id === 'path-llm-router') {
+        p.setAttribute('marker-end', 'url(#arrow-gray)');
+      }
+    }
+  });
+  document.querySelectorAll('.tool-item').forEach(function(el) { el.classList.remove('active-tool'); });
+}
+
+function animatePath(pathId, color, markerColor) {
+  var path = document.getElementById(pathId);
+  if (!path) return;
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', '2.5');
+  if (markerColor) {
+    path.setAttribute('marker-end', 'url(#arrow-' + markerColor + ')');
+  }
+}
+
+function createMovingDot(pathId, color, duration) {
+  return new Promise(function(resolve) {
+    var path = document.getElementById(pathId);
+    if (!path) { resolve(); return; }
+    var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('r', '5');
+    circle.setAttribute('fill', color);
+    circle.setAttribute('opacity', '0.9');
+    animLayer.appendChild(circle);
+    var length = path.getTotalLength();
+    var startTime = performance.now();
+    var dur = duration || 600;
+    function animate(now) {
+      if (simAbort) { cleanup(); return; }
+      var t = Math.min((now - startTime) / dur, 1);
+      var ease = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+      var pt = path.getPointAtLength(ease * length);
+      circle.setAttribute('cx', pt.x);
+      circle.setAttribute('cy', pt.y);
+      if (t < 1) requestAnimationFrame(animate);
+      else cleanup();
+    }
+    function cleanup() {
+      circle.setAttribute('opacity', '0');
+      setTimeout(function() { if (circle.parentNode) circle.parentNode.removeChild(circle); resolve(); }, 100);
+    }
+    requestAnimationFrame(animate);
+  });
+}
+
+function createReverseDot(pathId, color, duration) {
+  return new Promise(function(resolve) {
+    var path = document.getElementById(pathId);
+    if (!path) { resolve(); return; }
+    var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('r', '5');
+    circle.setAttribute('fill', color);
+    circle.setAttribute('opacity', '0.9');
+    animLayer.appendChild(circle);
+    var length = path.getTotalLength();
+    var startTime = performance.now();
+    var dur = duration || 400;
+    function animate(now) {
+      if (simAbort) { cleanup(); return; }
+      var t = Math.min((now - startTime) / dur, 1);
+      var ease = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+      var pt = path.getPointAtLength((1-ease) * length);
+      circle.setAttribute('cx', pt.x);
+      circle.setAttribute('cy', pt.y);
+      if (t < 1) requestAnimationFrame(animate);
+      else cleanup();
+    }
+    function cleanup() {
+      circle.setAttribute('opacity', '0');
+      setTimeout(function() { if (circle.parentNode) circle.parentNode.removeChild(circle); resolve(); }, 100);
+    }
+    requestAnimationFrame(animate);
+  });
+}
+
+function animateToolCall(toolName) {
+  if (simAbort) return Promise.resolve();
+  var toolLower = toolName.toLowerCase();
+  var routerPathId = 'path-router-' + toolLower;
+  var toolNodeId = 'node-' + toolLower;
+  var fsPathId = 'path-' + toolLower + '-fs';
+
+  return Promise.resolve()
+    .then(function() {
+      // Highlight LLM
+      highlightNode('node-llm', '#d97757');
+      return delay(250);
+    })
+    .then(function() {
+      if (simAbort) return;
+      // LLM -> Router
+      animatePath('path-llm-router', '#d97757', 'accent');
+      highlightNode('node-router', '#d97757');
+      return createMovingDot('path-llm-router', '#d97757', 350);
+    })
+    .then(function() {
+      if (simAbort) return;
+      // Router -> Tool
+      animatePath(routerPathId, '#0e7c66', 'teal');
+      var toolG = document.getElementById(toolNodeId);
+      if (toolG) {
+        var rect = toolG.querySelector('rect');
+        var texts = toolG.querySelectorAll('text');
+        rect.setAttribute('fill', '#0e7c66');
+        rect.setAttribute('stroke', '#0e7c66');
+        texts.forEach(function(t) { t.setAttribute('fill', '#fff'); });
+      }
+      document.querySelectorAll('.tool-item').forEach(function(el) {
+        if (el.dataset.tool === toolName) el.classList.add('active-tool');
+        else el.classList.remove('active-tool');
+      });
+      return createMovingDot(routerPathId, '#0e7c66', 300);
+    })
+    .then(function() {
+      if (simAbort) return;
+      // Tool -> FS
+      var fsPath = document.getElementById(fsPathId);
+      if (fsPath) {
+        fsPath.setAttribute('stroke', '#0e7c66');
+        fsPath.setAttribute('stroke-width', '2');
+        return createMovingDot(fsPathId, '#0e7c66', 250);
+      }
+    })
+    .then(function() {
+      if (simAbort) return;
+      return delay(150);
+    })
+    .then(function() {
+      if (simAbort) return;
+      // Result return
+      var fsPath = document.getElementById(fsPathId);
+      if (fsPath) {
+        fsPath.setAttribute('stroke', '#4a7fd4');
+        fsPath.setAttribute('stroke-width', '2');
+        return createReverseDot(fsPathId, '#4a7fd4', 250);
+      }
+    })
+    .then(function() {
+      if (simAbort) return;
+      animatePath('path-result-return', '#4a7fd4', 'blue');
+      return createMovingDot('path-result-return', '#4a7fd4', 400);
+    })
+    .then(function() {
+      resetAllNodes();
+      updateToolNodeVisuals();
+    });
+}
+
+function delay(ms) {
+  return new Promise(function(resolve) {
+    var id = setTimeout(resolve, ms);
+    var check = setInterval(function() {
+      if (simAbort) { clearTimeout(id); clearInterval(check); resolve(); }
+    }, 50);
+    setTimeout(function() { clearInterval(check); }, ms + 100);
+  });
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// MESSAGES STACK
+// ══════════════════════════════════════════════════════════════════
+
+function addMessage(step) {
+  var card = document.createElement('div');
+  card.className = 'msg-card role-' + step.role;
+
+  var roleLabels = { 'user': 'user', 'assistant': 'assistant', 'tool-use': 'tool_use', 'tool-result': 'tool_result' };
+  card.innerHTML = '<div class="msg-role">' + (roleLabels[step.role] || step.role) + '</div>' +
+    '<div class="msg-preview">' + escapeHtml(step.preview) + '</div>' +
+    '<div class="msg-tokens">~' + step.tokens + ' tokens</div>';
+
+  card.addEventListener('mouseenter', function(e) {
+    tooltipEl.textContent = step.content;
+    tooltipEl.classList.add('show');
+    positionTooltip(e);
+  });
+  card.addEventListener('mousemove', positionTooltip);
+  card.addEventListener('mouseleave', function() { tooltipEl.classList.remove('show'); });
+
+  msgsStack.appendChild(card);
+  requestAnimationFrame(function() {
+    card.classList.add('visible');
+    msgsStack.scrollTop = msgsStack.scrollHeight;
+  });
+
+  totalTokens += step.tokens;
+  tokenCountEl.textContent = totalTokens.toLocaleString();
+  msgCountEl.textContent = msgsStack.children.length;
+}
+
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function positionTooltip(e) {
+  var x = e.clientX + 12;
+  var y = e.clientY + 12;
+  if (x + 400 > window.innerWidth) x = e.clientX - 412;
+  if (y + 280 > window.innerHeight) y = e.clientY - 200;
+  tooltipEl.style.left = Math.max(4, x) + 'px';
+  tooltipEl.style.top = Math.max(4, y) + 'px';
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// SIMULATION RUNNER
+// ══════════════════════════════════════════════════════════════════
+
+function runSimulation(stepByStep) {
+  if (simRunning) return;
+  simRunning = true;
+  simAbort = false;
+  simStepMode = stepByStep;
+
+  btnRun.disabled = true;
+  btnRun.classList.add('running');
+  btnStep.disabled = !stepByStep;
+  btnReset.disabled = false;
+  document.querySelectorAll('.tool-item').forEach(function(el) { el.style.pointerEvents = 'none'; });
+
+  // Reset display
+  msgsStack.innerHTML = '';
+  totalTokens = 0;
+  apiCalls = 0;
+  loopCount = 0;
+  tokenCountEl.textContent = '0';
+  msgCountEl.textContent = '0';
+  apiCountEl.textContent = '0';
+  loopCountEl.textContent = '0';
+  taskStatusEl.textContent = '...';
+  taskStatusEl.className = 'stat-value';
+  animLayer.innerHTML = '';
+
+  var plan = computePlan();
+  totalLoopsEl.textContent = plan.loops;
+
+  var currentLoopNum = 0;
+  var i = 0;
+
+  function processStep() {
+    if (simAbort || i >= plan.steps.length) {
+      finishSim(plan);
+      return;
+    }
+
+    var step = plan.steps[i];
+
+    function doStep() {
+      if (simAbort) { finishSim(plan); return; }
+
+      if (step.role === 'assistant') {
+        apiCalls++;
+        apiCountEl.textContent = apiCalls;
+      }
+
+      if (step.phase === 'think' && step.role === 'assistant') {
+        currentLoopNum++;
+        loopCount = currentLoopNum;
+        loopCountEl.textContent = loopCount;
+        currentLoopEl.textContent = currentLoopNum;
+      }
+
+      setPhase(step.phase);
+
+      var afterPhase = function() {
+        if (simAbort) { finishSim(plan); return; }
+        addMessage(step);
+
+        if (step.phase === 'done') {
+          resetAllNodes();
+          updateToolNodeVisuals();
+          setPhase('done');
+        }
+
+        i++;
+        if (!simStepMode && i < plan.steps.length) {
+          delay(step.phase === 'tool' ? 150 : 400).then(processStep);
+        } else {
+          processStep();
+        }
+      };
+
+      if (step.phase === 'think' || step.phase === 'user') {
+        resetAllNodes();
+        updateToolNodeVisuals();
+        highlightNode('node-llm', '#d97757');
+        if (step.thinkText) insightTextEl.textContent = step.thinkText;
+        delay(350).then(function() {
+          if (step.phase === 'tool' && step.tool) {
+            return animateToolCall(step.tool).then(afterPhase);
+          }
+          afterPhase();
+        });
+      } else if (step.phase === 'tool' && step.tool) {
+        animateToolCall(step.tool).then(afterPhase);
+      } else if (step.phase === 'result') {
+        resetAllNodes();
+        updateToolNodeVisuals();
+        highlightNode('node-llm', '#4a7fd4');
+        delay(150).then(afterPhase);
+      } else {
+        afterPhase();
+      }
+    }
+
+    if (simStepMode && i > 0) {
+      btnStep.disabled = false;
+      waitForStep().then(function() {
+        if (simAbort) { finishSim(plan); return; }
+        btnStep.disabled = true;
+        doStep();
+      });
+    } else {
+      doStep();
+    }
+  }
+
+  processStep();
+}
+
+function finishSim(plan) {
+  resetAllNodes();
+  updateToolNodeVisuals();
+
+  if (!simAbort && plan) {
+    if (plan.warning) {
+      taskStatusEl.textContent = '受限';
+      taskStatusEl.className = 'stat-value';
+      insightTextEl.textContent = plan.warning;
+    } else {
+      taskStatusEl.textContent = '完成';
+      taskStatusEl.className = 'stat-value good';
+      insightTextEl.textContent = plan.loops + ' 轮循环，' + apiCalls + ' 次 API 调用，~' + totalTokens + ' tokens';
+    }
+    setPhase('done');
+  }
+
+  simRunning = false;
+  btnRun.disabled = false;
+  btnRun.classList.remove('running');
+  btnStep.disabled = false;
+  btnReset.disabled = false;
+  document.querySelectorAll('.tool-item').forEach(function(el) { el.style.pointerEvents = ''; });
+}
+
+function waitForStep() {
+  return new Promise(function(resolve) { simStepResolve = resolve; });
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// BUTTON HANDLERS
+// ══════════════════════════════════════════════════════════════════
+
+btnRun.addEventListener('click', function() {
+  if (simRunning) return;
+  runSimulation(false);
+});
+
+btnStep.addEventListener('click', function() {
+  if (simRunning && simStepMode && simStepResolve) {
+    var r = simStepResolve;
+    simStepResolve = null;
+    r();
+    return;
+  }
+  if (!simRunning) runSimulation(true);
+});
+
+btnReset.addEventListener('click', function() {
+  simAbort = true;
+  if (simStepResolve) { simStepResolve(); simStepResolve = null; }
+  setTimeout(function() {
+    simRunning = false;
+    msgsStack.innerHTML = '';
+    totalTokens = 0;
+    apiCalls = 0;
+    loopCount = 0;
+    tokenCountEl.textContent = '0';
+    msgCountEl.textContent = '0';
+    apiCountEl.textContent = '0';
+    loopCountEl.textContent = '0';
+    currentLoopEl.textContent = '0';
+    taskStatusEl.textContent = '--';
+    taskStatusEl.className = 'stat-value';
+    insightTextEl.textContent = '切换左侧工具开关，然后点 Run 观察差异';
+    setPhase('idle');
+    resetAllNodes();
+    updateToolNodeVisuals();
+    animLayer.innerHTML = '';
+    btnRun.disabled = false;
+    btnRun.classList.remove('running');
+    btnStep.disabled = false;
+    btnReset.disabled = false;
+    document.querySelectorAll('.tool-item').forEach(function(el) { el.style.pointerEvents = ''; });
+    simAbort = false;
+  }, 200);
+});
+
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+
+updateToolNodeVisuals();
+updatePrediction();
+</script>
+</body>
+</html>

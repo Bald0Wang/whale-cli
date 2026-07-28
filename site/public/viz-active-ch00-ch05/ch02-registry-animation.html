@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@tool 如何更新 Registry</title>
+<link rel="stylesheet" href="./viz-foundation.css">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg:#171413; --panel:#0e0d0c; --panel2:#211d1a; --line:#3b332e;
+    --text:#f3e8dc; --muted:#a99a8d; --accent:#ef8e6d; --blue:#8ca2ff; --green:#8fd19a;
+  }
+  body {
+    min-height:100vh; margin:0; padding:20px; color:var(--text);
+    background:radial-gradient(circle at 18% 0%,rgba(140,162,255,.09),transparent 36%),var(--bg);
+    font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  }
+  .lab { width:min(1100px,100%); margin:auto; }
+  .topbar { display:grid; grid-template-columns:minmax(220px,1fr) auto; gap:12px 20px; align-items:end; margin-bottom:14px; }
+  .eyebrow { color:var(--accent); font-size:10px; letter-spacing:.14em; font-weight:800; }
+  h1 { margin:3px 0; font:700 16px/1.35 inherit; }
+  .status { color:var(--muted); min-height:19px; }
+  .actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; }
+  button {
+    min-height:36px; padding:0 13px; border:1px solid var(--line); border-radius:8px;
+    color:var(--text); background:var(--panel2); font:700 11px inherit; cursor:pointer;
+  }
+  button:hover:not(:disabled) { color:var(--accent); border-color:var(--accent); }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  button.reset { color:var(--muted); }
+  .pipeline {
+    grid-column:1/-1; display:grid; grid-template-columns:repeat(3,1fr); gap:6px;
+  }
+  .stage { padding:8px 10px; border:1px solid var(--line); border-radius:8px; color:#796d64; background:rgba(14,13,12,.55); transition:.25s ease; }
+  .stage b { display:block; color:inherit; font-size:10px; letter-spacing:.08em; }
+  .stage span { font-size:10px; }
+  .stage.active { border-color:var(--accent); color:var(--text); transform:translateY(-1px); }
+  .stage.done { border-color:rgba(143,209,154,.35); color:var(--green); }
+  .workspace { display:grid; grid-template-columns:1fr 1fr; min-height:430px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--panel); box-shadow:0 20px 55px rgba(0,0,0,.3); }
+  .panel { min-width:0; display:flex; flex-direction:column; }
+  .panel + .panel { border-left:1px solid var(--line); }
+  .panel-head { display:flex; justify-content:space-between; align-items:center; height:42px; padding:0 15px; border-bottom:1px solid var(--line); background:var(--panel2); color:var(--muted); }
+  .panel-head b { color:var(--text); font-size:11px; }
+  .count { color:var(--green); }
+  .body { position:relative; flex:1; overflow:auto; padding:15px; scrollbar-color:var(--line) transparent; }
+  .code, .card { position:relative; border:1px solid var(--line); border-radius:8px; background:#161310; transition:.28s ease; }
+  .code { margin-bottom:11px; padding:12px; }
+  pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.55 inherit; }
+  .decorator,.kw { color:var(--accent); } .fn { color:var(--blue); } .str { color:var(--green); } .muted { color:var(--muted); }
+  .card { display:grid; grid-template-columns:minmax(95px,.7fr) 1.3fr; gap:8px 12px; margin-bottom:10px; padding:12px; }
+  .card-key { color:var(--green); font-weight:800; }
+  .card-details { color:var(--muted); }
+  .card-details b { color:var(--text); font-weight:500; }
+  .enter-left { animation:enterLeft .3s ease both; }
+  .enter-right { animation:enterRight .3s ease both; }
+  .selected { border-color:var(--accent); box-shadow:0 0 0 2px rgba(239,142,109,.12); }
+  .transfer {
+    position:absolute; z-index:4; top:50%; right:-14px; width:28px; height:2px;
+    background:var(--accent); box-shadow:0 0 9px var(--accent); animation:transfer .5s ease both;
+  }
+  .insight { display:flex; gap:10px; align-items:flex-start; margin-top:12px; padding:12px 14px; border:1px solid var(--line); border-radius:9px; color:var(--muted); background:var(--panel2); }
+  .insight strong { color:var(--accent); white-space:nowrap; }
+  @keyframes enterLeft { from { opacity:0; transform:translateX(-12px); } }
+  @keyframes enterRight { from { opacity:0; transform:translateX(12px); } }
+  @keyframes transfer { 0% { opacity:0; transform:translateX(-35px) scaleX(.2); } 55% { opacity:1; } 100% { opacity:0; transform:translateX(25px); } }
+  @media(max-width:720px) {
+    body { padding:14px; }
+    .topbar { grid-template-columns:1fr; }
+    .actions { justify-content:flex-start; }
+    .pipeline { grid-template-columns:1fr; }
+    .workspace { grid-template-columns:1fr; }
+    .panel + .panel { border-left:0; border-top:1px solid var(--line); }
+    .body { max-height:310px; }
+  }
+</style>
+</head>
+<body>
+<main class="lab">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">DECORATOR LAB</div>
+      <h1>点击一个工具，看 @tool 做了哪三件事</h1>
+      <div class="status" id="status">选择一个工具开始注册。</div>
+    </div>
+    <div class="actions">
+      <button data-tool="write_file">+ write_file</button>
+      <button data-tool="edit_file">+ edit_file</button>
+      <button data-tool="glob">+ glob</button>
+      <button class="reset" id="resetBtn">重置</button>
+    </div>
+    <div class="pipeline" aria-label="注册过程">
+      <div class="stage" data-stage="0"><b>01 读取声明</b><span>解析 name / description / parameters</span></div>
+      <div class="stage" data-stage="1"><b>02 绑定函数</b><span>保留真实的 Python callable</span></div>
+      <div class="stage" data-stage="2"><b>03 写入 _TOOLS</b><span>Schema 与执行函数保持同源</span></div>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <article class="panel">
+      <div class="panel-head"><b>tools.py</b><span>源代码</span></div>
+      <div class="body" id="codeBody">
+        <div class="code">
+<pre><span class="muted"># 工具注册表</span>
+<span class="kw">_TOOLS</span>: dict = {}</pre>
+        </div>
+        <div class="code" data-base>
+<pre><span class="decorator">@tool</span>(name=<span class="str">"read_file"</span>,
+      description=<span class="str">"读取文本文件"</span>,
+      parameters={...})
+<span class="kw">def</span> <span class="fn">read_file</span>(path: str) -> str:
+    <span class="kw">return</span> Path(path).read_text()</pre>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-head"><b>_TOOLS</b><span class="count"><span id="count">1</span> / 4</span></div>
+      <div class="body" id="registryBody">
+        <div class="card" data-base>
+          <div class="card-key">"read_file"</div>
+          <div class="card-details">schema → <b>{ name, description, parameters }</b><br>fn → <b>read_file</b></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <aside class="insight">
+    <strong>关键变化</strong>
+    <span>新增工具时，Schema 和执行函数从同一处注册；主循环只读取 <code>_TOOLS</code>，不需要跟着工具数量反复修改。</span>
+  </aside>
+</main>
+
+<script src="./viz-foundation.js"></script>
+<script>
+  var definitions = {
+    write_file: {
+      description: "创建或覆盖文件",
+      params: "path, content",
+      code: '<span class="decorator">@tool</span>(name=<span class="str">"write_file"</span>,\n      description=<span class="str">"创建或覆盖文件"</span>,\n      parameters={...})\n<span class="kw">def</span> <span class="fn">write_file</span>(path: str, content: str):\n    Path(path).write_text(content)'
+    },
+    edit_file: {
+      description: "精确替换文件内容",
+      params: "path, old_string, new_string",
+      code: '<span class="decorator">@tool</span>(name=<span class="str">"edit_file"</span>,\n      description=<span class="str">"精确替换文件内容"</span>,\n      parameters={...})\n<span class="kw">def</span> <span class="fn">edit_file</span>(path: str, old_string: str, new_string: str):\n    replace_exact(path, old_string, new_string)'
+    },
+    glob: {
+      description: "按模式定位文件",
+      params: "pattern, path",
+      code: '<span class="decorator">@tool</span>(name=<span class="str">"glob"</span>,\n      description=<span class="str">"按模式定位文件"</span>,\n      parameters={...})\n<span class="kw">def</span> <span class="fn">glob</span>(pattern: str, path: str = "."):\n    <span class="kw">return</span> Path(path).glob(pattern)'
+    }
+  };
+  var statusEl = document.getElementById("status");
+  var countEl = document.getElementById("count");
+  var codeBody = document.getElementById("codeBody");
+  var registryBody = document.getElementById("registryBody");
+  var busy = false;
+
+  function stages(active) {
+    document.querySelectorAll(".stage").forEach(function (el, index) {
+      el.classList.toggle("active", index === active);
+      el.classList.toggle("done", index < active);
+    });
+  }
+  function delay(ms) {
+    if (window.VizLab && window.VizLab.prefersReducedMotion) return Promise.resolve();
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+  async function register(name, button) {
+    if (busy || button.disabled) return;
+    busy = true;
+    var definition = definitions[name];
+    var code = document.createElement("div");
+    code.className = "code enter-left selected";
+    code.dataset.generated = name;
+    code.innerHTML = "<pre>" + definition.code + "</pre>";
+    codeBody.appendChild(code);
+    codeBody.scrollTop = codeBody.scrollHeight;
+    stages(0);
+    statusEl.textContent = "读取 @" + "tool 声明：提取 " + name + " 的 Schema。";
+    await delay(420);
+
+    stages(1);
+    statusEl.textContent = "把字符串名称 “" + name + "” 与真实函数绑定。";
+    var transfer = document.createElement("i");
+    transfer.className = "transfer";
+    code.appendChild(transfer);
+    await delay(460);
+
+    stages(2);
+    var card = document.createElement("div");
+    card.className = "card enter-right selected";
+    card.dataset.generated = name;
+    card.innerHTML = '<div class="card-key">"' + name + '"</div><div class="card-details">schema → <b>{ ' + definition.params + ' }</b><br>fn → <b>' + name + '</b></div>';
+    registryBody.appendChild(card);
+    registryBody.scrollTop = registryBody.scrollHeight;
+    button.disabled = true;
+    countEl.textContent = String(document.querySelectorAll(".card").length);
+    statusEl.textContent = "注册完成：" + name + " 已同时拥有模型可读 Schema 与本地可执行函数。";
+    await delay(380);
+    stages(3);
+    code.classList.remove("selected");
+    card.classList.remove("selected");
+    busy = false;
+  }
+  document.querySelectorAll("[data-tool]").forEach(function (button) {
+    button.addEventListener("click", function () { register(button.dataset.tool, button); });
+  });
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (busy) return;
+    document.querySelectorAll("[data-generated]").forEach(function (el) { el.remove(); });
+    document.querySelectorAll("[data-tool]").forEach(function (button) { button.disabled = false; });
+    countEl.textContent = "1";
+    stages(-1);
+    statusEl.textContent = "已重置。换一个工具，重新观察注册链路。";
+  });
+</script>
+</body>
+</html>

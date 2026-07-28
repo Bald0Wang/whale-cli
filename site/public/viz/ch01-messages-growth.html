@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>messages 数组的增长过程</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#faf9f5; --bg1:#f5f0e8; --card:#ffffff; --card2:#fbfaf6;
+  --border:#e6dfd8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --red:#c2402a; --purple:#8a63c9;
+  --blue:#5b6abf;
+  --shadow-sm:0 1px 2px rgba(41,38,31,0.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,0.06), 0 10px 28px -10px rgba(41,38,31,0.14);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  background: var(--bg0);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 24px;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 24px;
+  letter-spacing: -0.3px;
+}
+
+.layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.messages-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.array-label {
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  color: var(--text2);
+  margin-bottom: 8px;
+}
+
+.array-bracket {
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  color: var(--text2);
+  padding: 2px 0;
+}
+
+.messages-stack {
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid var(--border);
+  min-height: 60px;
+  position: relative;
+}
+
+.message-card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-left: 3px solid transparent;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  opacity: 0;
+  transform: translateX(30px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.message-card.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.message-card.role-user {
+  border-left-color: var(--blue);
+}
+
+.message-card.role-assistant {
+  border-left-color: var(--accent);
+}
+
+.message-card.role-tool {
+  border-left-color: var(--green);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.role-badge {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.role-user .role-badge {
+  background: rgba(91, 106, 191, 0.1);
+  color: var(--blue);
+}
+
+.role-assistant .role-badge {
+  background: rgba(217, 119, 87, 0.1);
+  color: var(--accent);
+}
+
+.role-tool .role-badge {
+  background: rgba(46, 125, 79, 0.1);
+  color: var(--green);
+}
+
+.step-number {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 10px;
+  color: var(--text3);
+}
+
+.card-content {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.card-content code {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  color: var(--ink);
+  background: var(--bg1);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.token-count {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 9px;
+  color: var(--text3);
+  text-align: right;
+  margin-top: 4px;
+}
+
+.stats-panel {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  position: sticky;
+  top: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.stats-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  margin-bottom: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.stat-value {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  transition: color 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-value.changed {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn:hover {
+  background: var(--bg1);
+  border-color: var(--border2);
+}
+
+.btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn.active {
+  background: rgba(217, 119, 87, 0.08);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.step-indicator {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 11px;
+  color: var(--text3);
+  margin-left: auto;
+}
+
+.insight {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(217, 119, 87, 0.05);
+  border: 1px solid rgba(217, 119, 87, 0.15);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.6;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.insight.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.insight strong {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 16px;
+  }
+
+  .layout {
+    flex-direction: column;
+  }
+
+  .stats-panel {
+    width: 100%;
+    position: static;
+    order: -1;
+  }
+
+  .stat-row {
+    display: inline-flex;
+    margin-right: 16px;
+  }
+
+  .stat-label {
+    margin-right: 6px;
+  }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>messages 数组的增长过程</h1>
+
+  <div class="layout">
+    <div class="messages-panel">
+      <div class="array-label">messages =</div>
+      <div class="array-bracket">[</div>
+      <div class="messages-stack" id="messagesStack"></div>
+      <div class="array-bracket">]</div>
+
+      <div class="insight" id="insight">
+        <strong>想一想：</strong>每次调 API 都要把这整个数组传过去。4 条消息还好，跑 50 步之后呢？
+        <br>—— 这就是 Ch14 上下文管理要解决的问题。
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="btnPrev" disabled>上一步</button>
+        <button class="btn" id="btnNext">下一步</button>
+        <button class="btn" id="btnAuto">自动播放</button>
+        <span class="step-indicator" id="stepIndicator">步骤 0 / 4</span>
+      </div>
+    </div>
+
+    <div class="stats-panel">
+      <div class="stats-title">运行时状态</div>
+      <div class="stat-row">
+        <span class="stat-label">消息数</span>
+        <span class="stat-value" id="statLength">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">tokens</span>
+        <span class="stat-value" id="statTokens">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">LLM 调用</span>
+        <span class="stat-value" id="statLLM">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">工具调用</span>
+        <span class="stat-value" id="statTools">0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const steps = [
+  {
+    role: 'user',
+    badge: 'USER',
+    content: '读 README.md 告诉我这个项目是干什么的',
+    tokens: 20,
+    stats: { length: 1, tokens: 20, llm: 0, tools: 0 }
+  },
+  {
+    role: 'assistant',
+    badge: 'ASSISTANT',
+    content: 'tool_calls: [{ name: "read_file", args: { path: "README.md" } }]',
+    tokens: 100,
+    stats: { length: 2, tokens: 120, llm: 1, tools: 0 }
+  },
+  {
+    role: 'tool',
+    badge: 'TOOL',
+    content: '# Whale CLI\\nCLI Coding Agent 教程的样例项目。包含完整的 agent loop 实现、工具注册系统、流式输出...',
+    tokens: 500,
+    stats: { length: 3, tokens: 620, llm: 1, tools: 1 }
+  },
+  {
+    role: 'assistant',
+    badge: 'ASSISTANT',
+    content: '这个项目是 Whale CLI，一个用于教学的 CLI Coding Agent。它演示了如何从零构建一个能读写文件、执行命令的 AI 助手...',
+    tokens: 100,
+    stats: { length: 4, tokens: 720, llm: 2, tools: 1 }
+  }
+];
+
+let currentStep = 0;
+let autoInterval = null;
+
+const stack = document.getElementById('messagesStack');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnAuto = document.getElementById('btnAuto');
+const stepIndicator = document.getElementById('stepIndicator');
+const insight = document.getElementById('insight');
+const statLength = document.getElementById('statLength');
+const statTokens = document.getElementById('statTokens');
+const statLLM = document.getElementById('statLLM');
+const statTools = document.getElementById('statTools');
+
+function createCard(step, index) {
+  const card = document.createElement('div');
+  card.className = `message-card role-${step.role}`;
+  card.dataset.step = index + 1;
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="role-badge">${step.badge}</span>
+      <span class="step-number">Step ${index + 1}</span>
+    </div>
+    <div class="card-content">${step.content}</div>
+    <div class="token-count">~${step.tokens} tokens</div>
+  `;
+  return card;
+}
+
+function animateStat(el, newValue) {
+  const old = el.textContent;
+  el.textContent = newValue;
+  if (old !== String(newValue)) {
+    el.classList.add('changed');
+    setTimeout(() => el.classList.remove('changed'), 400);
+  }
+}
+
+function updateStats(stats) {
+  animateStat(statLength, stats.length);
+  animateStat(statTokens, stats.tokens);
+  animateStat(statLLM, stats.llm);
+  animateStat(statTools, stats.tools);
+}
+
+function render() {
+  // Show/hide cards
+  const cards = stack.querySelectorAll('.message-card');
+  cards.forEach((card, i) => {
+    if (i < currentStep) {
+      card.classList.add('visible');
+    } else {
+      card.classList.remove('visible');
+    }
+  });
+
+  // Update stats
+  if (currentStep === 0) {
+    updateStats({ length: 0, tokens: 0, llm: 0, tools: 0 });
+  } else {
+    updateStats(steps[currentStep - 1].stats);
+  }
+
+  // Controls
+  btnPrev.disabled = currentStep === 0;
+  btnNext.disabled = currentStep === steps.length;
+  stepIndicator.textContent = `步骤 ${currentStep} / ${steps.length}`;
+
+  // Insight
+  if (currentStep === steps.length) {
+    insight.classList.add('visible');
+  } else {
+    insight.classList.remove('visible');
+  }
+}
+
+function goForward() {
+  if (currentStep < steps.length) {
+    currentStep++;
+    render();
+  } else {
+    stopAuto();
+  }
+}
+
+function goBackward() {
+  if (currentStep > 0) {
+    currentStep--;
+    render();
+  }
+}
+
+function stopAuto() {
+  if (autoInterval) {
+    clearInterval(autoInterval);
+    autoInterval = null;
+    btnAuto.classList.remove('active');
+    btnAuto.textContent = '自动播放';
+  }
+}
+
+function toggleAuto() {
+  if (autoInterval) {
+    stopAuto();
+  } else {
+    if (currentStep === steps.length) {
+      currentStep = 0;
+      render();
+    }
+    btnAuto.classList.add('active');
+    btnAuto.textContent = '暂停';
+    autoInterval = setInterval(() => {
+      if (currentStep < steps.length) {
+        goForward();
+      } else {
+        stopAuto();
+      }
+    }, 1500);
+  }
+}
+
+// Initialize cards (hidden)
+steps.forEach((step, i) => {
+  stack.appendChild(createCard(step, i));
+});
+
+// Event listeners
+btnNext.addEventListener('click', goForward);
+btnPrev.addEventListener('click', goBackward);
+btnAuto.addEventListener('click', toggleAuto);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    goForward();
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    goBackward();
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    toggleAuto();
+  }
+});
+
+// Initial render
+render();
+</script>
+</body>
+</html>

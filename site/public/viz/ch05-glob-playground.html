@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glob Pattern Playground</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #c4b8a8;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.container {
+  width: 100%;
+  max-width: 640px;
+}
+
+h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e8ddd0;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+}
+
+.input-section {
+  margin-bottom: 16px;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.input-row label {
+  font-size: 12px;
+  color: #8a7e72;
+  white-space: nowrap;
+}
+
+.input-row input {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  padding: 8px 12px;
+  background: #0f0e0c;
+  border: 1px solid #3a342e;
+  border-radius: 4px;
+  color: #f0e8dc;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-row input:focus {
+  border-color: #7ec384;
+}
+
+.match-count {
+  font-size: 12px;
+  color: #7ec384;
+  white-space: nowrap;
+  min-width: 90px;
+  text-align: right;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.presets button {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  background: #2a2420;
+  border: 1px solid #3a342e;
+  border-radius: 3px;
+  color: #a89888;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.presets button:hover {
+  background: #3a342e;
+  color: #e8ddd0;
+  border-color: #5a5048;
+}
+
+.presets button.active {
+  background: #1a3020;
+  border-color: #7ec384;
+  color: #7ec384;
+}
+
+.tree-container {
+  background: #0f0e0c;
+  border: 1px solid #2a2420;
+  border-radius: 6px;
+  padding: 16px 20px;
+  max-height: 380px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.tree-line {
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.tree-line .prefix {
+  color: #3a342e;
+  user-select: none;
+}
+
+.tree-line.matched .name {
+  color: #7ec384;
+  font-weight: 500;
+}
+
+.tree-line.dimmed .name {
+  color: #6a6058;
+}
+
+.tree-line.ignored .name {
+  color: #8b5a5a;
+  text-decoration: line-through;
+}
+
+.tree-line.ignored .tag {
+  font-size: 10px;
+  color: #6b4a4a;
+  margin-left: 8px;
+}
+
+.tree-line.dir .name {
+  color: #a89888;
+}
+
+.tree-line.dir.dimmed .name {
+  color: #6a6058;
+}
+
+.syntax-ref {
+  background: #0f0e0c;
+  border: 1px solid #2a2420;
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+
+.syntax-ref h3 {
+  font-size: 11px;
+  color: #8a7e72;
+  margin-bottom: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.syntax-row {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.syntax-row .sym {
+  color: #d4a574;
+  min-width: 40px;
+  font-weight: 500;
+}
+
+.syntax-row .desc {
+  color: #8a7e72;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Glob Pattern Playground</h1>
+
+  <div class="input-section">
+    <div class="input-row">
+      <label>Pattern:</label>
+      <input type="text" id="patternInput" value="src/**/*.ts" spellcheck="false" autocomplete="off">
+      <span class="match-count" id="matchCount"></span>
+    </div>
+  </div>
+
+  <div class="presets" id="presets">
+    <button data-pattern="**/*.ts">**/*.ts</button>
+    <button data-pattern="src/**/*.ts">src/**/*.ts</button>
+    <button data-pattern="src/auth/*.ts">src/auth/*.ts</button>
+    <button data-pattern="*.json">*.json</button>
+    <button data-pattern="tests/*.test.ts">tests/*.test.ts</button>
+  </div>
+
+  <div class="tree-container" id="tree"></div>
+
+  <div class="syntax-ref">
+    <h3>Glob 语法参考</h3>
+    <div class="syntax-row"><span class="sym">*</span><span class="desc">匹配文件名中的任意字符</span></div>
+    <div class="syntax-row"><span class="sym">**</span><span class="desc">跨目录匹配</span></div>
+    <div class="syntax-row"><span class="sym">?</span><span class="desc">匹配一个字符</span></div>
+  </div>
+</div>
+
+<script>
+const fileTree = [
+  { path: 'myapp/', type: 'dir', depth: 0 },
+  { path: 'myapp/README.md', name: 'README.md', depth: 1, last: false },
+  { path: 'myapp/package.json', name: 'package.json', depth: 1, last: false },
+  { path: 'myapp/src/', name: 'src/', type: 'dir', depth: 1, last: false },
+  { path: 'myapp/src/index.ts', name: 'index.ts', depth: 2, last: false, parent: 'src' },
+  { path: 'myapp/src/app.ts', name: 'app.ts', depth: 2, last: false, parent: 'src' },
+  { path: 'myapp/src/auth/', name: 'auth/', type: 'dir', depth: 2, last: false, parent: 'src' },
+  { path: 'myapp/src/auth/login.ts', name: 'login.ts', depth: 3, last: false, parent: 'auth' },
+  { path: 'myapp/src/auth/logout.ts', name: 'logout.ts', depth: 3, last: false, parent: 'auth' },
+  { path: 'myapp/src/auth/session.ts', name: 'session.ts', depth: 3, last: true, parent: 'auth' },
+  { path: 'myapp/src/api/', name: 'api/', type: 'dir', depth: 2, last: false, parent: 'src' },
+  { path: 'myapp/src/api/users.ts', name: 'users.ts', depth: 3, last: false, parent: 'api' },
+  { path: 'myapp/src/api/posts.ts', name: 'posts.ts', depth: 3, last: true, parent: 'api' },
+  { path: 'myapp/src/utils/', name: 'utils/', type: 'dir', depth: 2, last: true, parent: 'src' },
+  { path: 'myapp/src/utils/helpers.ts', name: 'helpers.ts', depth: 3, last: false, parent: 'utils' },
+  { path: 'myapp/src/utils/constants.ts', name: 'constants.ts', depth: 3, last: true, parent: 'utils' },
+  { path: 'myapp/tests/', name: 'tests/', type: 'dir', depth: 1, last: false },
+  { path: 'myapp/tests/auth.test.ts', name: 'auth.test.ts', depth: 2, last: false, parent: 'tests' },
+  { path: 'myapp/tests/api.test.ts', name: 'api.test.ts', depth: 2, last: true, parent: 'tests' },
+  { path: 'myapp/node_modules/', name: 'node_modules/', type: 'dir', depth: 1, last: false, ignored: true },
+  { path: 'myapp/node_modules/express/', name: 'express/', type: 'dir', depth: 2, last: true, ignored: true },
+  { path: 'myapp/node_modules/express/index.js', name: 'index.js', depth: 3, last: true, ignored: true },
+  { path: 'myapp/dist/', name: 'dist/', type: 'dir', depth: 1, last: false, ignored: true },
+  { path: 'myapp/dist/bundle.js', name: 'bundle.js', depth: 2, last: true, ignored: true },
+  { path: 'myapp/.env', name: '.env', depth: 1, last: true },
+];
+
+// Tree drawing characters
+const PIPE = '│   ';
+const TEE  = '├── ';
+const ELL  = '└── ';
+const SPACE = '    ';
+
+// Build visual prefix for each line
+function buildPrefix(item, index) {
+  if (item.depth === 0) return '';
+  // Simple approach: use tree characters based on position
+  let prefix = '';
+  // For depth 1, just use tee or ell
+  if (item.depth === 1) {
+    return item.last ? ELL : TEE;
+  }
+  // For deeper items, build from parent context
+  let parts = [];
+  // Add continuation lines for ancestors
+  for (let d = 1; d < item.depth; d++) {
+    // Check if ancestor at this depth is last among its siblings
+    const isAncestorLast = isLastAtDepth(index, d);
+    parts.push(isAncestorLast ? SPACE : PIPE);
+  }
+  parts.push(item.last ? ELL : TEE);
+  return parts.join('');
+}
+
+function isLastAtDepth(currentIndex, targetDepth) {
+  // Look backward to find the item at targetDepth that contains currentIndex
+  for (let i = currentIndex; i >= 0; i--) {
+    if (fileTree[i].depth === targetDepth) {
+      return fileTree[i].last === true;
+    }
+  }
+  return false;
+}
+
+// Glob matching (simplified but functional)
+function globToRegex(pattern) {
+  // Normalize: remove leading myapp/ if present
+  let p = pattern.trim();
+  if (!p) return null;
+
+  let regexStr = '';
+  let i = 0;
+  while (i < p.length) {
+    const c = p[i];
+    if (c === '*') {
+      if (p[i + 1] === '*') {
+        // **
+        if (p[i + 2] === '/') {
+          regexStr += '(?:.+/)?';
+          i += 3;
+        } else {
+          regexStr += '.*';
+          i += 2;
+        }
+      } else {
+        regexStr += '[^/]*';
+        i++;
+      }
+    } else if (c === '?') {
+      regexStr += '[^/]';
+      i++;
+    } else if (c === '.') {
+      regexStr += '\\.';
+      i++;
+    } else if (c === '/') {
+      regexStr += '/';
+      i++;
+    } else {
+      regexStr += c;
+      i++;
+    }
+  }
+
+  try {
+    return new RegExp('^' + regexStr + '$');
+  } catch (e) {
+    return null;
+  }
+}
+
+function matchFile(filePath, pattern) {
+  // Remove the myapp/ prefix for matching
+  const relativePath = filePath.replace(/^myapp\//, '');
+  const regex = globToRegex(pattern);
+  if (!regex) return false;
+  return regex.test(relativePath);
+}
+
+function render() {
+  const pattern = document.getElementById('patternInput').value;
+  const treeEl = document.getElementById('tree');
+  const countEl = document.getElementById('matchCount');
+
+  let matchCount = 0;
+  let html = '';
+
+  fileTree.forEach((item, index) => {
+    const prefix = buildPrefix(item, index);
+    const isDir = item.type === 'dir';
+    const isFile = !isDir;
+    const isIgnored = item.ignored;
+
+    let matched = false;
+    if (isFile && !isIgnored && pattern.trim()) {
+      matched = matchFile(item.path, pattern);
+      if (matched) matchCount++;
+    }
+
+    let className = 'tree-line';
+    if (isDir) className += ' dir';
+    if (isIgnored) {
+      className += ' ignored';
+    } else if (matched) {
+      className += ' matched';
+    } else if (isFile) {
+      className += ' dimmed';
+    } else if (isDir && !isIgnored) {
+      // Check if any child matches
+      const hasMatchingChild = fileTree.some(f =>
+        !f.type && !f.ignored && f.path.startsWith(item.path) && matchFile(f.path, pattern)
+      );
+      if (!hasMatchingChild && pattern.trim()) {
+        className += ' dimmed';
+      }
+    }
+
+    const displayName = item.depth === 0 ? 'myapp/' : item.name;
+    const tag = isIgnored ? '<span class="tag">// 自动跳过</span>' : '';
+
+    html += `<div class="${className}"><span class="prefix">${prefix}</span><span class="name">${displayName}</span>${tag}</div>`;
+  });
+
+  treeEl.innerHTML = html;
+  countEl.textContent = pattern.trim() ? `匹配 ${matchCount} 个文件` : '';
+
+  // Update active preset button
+  document.querySelectorAll('.presets button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.pattern === pattern.trim());
+  });
+}
+
+// Event listeners
+document.getElementById('patternInput').addEventListener('input', render);
+
+document.getElementById('presets').addEventListener('click', (e) => {
+  if (e.target.tagName === 'BUTTON') {
+    document.getElementById('patternInput').value = e.target.dataset.pattern;
+    render();
+  }
+});
+
+// Initial render
+render();
+</script>
+</body>
+</html>

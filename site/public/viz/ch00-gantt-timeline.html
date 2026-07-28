@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentPrism Gantt Timeline</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#1c1816;color:#ebe0d2;font-family:'JetBrains Mono',monospace;font-size:12px}
+#app{display:flex;flex-direction:column;height:100%;min-width:700px}
+.header{padding:8px 16px;font-size:13px;font-weight:600;color:#ebe0d2;border-bottom:1px solid #332d28;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.header span{color:#D77757}
+.panels{display:flex;flex:1;overflow:hidden}
+/* Tree: column with sticky header + scrollable body */
+.tree-panel{width:30%;min-width:210px;background:#0f0e0c;border-right:1px solid #332d28;display:flex;flex-direction:column;flex-shrink:0}
+.tree-header{height:25px;border-bottom:1px solid #332d28;padding:0 8px;display:flex;align-items:center;font-size:10px;color:#6b5f53;flex-shrink:0}
+.tree-body{flex:1;overflow-y:auto;overflow-x:hidden}
+/* Gantt: column with sticky time-axis + scrollable body */
+.gantt-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.time-axis{height:25px;border-bottom:1px solid #332d28;position:relative;flex-shrink:0;background:#1c1816}
+.tick{position:absolute;bottom:2px;font-size:10px;color:#6b5f53;transform:translateX(-50%)}
+.tick::after{content:'';position:absolute;bottom:-2px;left:50%;width:1px;height:5px;background:#332d28}
+.gantt-body{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+.gantt-rows{position:relative}
+/* Shared row height */
+.row,.gantt-row{height:28px}
+.row{display:flex;align-items:center;cursor:pointer;padding-right:8px;white-space:nowrap;transition:background .15s}
+.row:hover{background:#1a1612}
+.row.selected{background:#1f1a16;border-left:2px solid #D77757}
+.row:not(.selected){border-left:2px solid transparent}
+.toggle{width:16px;height:28px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#6b5f53;font-size:10px;user-select:none}
+.toggle.has-children{cursor:pointer;color:#ebe0d2}
+.icon{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:6px;display:inline-block}
+.icon-llm{background:#D77757}
+.icon-read{background:#6477e0}
+.icon-bash{background:#7ec384}
+.icon-grep{background:#9b7ed8}
+.icon-write{background:#e0c864}
+.icon-agent{background:#ebe0d2;border:1.5px solid #332d28}
+.lbl{flex:1;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#c4b8a8}
+.meta{color:#6b5f53;font-size:10px;margin-left:6px;flex-shrink:0}
+.gantt-row{position:relative;display:flex;align-items:center}
+.bar{position:absolute;height:14px;border-radius:3px;cursor:pointer;transition:filter .15s}
+.bar.anim{opacity:0;animation:fadeIn .35s forwards}
+.bar-agent{height:20px;border-radius:4px;background:#332d28;border:1px solid #3d362f}
+.bar-llm{background:#D77757}
+.bar-read{background:#6477e0}
+.bar-bash{background:#7ec384}
+.bar-grep{background:#9b7ed8}
+.bar-write{background:#e0c864}
+.bar:hover{filter:brightness(1.3)}
+.bar.sel{outline:1.5px solid #ebe0d2;outline-offset:-1px}
+@keyframes fadeIn{to{opacity:1}}
+.cursor-line{position:absolute;top:0;width:1px;background:rgba(215,119,87,0.25);pointer-events:none;z-index:2;display:none}
+.cursor-time{position:absolute;top:4px;font-size:9px;color:#D77757;transform:translateX(4px);pointer-events:none;white-space:nowrap}
+.tooltip{position:fixed;background:#0f0e0c;border:1px solid #332d28;border-radius:4px;padding:8px 10px;font-size:11px;color:#ebe0d2;z-index:100;pointer-events:none;max-width:260px;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,0.5)}
+.tooltip b{color:#D77757;font-weight:500}
+.bottom-bar{padding:6px 16px;border-top:1px solid #332d28;font-size:11px;color:#6b5f53;display:flex;gap:16px;flex-shrink:0;flex-wrap:wrap;background:#0f0e0c}
+.bottom-bar span{color:#ebe0d2}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">AgentPrism <span>Gantt Timeline</span> -- Claude Code / OpenClaw</div>
+  <div class="panels">
+    <div class="tree-panel">
+      <div class="tree-header">调用树</div>
+      <div class="tree-body" id="treeBody"></div>
+    </div>
+    <div class="gantt-panel">
+      <div class="time-axis" id="timeAxis"></div>
+      <div class="gantt-body" id="ganttBody">
+        <div class="gantt-rows" id="ganttRows"></div>
+        <div class="cursor-line" id="cursorLine"><div class="cursor-time" id="cursorTime"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar" id="bottomBar"></div>
+</div>
+<div class="tooltip" id="tip" style="display:none"></div>
+<script>
+const SPANS=[
+  {id:0,parent:null,type:"agent",label:"Main Agent",start:0,end:28000,status:"success"},
+  {id:1,parent:0,type:"llm",label:"LLM: 分析任务",start:0,end:2000,tokens_in:3200,tokens_out:480,cost:.006},
+  {id:2,parent:0,type:"tool",tool:"Bash",label:"find ./src -type f | head -50",start:2000,end:2300,tokens:350},
+  {id:3,parent:0,type:"llm",label:"LLM: 规划搜索策略",start:2400,end:4000,tokens_in:4100,tokens_out:620,cost:.008},
+  {id:4,parent:0,type:"tool",tool:"Read",label:"Read: src/entry.ts",start:4000,end:4200,tokens:890},
+  {id:5,parent:0,type:"tool",tool:"Read",label:"Read: src/gateway/index.ts",start:4200,end:4500,tokens:1200},
+  {id:6,parent:0,type:"tool",tool:"Grep",label:"Grep: handleMessage",start:4500,end:4700,tokens:280},
+  {id:7,parent:0,type:"llm",label:"LLM: 发现需要深入分析",start:4800,end:6500,tokens_in:7200,tokens_out:890,cost:.014},
+  {id:8,parent:0,type:"agent",label:"Sub-Agent: 分析 auto-reply 模块",start:6500,end:18000,status:"success"},
+  {id:9,parent:8,type:"llm",label:"LLM: 子任务规划",start:6500,end:7500,tokens_in:2800,tokens_out:350,cost:.005},
+  {id:10,parent:8,type:"tool",tool:"Read",label:"Read: src/auto-reply/handler.ts",start:7500,end:7900,tokens:1400},
+  {id:11,parent:8,type:"tool",tool:"Read",label:"Read: src/auto-reply/config.ts",start:7900,end:8200,tokens:680},
+  {id:12,parent:8,type:"tool",tool:"Grep",label:"Grep: processEvent",start:8200,end:8400,tokens:190},
+  {id:13,parent:8,type:"llm",label:"LLM: 子任务总结",start:8500,end:10000,tokens_in:6200,tokens_out:1200,cost:.012},
+  {id:14,parent:0,type:"llm",label:"LLM: 最终回答",start:18000,end:20000,tokens_in:9800,tokens_out:2400,cost:.022}
+];
+const TOTAL=28000;
+let selected=null;
+const collapsed=new Set();
+let firstRender=true;
+
+const $=id=>document.getElementById(id);
+const treeBody=$("treeBody"),ganttBody=$("ganttBody"),ganttRows=$("ganttRows");
+const timeAxis=$("timeAxis"),cursorLine=$("cursorLine"),cursorTime=$("cursorTime");
+const tip=$("tip"),bottomBar=$("bottomBar");
+
+function kids(id){return SPANS.filter(s=>s.parent===id)}
+function flat(pid,d){
+  const cs=pid===null?SPANS.filter(s=>s.parent===null):kids(pid);
+  let r=[];
+  cs.forEach(s=>{r.push({s,d});if(s.type==="agent")r=r.concat(flat(s.id,d+1))});
+  return r;
+}
+function cls(s){
+  if(s.type==="agent")return"agent";
+  if(s.type==="llm")return"llm";
+  const t=(s.tool||"").toLowerCase();
+  return{read:"read",bash:"bash",grep:"grep",glob:"grep",write:"write",edit:"write"}[t]||"llm";
+}
+function dur(s){return((s.end-s.start)/1000).toFixed(1)+"s"}
+function desc(id,aid){let s=SPANS.find(x=>x.id===id);while(s){if(s.parent===aid)return true;s=SPANS.find(x=>x.id===s.parent)}return false}
+function agentCost(id){let c=0;SPANS.forEach(x=>{if(x.cost&&desc(x.id,id))c+=x.cost});return c}
+function costLabel(s){if(s.cost)return"$"+s.cost.toFixed(3);if(s.type==="agent")return"$"+agentCost(s.id).toFixed(3);return""}
+function hidden(id){let s=SPANS.find(x=>x.id===id);while(s&&s.parent!==null){if(collapsed.has(s.parent))return true;s=SPANS.find(x=>x.id===s.parent)}return false}
+
+// Scroll sync
+let syncing=false;
+treeBody.addEventListener("scroll",()=>{if(syncing)return;syncing=true;ganttBody.scrollTop=treeBody.scrollTop;syncing=false});
+ganttBody.addEventListener("scroll",()=>{if(syncing)return;syncing=true;treeBody.scrollTop=ganttBody.scrollTop;syncing=false});
+
+function render(){
+  const rows=flat(null,0);
+  treeBody.innerHTML="";
+  ganttRows.innerHTML="";
+  const gw=ganttBody.clientWidth||500;
+  const px=gw/TOTAL;
+
+  // Time axis ticks
+  timeAxis.innerHTML="";
+  for(let t=0;t<=TOTAL;t+=4000){
+    const tk=document.createElement("div");
+    tk.className="tick";
+    tk.style.left=(t*px)+"px";
+    tk.textContent=(t/1000)+"s";
+    timeAxis.appendChild(tk);
+  }
+
+  let idx=0;
+  rows.forEach(({s,d})=>{
+    const vis=!hidden(s.id);
+    const hk=kids(s.id).length>0;
+    const col=collapsed.has(s.id);
+
+    // Tree row
+    const tr=document.createElement("div");
+    tr.className="row"+(selected===s.id?" selected":"");
+    tr.style.paddingLeft=(d*16+4)+"px";
+    if(!vis)tr.style.display="none";
+
+    const tg=document.createElement("div");
+    tg.className="toggle"+(hk?" has-children":"");
+    tg.textContent=hk?(col?"▶":"▼"):"";
+    if(hk)tg.addEventListener("click",e=>{e.stopPropagation();col?collapsed.delete(s.id):collapsed.add(s.id);render()});
+
+    const ic=document.createElement("div");
+    ic.className="icon icon-"+cls(s);
+    const lb=document.createElement("div");
+    lb.className="lbl";
+    lb.textContent=s.label;
+    const mt=document.createElement("div");
+    mt.className="meta";
+    const c=costLabel(s);
+    mt.textContent=dur(s)+(c?"  "+c:"");
+
+    tr.append(tg,ic,lb,mt);
+    tr.addEventListener("click",()=>{selected=s.id;render()});
+    treeBody.appendChild(tr);
+
+    // Gantt row
+    const gr=document.createElement("div");
+    gr.className="gantt-row";
+    if(!vis)gr.style.display="none";
+
+    const bar=document.createElement("div");
+    const c2=cls(s);
+    bar.className="bar bar-"+c2+(selected===s.id?" sel":"");
+    const l=s.start*px, w=Math.max((s.end-s.start)*px,3);
+    bar.style.left=l+"px";
+    bar.style.width=w+"px";
+
+    if(firstRender&&vis){
+      bar.classList.add("anim");
+      bar.style.animationDelay=(idx*100)+"ms";
+    }
+
+    bar.addEventListener("click",()=>{selected=s.id;render()});
+    bar.addEventListener("mouseenter",e=>showTip(e,s));
+    bar.addEventListener("mousemove",moveTip);
+    bar.addEventListener("mouseleave",hideTip);
+    gr.appendChild(bar);
+    ganttRows.appendChild(gr);
+    if(vis)idx++;
+  });
+
+  renderBottom();
+  if(firstRender)firstRender=false;
+}
+
+function showTip(e,s){
+  let h="<b>"+s.label+"</b><br>耗时: "+dur(s);
+  if(s.tokens_in)h+="<br>输入 token: "+s.tokens_in.toLocaleString();
+  if(s.tokens_out)h+="<br>输出 token: "+s.tokens_out.toLocaleString();
+  if(s.tokens)h+="<br>token: "+s.tokens.toLocaleString();
+  if(s.cost)h+="<br>成本: $"+s.cost.toFixed(3);
+  if(s.type==="agent"){h+="<br>状态: "+s.status;h+="<br>子树成本: "+costLabel(s)}
+  tip.innerHTML=h;tip.style.display="block";moveTip(e);
+}
+function moveTip(e){
+  let x=e.clientX+12,y=e.clientY+12;
+  if(x+260>innerWidth)x=e.clientX-270;
+  if(y+140>innerHeight)y=e.clientY-150;
+  tip.style.left=x+"px";tip.style.top=y+"px";
+}
+function hideTip(){tip.style.display="none"}
+
+ganttBody.addEventListener("mousemove",e=>{
+  const r=ganttBody.getBoundingClientRect();
+  const x=e.clientX-r.left;
+  if(x<0||x>r.width){cursorLine.style.display="none";return}
+  cursorLine.style.display="block";
+  cursorLine.style.left=x+"px";
+  cursorLine.style.height=ganttRows.scrollHeight+"px";
+  cursorTime.textContent=(x/r.width*TOTAL/1000).toFixed(1)+"s";
+});
+ganttBody.addEventListener("mouseleave",()=>{cursorLine.style.display="none"});
+
+function renderBottom(){
+  let tok=0,llm=0,tool=0,cost=0;
+  SPANS.forEach(s=>{
+    if(s.type==="llm"){llm++;tok+=(s.tokens_in||0)+(s.tokens_out||0);cost+=(s.cost||0)}
+    if(s.type==="tool"){tool++;tok+=(s.tokens||0)}
+  });
+  bottomBar.innerHTML="总 token: <span>"+tok.toLocaleString()+"</span>"
+    +" | LLM 调用: <span>"+llm+" 次</span>"
+    +" | 工具调用: <span>"+tool+" 次</span>"
+    +" | 总耗时: <span>"+(TOTAL/1000).toFixed(1)+"s</span>"
+    +" | 总成本: <span>$"+cost.toFixed(3)+"</span>";
+}
+
+render();
+window.addEventListener("resize",render);
+</script>
+</body>
+</html>

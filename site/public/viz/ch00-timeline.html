@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: #1c1816;
+  font-family: 'JetBrains Mono', monospace;
+  color: #ebe0d2;
+  overflow: hidden;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 400px;
+}
+
+/* --- Controls bar --- */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 0;
+  flex-shrink: 0;
+}
+
+.controls button {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 6px;
+  color: #6a6058;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color .2s, border-color .2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.controls button:hover,
+.controls button.active {
+  color: #ebe0d2;
+  border-color: #D77757;
+}
+.controls button.active { color: #D77757; }
+
+.hint {
+  font-size: 10px;
+  color: #6a6058;
+  margin-left: auto;
+}
+
+/* --- Timeline strip --- */
+.timeline-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  padding: 18px 0 0;
+  overflow: hidden;
+}
+
+.timeline-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0 24px 10px;
+}
+.timeline-scroll::-webkit-scrollbar { display: none; }
+
+.timeline {
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+  min-width: max-content;
+  padding: 10px 0 6px;
+}
+
+/* The horizontal line */
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #332d28;
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  min-width: 80px;
+  padding: 0 12px;
+  transition: transform .15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.node:hover { transform: translateY(-2px); }
+
+.dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #332d28;
+  border: 2px solid #332d28;
+  position: relative;
+  z-index: 2;
+  transition: background .25s, border-color .25s, box-shadow .25s;
+  flex-shrink: 0;
+}
+.node.selected .dot {
+  background: #D77757;
+  border-color: #D77757;
+  box-shadow: 0 0 10px rgba(215,119,87,.45);
+}
+.node:not(.selected):hover .dot {
+  background: #6a6058;
+}
+
+.node-label {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #6a6058;
+  white-space: nowrap;
+  transition: color .2s;
+  text-align: center;
+  line-height: 1.3;
+}
+.node.selected .node-label { color: #6477e0; }
+
+.node-title {
+  font-size: 9px;
+  color: #6a6058;
+  margin-top: 2px;
+  white-space: nowrap;
+  transition: color .2s;
+}
+.node.selected .node-title { color: #ebe0d2; }
+
+/* --- Detail card --- */
+.detail-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #332d28 transparent;
+}
+.detail-area::-webkit-scrollbar { width: 4px; }
+.detail-area::-webkit-scrollbar-track { background: transparent; }
+.detail-area::-webkit-scrollbar-thumb { background: #332d28; border-radius: 2px; }
+
+.card {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 14px 16px;
+  animation: fadeIn .3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-date {
+  font-size: 11px;
+  color: #6477e0;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ebe0d2;
+  margin-bottom: 10px;
+}
+
+.card-desc {
+  font-size: 11px;
+  line-height: 1.65;
+  color: #ebe0d2;
+  opacity: .85;
+  margin-bottom: 10px;
+}
+.card-desc li {
+  margin-left: 14px;
+  margin-bottom: 3px;
+  list-style: disc;
+}
+
+.card-sig {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.55;
+  padding-top: 8px;
+  border-top: 1px solid #332d28;
+}
+.card-sig-label {
+  color: #7ec384;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.card-sig-text {
+  color: #ebe0d2;
+  opacity: .9;
+}
+
+.empty-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6a6058;
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="controls">
+    <button id="autoBtn" title="自动播放">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polygon points="2,1 10,6 2,11" fill="currentColor"/></svg>
+      <span>自动播放</span>
+    </button>
+    <span class="hint">← → 键切换 / 点击节点</span>
+  </div>
+
+  <div class="timeline-wrapper">
+    <div class="timeline-scroll" id="scrollContainer">
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </div>
+
+  <div class="detail-area" id="detailArea">
+    <div class="empty-hint">点击上方节点查看详情</div>
+  </div>
+</div>
+
+<script>
+const DATA = [
+  {
+    date: '2021.06',
+    name: 'GitHub Copilot',
+    tagline: 'your AI pair programmer',
+    desc: [
+      '能力：读光标前后代码，补全下一行',
+      '局限：不能读其他文件、不能跑命令、不知道代码能不能跑通'
+    ],
+    sig: '开发者第一次在 IDE 里用上 AI，但模型只能“续写”'
+  },
+  {
+    date: '2022.11',
+    name: 'ChatGPT',
+    tagline: '改变了用户心理模型',
+    desc: [
+      '开发者习惯了“描述目标，让模型决定怎么做”'
+    ],
+    sig: '从“补全代码”到“描述意图”的转变'
+  },
+  {
+    date: '2023.03',
+    name: 'GPT-4',
+    tagline: '推理能力跳级',
+    desc: [
+      '从“能补全”到“能理解代码意图”'
+    ],
+    sig: '模型能力的门槛跨过了'
+  },
+  {
+    date: '2023.06',
+    name: 'Function Calling',
+    tagline: 'OpenAI 原生工具调用 API',
+    desc: [
+      '模型可以按 JSON schema 选择和调用工具',
+      '之前只能靠 prompt hack'
+    ],
+    sig: '模型从“输出文本”变成“可以调用工具的 controller”'
+  },
+  {
+    date: '2023.06',
+    name: 'Aider',
+    tagline: '第一批 CLI coding agent',
+    desc: [
+      '命令行工具，用 git 管改动'
+    ],
+    sig: 'LLM 第一次真正接到 shell 上'
+  },
+  {
+    date: '2023.10',
+    name: 'SWE-bench',
+    tagline: '2294 个真实 GitHub issue',
+    desc: [
+      '真实 GitHub issue 转成 benchmark',
+      '“agent 能不能修真实 bug”有了量化标准'
+    ],
+    sig: '从“看 demo 觉得厉害”到“可以测量”'
+  },
+  {
+    date: '2024.03',
+    name: 'Devin',
+    tagline: '第一个完整演示',
+    desc: [
+      'agent 自己读代码、跑命令、修 bug、提 PR',
+      '当时只是 demo，但点燃了行业'
+    ],
+    sig: '证明了 coding agent 不是研究方向，是现在就能做的产品'
+  },
+  {
+    date: '2024.08-11',
+    name: '基础设施到齐',
+    tagline: 'Caching / MCP / 1M context',
+    desc: [
+      'Prompt Caching (Anthropic 8月, OpenAI 10月)——反复带 system prompt 不再每次付全价',
+      'MCP (Anthropic 11月)——agent 接工具的标准协议',
+      '1M context (Gemini 1.5 Pro)'
+    ],
+    sig: '做 coding agent 的工程成本和 token 成本大幅下降'
+  },
+  {
+    date: '2025.02',
+    name: 'Claude Code',
+    tagline: '终端里的 agentic coding',
+    desc: [
+      'Anthropic 发布，终端里的 agentic coding 工具',
+      'Research preview → GA'
+    ],
+    sig: '大厂正式入场 CLI agent'
+  },
+  {
+    date: '2025.04-09',
+    name: '扎堆出现',
+    tagline: 'CLI agent 成为品类',
+    desc: [
+      'Codex CLI (OpenAI, 4月)',
+      'Gemini CLI (Google, 6月, 开源)',
+      'kimi-cli (Moonshot, 下半年)',
+      'pi (badlogic, 极简路线)'
+    ],
+    sig: 'CLI coding agent 正式成为一个产品品类'
+  }
+];
+
+let selected = -1;
+let autoTimer = null;
+
+const timeline = document.getElementById('timeline');
+const detailArea = document.getElementById('detailArea');
+const scrollContainer = document.getElementById('scrollContainer');
+const autoBtn = document.getElementById('autoBtn');
+
+// Build nodes
+DATA.forEach((evt, i) => {
+  const node = document.createElement('div');
+  node.className = 'node';
+  node.dataset.index = i;
+  node.innerHTML = `
+    <div class="dot"></div>
+    <div class="node-label">${evt.date}</div>
+    <div class="node-title">${evt.name}</div>
+  `;
+  node.addEventListener('click', () => select(i));
+  timeline.appendChild(node);
+});
+
+function select(i) {
+  if (i < 0 || i >= DATA.length) return;
+  selected = i;
+  const evt = DATA[i];
+
+  // update node states
+  document.querySelectorAll('.node').forEach((n, idx) => {
+    n.classList.toggle('selected', idx === i);
+  });
+
+  // scroll node into view
+  const node = document.querySelectorAll('.node')[i];
+  const container = scrollContainer;
+  const nodeLeft = node.offsetLeft;
+  const nodeW = node.offsetWidth;
+  const containerW = container.clientWidth;
+  const scrollTarget = nodeLeft - containerW / 2 + nodeW / 2;
+  container.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+
+  // render card
+  const listHtml = evt.desc.map(d => `<li>${d}</li>`).join('');
+  detailArea.innerHTML = `
+    <div class="card" key="${i}">
+      <div class="card-date">${evt.date}</div>
+      <div class="card-name">${evt.name}${evt.tagline ? ' — ' + evt.tagline : ''}</div>
+      <div class="card-desc"><ul>${listHtml}</ul></div>
+      <div class="card-sig">
+        <span class="card-sig-label">意义</span>
+        <span class="card-sig-text">${evt.sig}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Auto-play
+function stopAuto() {
+  clearInterval(autoTimer);
+  autoTimer = null;
+  autoBtn.classList.remove('active');
+}
+
+autoBtn.addEventListener('click', () => {
+  if (autoTimer) {
+    stopAuto();
+    return;
+  }
+  autoBtn.classList.add('active');
+  // start from current or beginning
+  if (selected < 0 || selected >= DATA.length - 1) select(0);
+  autoTimer = setInterval(() => {
+    if (selected >= DATA.length - 1) {
+      stopAuto();
+      return;
+    }
+    select(selected + 1);
+  }, 3000);
+});
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    select(selected < 0 ? 0 : Math.min(selected + 1, DATA.length - 1));
+    stopAuto();
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    select(selected <= 0 ? 0 : selected - 1);
+    stopAuto();
+  }
+});
+</script>
+</body>
+</html>

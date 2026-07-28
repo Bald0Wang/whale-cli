@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>old_string 匹配扫描器</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #faf9f5;
+  color: #29261f;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px;
+}
+
+.container {
+  width: 100%;
+  max-width: 680px;
+}
+
+h1 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #a89888;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+}
+
+.input-section {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: stretch;
+}
+
+.input-section textarea {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: #0f0e0c;
+  border: 1px solid #fbfaf6;
+  border-radius: 6px;
+  color: #29261f;
+  padding: 8px 12px;
+  resize: none;
+  height: 38px;
+  line-height: 1.4;
+}
+
+.input-section textarea:focus {
+  outline: none;
+  border-color: #d97757;
+}
+
+.btn-scan {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  background: #d97757;
+  color: #faf9f5;
+  border: none;
+  border-radius: 6px;
+  padding: 0 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.btn-scan:hover {
+  background: #e08868;
+}
+
+.btn-scan:disabled {
+  background: #5a4a40;
+  cursor: not-allowed;
+}
+
+.scenarios {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-scenario {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  background: #2a2420;
+  color: #a89888;
+  border: 1px solid #fbfaf6;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-scenario:hover {
+  border-color: #d97757;
+  color: #29261f;
+}
+
+.btn-scenario.active {
+  border-color: #d97757;
+  background: rgba(215, 119, 87, 0.1);
+  color: #d97757;
+}
+
+.code-panel {
+  background: #0f0e0c;
+  border: 1px solid #fbfaf6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-header {
+  background: #1a1614;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #6a5a50;
+  border-bottom: 1px solid #2a2420;
+}
+
+.code-body {
+  padding: 12px 0;
+  overflow-x: auto;
+}
+
+.code-line {
+  display: flex;
+  padding: 1px 12px;
+  line-height: 1.6;
+  font-size: 12px;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.code-line.scanning {
+  background: rgba(215, 119, 87, 0.06);
+}
+
+.code-line.matched {
+  background: rgba(215, 119, 87, 0.2);
+  animation: matchGlow 0.4s ease;
+}
+
+@keyframes matchGlow {
+  0% { background: rgba(215, 119, 87, 0.5); }
+  100% { background: rgba(215, 119, 87, 0.2); }
+}
+
+.line-num {
+  width: 28px;
+  text-align: right;
+  color: #4a4038;
+  margin-right: 16px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-content {
+  white-space: pre;
+  color: #c8b8a8;
+}
+
+.line-content .keyword { color: #d97757; }
+.line-content .function { color: #c9a05a; }
+.line-content .string { color: #7a9e5a; }
+.line-content .builtin { color: #7a9eaa; }
+
+.result-panel {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  display: none;
+}
+
+.result-panel.show { display: block; }
+
+.result-panel.match-0 {
+  background: rgba(200, 60, 60, 0.12);
+  border: 1px solid rgba(200, 60, 60, 0.3);
+  color: #e06050;
+}
+
+.result-panel.match-1 {
+  background: rgba(80, 180, 80, 0.1);
+  border: 1px solid rgba(80, 180, 80, 0.3);
+  color: #0e7c66;
+}
+
+.result-panel.match-many {
+  background: rgba(220, 180, 50, 0.1);
+  border: 1px solid rgba(220, 180, 50, 0.3);
+  color: #d8b840;
+}
+
+.insight {
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: #2a2420;
+  border-left: 3px solid #d97757;
+  border-radius: 0 6px 6px 0;
+  font-size: 11px;
+  color: #a89888;
+  line-height: 1.6;
+}
+
+.scan-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #d97757;
+  border-radius: 0 2px 2px 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.code-line.scanning .scan-cursor {
+  opacity: 1;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>old_string 匹配扫描器</h1>
+
+  <div class="input-section">
+    <textarea id="searchInput" placeholder="输入 old_string...">return result</textarea>
+    <button class="btn-scan" id="btnScan" onclick="startScan()">扫描</button>
+  </div>
+
+  <div class="scenarios">
+    <button class="btn-scenario active" onclick="setScenario(0)">return result</button>
+    <button class="btn-scenario" onclick="setScenario(1)">result = transform(validated)</button>
+    <button class="btn-scenario" onclick="setScenario(2)">result = data * 2</button>
+    <button class="btn-scenario" onclick="setScenario(3)">多行上下文</button>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-header">process.py</div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <div class="result-panel" id="resultPanel"></div>
+
+  <div class="insight">
+    old_string 越具体，匹配越精确。如果不唯一，多包含几行上下文就行。
+  </div>
+</div>
+
+<script>
+const FILE_LINES = [
+  'def process(data):',
+  '    validated = validate(data)',
+  '    result = transform(validated)',
+  '    return result',
+  '',
+  'def transform(data):',
+  '    result = data.upper()',
+  '    return result',
+  '',
+  'def validate(data):',
+  '    if not isinstance(data, str):',
+  '        raise TypeError("expected str")',
+  '    return data.strip()',
+];
+
+const SCENARIOS = [
+  { text: 'return result', label: 'return result' },
+  { text: 'result = transform(validated)', label: 'result = transform(validated)' },
+  { text: 'result = data * 2', label: 'result = data * 2' },
+  { text: '    return result\n\ndef transform', label: '多行上下文' },
+];
+
+let scanning = false;
+
+function highlightSyntax(line) {
+  const keywords = ['def', 'return', 'if', 'not', 'raise'];
+  const builtins = ['isinstance', 'TypeError'];
+
+  let escaped = line
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Strings
+  escaped = escaped.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="string">$1</span>');
+
+  // Keywords
+  keywords.forEach(kw => {
+    const re = new RegExp('\\b(' + kw + ')\\b', 'g');
+    escaped = escaped.replace(re, '<span class="keyword">$1</span>');
+  });
+
+  // Builtins
+  builtins.forEach(b => {
+    const re = new RegExp('\\b(' + b + ')\\b', 'g');
+    escaped = escaped.replace(re, '<span class="builtin">$1</span>');
+  });
+
+  // Function names after def
+  escaped = escaped.replace(/(def\s+)(\w+)/g, '$1<span class="function">$2</span>');
+
+  return escaped;
+}
+
+function renderCode() {
+  const body = document.getElementById('codeBody');
+  body.innerHTML = FILE_LINES.map((line, i) => {
+    return `<div class="code-line" data-line="${i}">
+      <div class="scan-cursor"></div>
+      <span class="line-num">${i + 1}</span>
+      <span class="line-content">${highlightSyntax(line)}</span>
+    </div>`;
+  }).join('');
+}
+
+function findMatches(searchText) {
+  const searchLines = searchText.split('\n');
+  const matches = [];
+
+  for (let i = 0; i <= FILE_LINES.length - searchLines.length; i++) {
+    let found = true;
+    for (let j = 0; j < searchLines.length; j++) {
+      if (FILE_LINES[i + j] !== searchLines[j]) {
+        found = false;
+        break;
+      }
+    }
+    if (found) {
+      matches.push({ start: i, length: searchLines.length });
+    }
+  }
+
+  return matches;
+}
+
+function setScenario(idx) {
+  if (scanning) return;
+
+  document.querySelectorAll('.btn-scenario').forEach((btn, i) => {
+    btn.classList.toggle('active', i === idx);
+  });
+
+  const input = document.getElementById('searchInput');
+  input.value = SCENARIOS[idx].text;
+
+  // Adjust textarea height for multiline
+  if (SCENARIOS[idx].text.includes('\n')) {
+    input.style.height = '52px';
+  } else {
+    input.style.height = '38px';
+  }
+
+  // Reset display
+  resetDisplay();
+}
+
+function resetDisplay() {
+  renderCode();
+  const resultPanel = document.getElementById('resultPanel');
+  resultPanel.className = 'result-panel';
+  resultPanel.style.display = 'none';
+}
+
+async function startScan() {
+  if (scanning) return;
+  scanning = true;
+
+  const btn = document.getElementById('btnScan');
+  btn.disabled = true;
+
+  resetDisplay();
+
+  const searchText = document.getElementById('searchInput').value;
+  const matches = findMatches(searchText);
+  const searchLines = searchText.split('\n');
+  const lines = document.querySelectorAll('.code-line');
+
+  // Scan animation
+  for (let i = 0; i < lines.length; i++) {
+    lines[i].classList.add('scanning');
+
+    await sleep(200);
+
+    lines[i].classList.remove('scanning');
+
+    // Check if this line starts a match
+    for (const m of matches) {
+      if (m.start === i) {
+        for (let j = 0; j < m.length; j++) {
+          lines[i + j].classList.add('matched');
+        }
+      }
+    }
+  }
+
+  // Show result
+  showResult(matches.length);
+
+  btn.disabled = false;
+  scanning = false;
+}
+
+function showResult(count) {
+  const panel = document.getElementById('resultPanel');
+  panel.style.display = 'block';
+
+  if (count === 0) {
+    panel.className = 'result-panel show match-0';
+    panel.textContent = '未找到 -- old_string 在文件中不存在（模型可能幻觉了文件内容）';
+  } else if (count === 1) {
+    panel.className = 'result-panel show match-1';
+    panel.textContent = '找到 1 处，可以替换';
+  } else {
+    panel.className = 'result-panel show match-many';
+    panel.textContent = `找到 ${count} 处，old_string 不唯一，需要更多上下文`;
+  }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Init
+renderCode();
+</script>
+</body>
+</html>

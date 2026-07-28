@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户发一条消息，代码是怎么处理的</title>
+<style>
+:root{
+  --bg0:#faf9f5; --card:#fff; --card2:#fbfaf6;
+  --border:#e8e4d8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --amber:#c98a2b; --blue:#2563a8;
+  --shadow-sm:0 1px 2px rgba(41,38,31,.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,.06),0 10px 28px -10px rgba(41,38,31,.14);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,'Inter',system-ui,sans-serif;background:radial-gradient(1100px 700px at 25% -8%,#fefdf9,var(--bg0) 60%);color:var(--text);min-height:100vh;padding:2.2rem 1rem 3rem;}
+.wrap{max-width:980px;margin:0 auto;}
+h1{font-family:Georgia,'Songti SC',serif;font-size:1.5rem;font-weight:600;color:var(--ink);text-align:center;}
+.subtitle{text-align:center;font-size:0.8rem;color:var(--text2);margin:0.5rem 0 0.3rem;}
+.realtag{text-align:center;font-size:0.7rem;color:var(--teal);margin-bottom:1.1rem;}
+.realtag code{font-family:'JetBrains Mono',monospace;background:rgba(14,124,102,.07);padding:0.1rem 0.4rem;border-radius:4px;}
+
+/* fade-up animation */
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(12px);}
+  to{opacity:1;transform:translateY(0);}
+}
+.fade-up{animation:fadeUp .35s ease both;}
+
+/* badge pulse */
+@keyframes pulse{
+  0%,100%{transform:scale(1);}
+  50%{transform:scale(1.2);}
+}
+.pulse-badge{animation:pulse .6s ease;}
+
+/* phase crossfade */
+.phase{transition:opacity .3s ease;}
+.phase.crossfade{opacity:0;}
+
+/* chain node bounce */
+@keyframes nodeBounce{
+  0%{transform:scale(0.85);opacity:0.4;}
+  50%{transform:scale(1.1);}
+  100%{transform:scale(1);opacity:1;}
+}
+.cnode.bounce{animation:nodeBounce .4s ease both;}
+
+/* SVG thread draw */
+.thread-seg{stroke-dasharray:1000;stroke-dashoffset:1000;animation:drawSeg .4s ease forwards;}
+@keyframes drawSeg{to{stroke-dashoffset:0;}}
+
+/* 引导条 */
+.guide{background:linear-gradient(180deg,#fdfcf8,#f7f5ee);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:0.7rem 1rem;margin-bottom:1rem;font-size:0.8rem;line-height:1.6;}
+.guide b{color:var(--accent-deep);}
+.guide .voices{display:block;margin-top:0.45rem;padding-top:0.45rem;border-top:1px dashed var(--border2);font-size:0.72rem;color:var(--text2);}
+.guide .voices span{font-weight:600;padding-left:0.3rem;border-left:2px solid;margin:0 0.15rem;}
+.guide .v-agent{color:var(--teal);border-left-color:rgba(14,124,102,.5);}
+.guide .v-rec{color:var(--ink);border-left-color:var(--text3);}
+.guide .v-edit{color:var(--accent-deep);border-left-color:var(--accent);}
+
+/* 消息条 */
+.msgbar{display:flex;align-items:center;gap:0.7rem;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.65rem 1.05rem;margin-bottom:0.9rem;box-shadow:var(--shadow-sm);font-size:0.82rem;}
+.msgbar .who{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;}
+.msgbar .q{color:var(--ink);}
+
+.stage{display:grid;grid-template-columns:1fr 290px;gap:1rem;margin-bottom:0.9rem;}
+@media(max-width:780px){.stage{grid-template-columns:1fr;}}
+
+/* 文件树 */
+.treecard{position:relative;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-md);overflow:hidden;}
+.treecard .bar{display:flex;align-items:center;gap:5px;padding:0.5rem 0.8rem;background:var(--card2);border-bottom:1px solid var(--border);}
+.treecard .bar i{width:9px;height:9px;border-radius:50%;}
+.treecard .bar i:nth-child(1){background:#f3aba2}.treecard .bar i:nth-child(2){background:#f3d9a2}.treecard .bar i:nth-child(3){background:#b5d9b2}
+.treecard .bar span{margin-left:0.4rem;font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--text2);}
+.treewrap{position:relative;padding:0.6rem 0;}
+#thread{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+.tree{position:relative;z-index:2;}
+.row{display:flex;align-items:center;height:24px;padding:0 0.9rem;font-family:'JetBrains Mono','SF Mono',monospace;font-size:0.74rem;position:relative;transition:background .15s;}
+.row .ico{width:15px;flex-shrink:0;color:var(--text3);font-size:0.7rem;}
+.row.dir .nm{color:var(--text2);font-weight:600;}
+.row.file .nm{color:var(--text3);transition:color .2s;}
+.row.read .nm{color:var(--text);}
+.row.cursor{background:rgba(217,119,87,.10);}
+.row.cursor::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);}
+.row .badge{flex-shrink:0;width:16px;height:16px;border-radius:50%;background:var(--card2);border:1px solid var(--border2);color:var(--text3);font-size:0.6rem;display:flex;align-items:center;justify-content:center;margin-right:6px;transition:all .3s;}
+.row.lit .badge{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 0 8px rgba(14,124,102,.4);}
+.row.lit .nm{color:var(--teal);font-weight:600;}
+.row .visits{margin-left:auto;font-size:0.6rem;color:var(--text3);}
+
+/* file click highlight */
+.row.file-highlight{background:rgba(37,99,168,.08);}
+.row.file-highlight .nm{color:var(--blue) !important;font-weight:600;}
+.file-tooltip{position:absolute;z-index:50;background:#fffefb;border:1px solid var(--border2);border-radius:8px;padding:0.45rem 0.65rem;box-shadow:var(--shadow-md);font-size:0.68rem;color:var(--text);pointer-events:none;white-space:nowrap;max-width:260px;}
+.file-tooltip .ft-title{font-weight:600;color:var(--ink);margin-bottom:0.2rem;font-family:'JetBrains Mono',monospace;font-size:0.64rem;}
+.file-tooltip .ft-steps{color:var(--text2);}
+.file-tooltip .ft-steps b{color:var(--teal);}
+
+/* step highlight from file click */
+.stepcard.step-highlight-border{border-color:rgba(37,99,168,.5);box-shadow:0 0 0 2px rgba(37,99,168,.12);}
+
+/* 侧栏 */
+.side{display:flex;flex-direction:column;gap:0.7rem;}
+.phase{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.6rem 0.85rem;box-shadow:var(--shadow-sm);}
+.phase .pl{font-size:0.64rem;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+.phase .pt{font-family:Georgia,serif;font-size:0.95rem;color:var(--ink);margin-top:1px;}
+/* phase progress bar */
+.phase-progress{display:flex;gap:4px;margin-top:0.4rem;}
+.phase-progress .pp-seg{flex:1;height:3px;border-radius:2px;background:var(--border);transition:background .3s;}
+.phase-progress .pp-seg.pp-active{background:var(--accent);}
+.phase-progress .pp-seg.pp-done{background:var(--teal);}
+
+.stepcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.8rem 0.9rem;box-shadow:var(--shadow-sm);flex:1;transition:border-color .2s,box-shadow .2s;cursor:default;}
+.stepcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);transition:transform .15s,box-shadow .15s;}
+.stepcard .n{font-family:'JetBrains Mono',monospace;font-size:0.64rem;color:var(--text3);display:flex;justify-content:space-between;align-items:center;}
+.stepcard .n .act{padding:0 .4rem;border-radius:8px;font-weight:600;}
+.stepcard .n .act.scan{background:rgba(201,138,43,.14);color:var(--amber);}
+.stepcard .n .act.grep{background:rgba(37,99,168,.12);color:var(--blue);}
+.stepcard .n .act.read{background:rgba(14,124,102,.12);color:var(--teal);}
+
+/* step type WHY annotation */
+.stepcard .why-annotation{font-size:0.64rem;color:var(--text3);line-height:1.45;margin-top:0.25rem;padding:0.15rem 0.3rem;background:rgba(0,0,0,.02);border-radius:4px;font-style:italic;}
+
+/* ── 三种声音的视觉区分 ──
+   声音1 真实记录（命令 / agent 英文原话）= 深色等宽，机器/记录
+   声音2 agent 的话（中文翻译）= teal 左标，角色在说话
+   声音3 编者讲解（mech / 引导条）= terracotta 左标 + 讲解牌，书在对你说 */
+
+/* 声音2：agent 说的话，像一句被转述的引语（teal 左标） */
+.stepcard .think{font-size:0.74rem;color:var(--text);line-height:1.55;margin:0.5rem 0 0;padding:0.1rem 0 0.1rem 0.6rem;border-left:2px solid rgba(14,124,102,.3);min-height:2.6em;}
+.stepcard .think.cmdonly{border-left-color:rgba(125,118,106,.3);}
+.stepcard .think .src{display:inline-flex;align-items:center;gap:3px;font-size:0.56rem;font-family:'JetBrains Mono',monospace;padding:0.05rem 0.35rem;border-radius:8px;vertical-align:1px;margin-right:3px;}
+.stepcard .think .src.agent{background:rgba(14,124,102,.12);color:var(--teal);}
+.stepcard .think .src.cmd{background:rgba(125,118,106,.12);color:var(--text2);}
+/* voice icons via SVG inline */
+.src-icon{display:inline-block;width:10px;height:10px;flex-shrink:0;}
+.stepcard .think .en{display:block;margin-top:0.35rem;padding-top:0.35rem;border-top:1px dashed var(--border);font-family:'JetBrains Mono','SF Mono',monospace;font-size:0.63rem;color:var(--text3);line-height:1.45;}
+
+/* 声音1：命令块——实际执行的那条命令，深色终端（find/grep/read 左边框分色） */
+.stepcard .call{font-family:'JetBrains Mono',monospace;font-size:0.68rem;background:#1a1714;border-radius:7px;padding:0.5rem 0.65rem;color:#d0cdc4;line-height:1.45;word-break:break-all;border-left:3px solid var(--text3);margin-top:0.6rem;}
+.stepcard .call.scan{border-left-color:var(--amber);}
+.stepcard .call.grep{border-left-color:var(--blue);}
+.stepcard .call.read{border-left-color:var(--teal);}
+.stepcard .call .tn{font-weight:700;}
+.stepcard .call .tn.scan{color:#e0c98a;}
+.stepcard .call .tn.grep{color:#9bb8e8;}
+.stepcard .call .tn.read{color:#7ec699;}
+
+/* 声音3：编者讲解——和顶部引导条同一套 terracotta 左标，一眼认得出是"书在说话" */
+.stepcard .mech{margin-top:0.7rem;padding:0.5rem 0.65rem;background:linear-gradient(180deg,#fdfbf7,#faf6ef);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;font-size:0.7rem;line-height:1.55;color:var(--text2);font-family:Georgia,'Songti SC',serif;overflow:hidden;transition:max-height .3s ease,opacity .3s ease,padding .3s ease,margin .3s ease;}
+.stepcard .mech.collapsed{max-height:0;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;border:none;}
+.stepcard .mech .lead-tag{display:inline-block;font-family:-apple-system,sans-serif;font-size:0.56rem;font-weight:600;color:#fff;background:var(--accent);padding:0.05rem 0.4rem;border-radius:8px;vertical-align:1px;margin-right:4px;}
+.stepcard .mech .tool{font-family:'JetBrains Mono',monospace;font-weight:700;padding:0 0.25rem;border-radius:4px;font-style:normal;}
+.stepcard .mech .tool.read{color:var(--teal);background:rgba(14,124,102,.1);}
+.stepcard .mech .tool.grep{color:var(--blue);background:rgba(37,99,168,.1);}
+.stepcard .mech .tool.bash{color:var(--accent-deep);background:rgba(217,119,87,.1);}
+.stepcard .mech .ch{display:block;margin-top:0.3rem;font-size:0.66rem;color:var(--accent-deep);font-family:-apple-system,sans-serif;}
+/* toggle hint */
+.stepcard .toggle-hint{font-size:0.58rem;color:var(--text3);text-align:right;margin-top:0.3rem;cursor:pointer;user-select:none;}
+.stepcard .toggle-hint:hover{color:var(--accent);}
+
+/* 控制 */
+.controls{display:flex;align-items:center;gap:0.8rem;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.55rem 1rem;box-shadow:var(--shadow-sm);margin-bottom:0.2rem;flex-wrap:wrap;}
+.playbtn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:var(--card2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--accent-deep);font-size:0.85rem;transition:border-color .15s;}
+.playbtn:hover{border-color:var(--accent);}
+.playbtn svg{width:14px;height:14px;fill:var(--accent-deep);}
+/* speed selector */
+.speed-sel{display:flex;gap:2px;margin-left:-0.3rem;}
+.speed-sel button{border:1px solid var(--border);background:var(--card2);border-radius:6px;padding:0.15rem 0.4rem;font-size:0.6rem;font-family:'JetBrains Mono',monospace;color:var(--text3);cursor:pointer;transition:all .12s;}
+.speed-sel button:hover{border-color:var(--accent);color:var(--accent);}
+.speed-sel button.active{background:rgba(217,119,87,.1);border-color:var(--accent);color:var(--accent-deep);font-weight:600;}
+
+#scrub{flex:1;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:#efece3;outline:none;cursor:pointer;min-width:100px;}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg0);}
+#scrub::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg0);}
+.counter{flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.74rem;color:var(--text2);}
+.counter b{color:var(--ink);}
+.replaybtn{flex-shrink:0;border:1px solid var(--border2);background:var(--card2);border-radius:8px;padding:0.3rem 0.7rem;font-size:0.7rem;color:var(--accent-deep);cursor:pointer;transition:all .15s;font-family:-apple-system,sans-serif;}
+.replaybtn:hover{border-color:var(--accent);background:rgba(217,119,87,.06);}
+.replaybtn.running{color:var(--text3);}
+
+/* progress bar */
+.progress-bar-wrap{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:0.3rem 1rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.6rem;}
+.progress-track{flex:1;height:4px;background:#efece3;border-radius:2px;overflow:hidden;position:relative;}
+.progress-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--amber),var(--teal));transition:width .3s ease;width:0%;}
+.progress-label{flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--text3);white-space:nowrap;}
+
+#codepop{position:fixed;z-index:60;pointer-events:none;display:none;max-width:430px;background:#fffefb;border:1px solid var(--border2);border-radius:10px;box-shadow:0 8px 20px -6px rgba(41,38,31,.2),0 20px 50px -12px rgba(41,38,31,.24);overflow:hidden;}
+#codepop .pophead{padding:0.5rem 0.75rem;background:var(--card2);border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--ink);display:flex;align-items:center;gap:0.4rem;}
+#codepop .pophead .num{flex-shrink:0;width:15px;height:15px;border-radius:50%;background:var(--teal);color:#fff;font-size:0.58rem;display:flex;align-items:center;justify-content:center;}
+#codepop .popthink{padding:0.45rem 0.75rem;font-size:0.68rem;color:var(--text2);font-style:italic;border-bottom:1px solid var(--border);line-height:1.45;}
+#codepop pre{margin:0;padding:0.55rem 0.75rem;font-family:'JetBrains Mono','SF Mono',monospace;font-size:0.64rem;line-height:1.55;color:var(--text);white-space:pre;overflow-x:auto;max-height:160px;}
+#codepop pre .ln{color:var(--text3);}
+.row.file{cursor:pointer;}
+.row.file:hover{background:rgba(14,124,102,.05);}
+
+.answer{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.85rem 1.05rem;box-shadow:var(--shadow-sm);opacity:0.5;transition:opacity .4s;}
+.answer.lit{opacity:1;border-color:rgba(14,124,102,.3);}
+.answer .t{font-size:0.72rem;color:var(--text2);margin-bottom:0.5rem;}
+.answer .t b{color:var(--teal);}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:0.3rem;font-family:'JetBrains Mono',monospace;font-size:0.68rem;}
+.chain .cnode{padding:0.2rem 0.5rem;border-radius:6px;background:var(--card2);border:1px solid var(--border);color:var(--text3);transition:all .3s;}
+.chain .cnode.lit{background:rgba(14,124,102,.1);border-color:rgba(14,124,102,.4);color:var(--teal);}
+.chain .arr{color:var(--text3);}
+.note{font-size:0.66rem;color:var(--text2);text-align:center;line-height:1.85;margin-top:1rem;}
+.note code{font-family:'JetBrains Mono',monospace;color:var(--teal);}
+
+/* keyboard hint */
+.kb-hint{text-align:center;font-size:0.6rem;color:var(--text3);margin-top:0.4rem;margin-bottom:0.5rem;}
+.kb-hint kbd{display:inline-block;padding:0.05rem 0.35rem;border:1px solid var(--border2);border-radius:4px;background:var(--card2);font-family:'JetBrains Mono',monospace;font-size:0.58rem;margin:0 0.1rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>用户发一条消息，代码是怎么处理的</h1>
+  <p class="subtitle">OpenClaw 有 25000+ 个文件，Claude Code 没读过。它要弄清楚：消息从接收到回复，代码里依次调用了哪些文件。</p>
+  <p class="realtag">OpenClaw v2026.5.17 (b9921e21) &middot; 51 次工具调用 &middot; 1 分 49 秒 &middot; 命令、英文原话、代码片段来自这次 trace；中文是翻译</p>
+
+  <div class="guide">
+    左边是 OpenClaw 的文件树，只列了 agent 碰过的文件。拖下面的进度条跟着它走：每一步它要么 <b>find</b> 列目录、要么 <b>grep</b> 搜词、要么 <b>read</b> 打开一个文件。读过的文件会变深，调用链上的文件会编号、连线。
+    <span class="voices">右侧每步分三块：<span class="v-agent">agent 说的话</span> &middot; <span class="v-rec">实际跑的命令</span> &middot; <span class="v-edit">我们的讲解</span>，靠左边色条区分。</span>
+  </div>
+
+  <div class="msgbar">
+    <span class="who">?</span>
+    <span class="q">"用户发一条消息后，从接收到最终回复，帮我追一遍调用链。"</span>
+  </div>
+
+  <div class="stage">
+    <div class="treecard">
+      <div class="bar"><i></i><i></i><i></i><span>openclaw/src</span></div>
+      <div class="treewrap">
+        <svg id="thread"></svg>
+        <div class="tree" id="tree"></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="phase" id="phase-card">
+        <div class="pl" id="phase-l">阶段</div>
+        <div class="pt" id="phase-t"></div>
+        <div class="phase-progress"><div class="pp-seg" data-phase="1"></div><div class="pp-seg" data-phase="2"></div><div class="pp-seg" data-phase="3"></div></div>
+      </div>
+      <div class="stepcard" id="stepcard">
+        <div class="n"><span id="step-n">步骤 1 / 51</span><span class="act" id="step-act"></span></div>
+        <div class="why-annotation" id="step-why"></div>
+        <div class="think" id="step-think"></div>
+        <div class="call" id="step-call"></div>
+        <div class="mech" id="step-mech"></div>
+        <div class="toggle-hint" id="toggle-mech">[ 点击收起讲解 ]</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="playbtn" id="play"><svg viewBox="0 0 14 14"><polygon points="3,1 12,7 3,13"/></svg></button>
+    <div class="speed-sel">
+      <button data-speed="1" class="active">1x</button>
+      <button data-speed="2">2x</button>
+      <button data-speed="3">3x</button>
+    </div>
+    <input type="range" id="scrub" min="1" max="51" value="1">
+    <span class="counter"><b id="cur">1</b> / 51</span>
+    <button class="replaybtn" id="replay">&#9654; 一次看完</button>
+  </div>
+  <div class="progress-bar-wrap">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <span class="progress-label" id="progress-label">1/51</span>
+  </div>
+  <div class="kb-hint"><kbd>&larr;</kbd> 上一步 <kbd>&rarr;</kbd> 下一步 <kbd>Space</kbd> 播放/暂停 <kbd>Home</kbd> 第一步 <kbd>End</kbd> 最后一步</div>
+
+  <div class="answer" id="answer">
+    <div class="t">agent 找到的调用链（<b>读到一个就接上一截</b>）：</div>
+    <div class="chain" id="chain"></div>
+  </div>
+
+  <div class="note">
+    命令分色：<span style="color:var(--amber)">find/ls</span> &middot; <span style="color:var(--blue)">grep</span> &middot; <span style="color:var(--teal)">read</span>。这次 51 步里 Read 26 次、Bash 25 次。<br>
+    旁白标 <span style="color:var(--teal)">agent 说</span> 的，中文是翻译、底下小字是英文原话；标 <span style="color:var(--text2)">这步没留话</span> 的，是 agent 没出声、我们只描述命令。"编者分段" 是我们把 51 步归的三段，agent 自己没有阶段这回事。<br>
+    <code>server.impl.ts</code> 它读了不止一次——跨文件追逻辑时会回头重读。
+  </div>
+</div>
+
+<div id="codepop"></div>
+<div class="file-tooltip" id="file-tooltip" style="display:none;"></div>
+
+<script>
+const T = {"rows": [{"type": "dir", "name": "src", "depth": 0, "path": "src"}, {"type": "dir", "name": "agents", "depth": 1, "path": "src/agents"}, {"type": "dir", "name": "pi-embedded-runner", "depth": 2, "path": "src/agents/pi-embedded-runner"}, {"type": "file", "name": "run.ts", "depth": 3, "path": "src/agents/pi-embedded-runner/run.ts", "chain": 3}, {"type": "file", "name": "pi-embedded-runner.ts", "depth": 2, "path": "src/agents/pi-embedded-runner.ts", "chain": -1}, {"type": "dir", "name": "auto-reply", "depth": 1, "path": "src/auto-reply"}, {"type": "dir", "name": "reply", "depth": 2, "path": "src/auto-reply/reply"}, {"type": "file", "name": "get-reply.ts", "depth": 3, "path": "src/auto-reply/reply/get-reply.ts", "chain": 2}, {"type": "file", "name": "reply-delivery.ts", "depth": 3, "path": "src/auto-reply/reply/reply-delivery.ts", "chain": 4}, {"type": "file", "name": "reply-dispatcher.ts", "depth": 3, "path": "src/auto-reply/reply/reply-dispatcher.ts", "chain": -1}, {"type": "file", "name": "dispatch.ts", "depth": 2, "path": "src/auto-reply/dispatch.ts", "chain": 1}, {"type": "dir", "name": "channels", "depth": 1, "path": "src/channels"}, {"type": "dir", "name": "message", "depth": 2, "path": "src/channels/message"}, {"type": "file", "name": "receive.ts", "depth": 3, "path": "src/channels/message/receive.ts", "chain": -1}, {"type": "dir", "name": "gateway", "depth": 1, "path": "src/gateway"}, {"type": "dir", "name": "server-methods", "depth": 2, "path": "src/gateway/server-methods"}, {"type": "file", "name": "chat.ts", "depth": 3, "path": "src/gateway/server-methods/chat.ts", "chain": -1}, {"type": "file", "name": "send.ts", "depth": 3, "path": "src/gateway/server-methods/send.ts", "chain": -1}, {"type": "file", "name": "server-broadcast.ts", "depth": 2, "path": "src/gateway/server-broadcast.ts", "chain": 5}, {"type": "file", "name": "server-chat.ts", "depth": 2, "path": "src/gateway/server-chat.ts", "chain": -1}, {"type": "file", "name": "server-methods.ts", "depth": 2, "path": "src/gateway/server-methods.ts", "chain": -1}, {"type": "file", "name": "server-runtime-subscriptions.ts", "depth": 2, "path": "src/gateway/server-runtime-subscriptions.ts", "chain": -1}, {"type": "file", "name": "server.impl.ts", "depth": 2, "path": "src/gateway/server.impl.ts", "chain": 0}, {"type": "file", "name": "server.ts", "depth": 2, "path": "src/gateway/server.ts", "chain": -1}, {"type": "dir", "name": "infra", "depth": 1, "path": "src/infra"}, {"type": "file", "name": "agent-events.ts", "depth": 2, "path": "src/infra/agent-events.ts", "chain": -1}, {"type": "dir", "name": "routing", "depth": 1, "path": "src/routing"}, {"type": "file", "name": "resolve-route.ts", "depth": 2, "path": "src/routing/resolve-route.ts", "chain": -1}, {"type": "file", "name": "index.ts", "depth": 1, "path": "src/index.ts", "chain": -1}], "chain": ["src/gateway/server.impl.ts", "src/auto-reply/dispatch.ts", "src/auto-reply/reply/get-reply.ts", "src/agents/pi-embedded-runner/run.ts", "src/auto-reply/reply/reply-delivery.ts", "src/gateway/server-broadcast.ts"], "steps": [{"i": 1, "tool": "Bash", "kind": "scan", "detail": "find ./src -type f -name \"*.ts\" -o -name \"*.js\" -o -name \"*.json\" | head -50", "file": "", "dir": "", "think": "I'll conduct a thorough exploration of the OpenClaw codebase to trace the user message processing call chain. Let me sta", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 2, "tool": "Bash", "kind": "grep", "detail": "ls -la ./src/ | grep -E \"^d\" | awk '{print $NF}'", "file": "", "dir": "", "think": "Let me explore the directory structure more systematically:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 3, "tool": "Bash", "kind": "scan", "detail": "find ./src/channels -type f -name \"*.ts\" | head -20", "file": "", "dir": "src/channels", "think": "Now let me examine the channels and gateway directories as these are likely entry points:", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 4, "tool": "Bash", "kind": "scan", "detail": "find ./src/gateway -type f -name \"*.ts\" | head -20", "file": "", "dir": "src/gateway", "think": "", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 5, "tool": "Read", "kind": "read", "detail": "src/index.ts", "file": "src/index.ts", "dir": "src/index.ts", "think": "Let me look at the main entry points and key files:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 6, "tool": "Bash", "kind": "grep", "detail": "find ./src/gateway -type f -name \"*.ts\" | grep -E \"server|chat|message\" | head -", "file": "", "dir": "src/gateway", "think": "", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 7, "tool": "Bash", "kind": "grep", "detail": "find ./src/gateway -type f -name \"server.ts\" -o -name \"server-*.ts\" | grep -v te", "file": "", "dir": "src/gateway", "think": "", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 8, "tool": "Bash", "kind": "scan", "detail": "find ./src -type f -name \"server.ts\"", "file": "", "dir": "", "think": "", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 9, "tool": "Read", "kind": "read", "detail": "src/gateway/server.ts", "file": "src/gateway/server.ts", "dir": "src/gateway", "think": "Great! Let me read the main gateway server:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 10, "tool": "Read", "kind": "read", "detail": "src/gateway/server.impl.ts", "file": "src/gateway/server.impl.ts", "dir": "src/gateway", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 11, "tool": "Read", "kind": "read", "detail": "src/gateway/server.impl.ts", "file": "src/gateway/server.impl.ts", "dir": "src/gateway", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 12, "tool": "Bash", "kind": "grep", "detail": "find ./src -type f -name \"*.ts\" | xargs grep -l \"sendMessage\\|handleMessage\\|pro", "file": "", "dir": "", "think": "Let me search for message handling and chat-related code:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 13, "tool": "Bash", "kind": "scan", "detail": "ls -la ./src/chat/", "file": "", "dir": "src/chat", "think": "Let me look at the chat directory and routing:", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 14, "tool": "Bash", "kind": "scan", "detail": "ls -la ./src/routing/", "file": "", "dir": "src/routing", "think": "", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 15, "tool": "Read", "kind": "read", "detail": "src/routing/resolve-route.ts", "file": "src/routing/resolve-route.ts", "dir": "src/routing", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 16, "tool": "Bash", "kind": "scan", "detail": "find ./src/gateway/server-methods -type f -name \"*.ts\" | head -20", "file": "", "dir": "src/gateway", "think": "Now let me look for the actual message handling in gateway methods:", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 17, "tool": "Bash", "kind": "grep", "detail": "find ./src/gateway/server-methods -type f -name \"*.ts\" | grep -E \"chat|send|mess", "file": "", "dir": "src/gateway", "think": "", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 18, "tool": "Read", "kind": "read", "detail": "src/gateway/server-methods/chat.ts", "file": "src/gateway/server-methods/chat.ts", "dir": "src/gateway", "think": "Perfect! Let me read the main chat and send files:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 19, "tool": "Read", "kind": "read", "detail": "src/gateway/server-methods/chat.ts", "file": "src/gateway/server-methods/chat.ts", "dir": "src/gateway", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 20, "tool": "Read", "kind": "read", "detail": "src/gateway/server-methods/send.ts", "file": "src/gateway/server-methods/send.ts", "dir": "src/gateway", "think": "Now let me look at the send and dispatch logic:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 21, "tool": "Read", "kind": "read", "detail": "src/auto-reply/dispatch.ts", "file": "src/auto-reply/dispatch.ts", "dir": "src/auto-reply", "think": "Now let me look at the auto-reply dispatch:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 22, "tool": "Bash", "kind": "grep", "detail": "find ./src/auto-reply -type f -name \"*.ts\" | grep -v test | head -20", "file": "", "dir": "src/auto-reply", "think": "", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 23, "tool": "Bash", "kind": "grep", "detail": "find ./src/auto-reply/reply -type f -name \"*.ts\" | grep -v test | head -20", "file": "", "dir": "src/auto-reply", "think": "", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 24, "tool": "Read", "kind": "read", "detail": "src/auto-reply/reply/get-reply.ts", "file": "src/auto-reply/reply/get-reply.ts", "dir": "src/auto-reply", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 25, "tool": "Read", "kind": "read", "detail": "src/auto-reply/reply/get-reply.ts", "file": "src/auto-reply/reply/get-reply.ts", "dir": "src/auto-reply", "think": "Let me continue reading this critical file:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 26, "tool": "Bash", "kind": "grep", "detail": "find ./src/agents -type f -name \"*.ts\" | grep -E \"runner|invoke|model\" | head -1", "file": "", "dir": "src/agents", "think": "Now let me look at where the model is actually invoked. Let me search for model invocation:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 27, "tool": "Bash", "kind": "scan", "detail": "find ./src/agents -type f -name \"pi-embedded-runner.ts\"", "file": "", "dir": "src/agents", "think": "", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 28, "tool": "Read", "kind": "read", "detail": "src/agents/pi-embedded-runner.ts", "file": "src/agents/pi-embedded-runner.ts", "dir": "src/agents", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 29, "tool": "Read", "kind": "read", "detail": "src/agents/pi-embedded-runner/run.ts", "file": "src/agents/pi-embedded-runner/run.ts", "dir": "src/agents", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 30, "tool": "Bash", "kind": "grep", "detail": "find ./src/channels -type f -name \"*.ts\" | grep -v test | grep -E \"inbound|messa", "file": "", "dir": "src/channels", "think": "Let me find the actual message receiving/processing in channels:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 31, "tool": "Bash", "kind": "scan", "detail": "find ./src/channels/message -type f -name \"*.ts\" | head -20", "file": "", "dir": "src/channels", "think": "", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 32, "tool": "Read", "kind": "read", "detail": "src/channels/message/receive.ts", "file": "src/channels/message/receive.ts", "dir": "src/channels", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 33, "tool": "Bash", "kind": "grep", "detail": "grep -r \"dispatchInboundMessage\\|handleInbound\\|receiveMessage\" ./src --include=", "file": "", "dir": "", "think": "Now let me look at how messages flow through the actual system. Let me search for where messages are ingested from chann", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 34, "tool": "Read", "kind": "read", "detail": "src/auto-reply/dispatch.ts", "file": "src/auto-reply/dispatch.ts", "dir": "src/auto-reply", "think": "Perfect! Let me read the actual dispatchInboundMessage function:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 35, "tool": "Read", "kind": "read", "detail": "src/auto-reply/reply/reply-delivery.ts", "file": "src/auto-reply/reply/reply-delivery.ts", "dir": "src/auto-reply", "think": "Perfect! Now let me trace the reply/response path. Let me look at reply delivery:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 36, "tool": "Bash", "kind": "grep", "detail": "grep -r \"sendReply\\|broadcastReply\\|deliverReply\\|queuedFinal\" ./src/auto-reply/", "file": "", "dir": "src/auto-reply", "think": "Now let me search for the final reply sending/broadcasting logic:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 37, "tool": "Read", "kind": "read", "detail": "src/auto-reply/reply/reply-dispatcher.ts", "file": "src/auto-reply/reply/reply-dispatcher.ts", "dir": "src/auto-reply", "think": "Let me look at the reply-dispatcher to understand how replies are queued and sent:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 38, "tool": "Read", "kind": "read", "detail": "src/auto-reply/reply/reply-dispatcher.ts", "file": "src/auto-reply/reply/reply-dispatcher.ts", "dir": "src/auto-reply", "think": "Let me continue reading:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 39, "tool": "Read", "kind": "read", "detail": "src/gateway/server-methods/chat.ts", "file": "src/gateway/server-methods/chat.ts", "dir": "src/gateway", "think": "Perfect! Now let me understand the gateway response/send path better:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 40, "tool": "Bash", "kind": "grep", "detail": "find ./src/gateway -type f -name \"*.ts\" | grep -E \"respond|send|broadcast|event\"", "file": "", "dir": "src/gateway", "think": "Now let me look at where responses are actually sent back to clients in gateway:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 41, "tool": "Read", "kind": "read", "detail": "src/gateway/server-broadcast.ts", "file": "src/gateway/server-broadcast.ts", "dir": "src/gateway", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 42, "tool": "Read", "kind": "read", "detail": "src/gateway/server-methods/chat.ts", "file": "src/gateway/server-methods/chat.ts", "dir": "src/gateway", "think": "Perfect! Now let me create a comprehensive map. Let me search for where chat/agent events are actually generated and bro", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 43, "tool": "Bash", "kind": "grep", "detail": "grep -r \"broadcastAgentEvent\\|emitAgent\\|sendAgentEvent\" ./src --include=\"*.ts\" ", "file": "", "dir": "", "think": "Let me look for where agent events are actually emitted/broadcast back to clients:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 44, "tool": "Read", "kind": "read", "detail": "src/infra/agent-events.ts", "file": "src/infra/agent-events.ts", "dir": "src/infra", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 45, "tool": "Read", "kind": "read", "detail": "src/infra/agent-events.ts", "file": "src/infra/agent-events.ts", "dir": "src/infra", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 46, "tool": "Bash", "kind": "grep", "detail": "grep -r \"registerAgentEventListener\\|onAgentEvent\\|agentEventPayload\" ./src/gate", "file": "", "dir": "src/gate", "think": "Now let me look at how the gateway consumes these events:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 47, "tool": "Read", "kind": "read", "detail": "src/gateway/server-runtime-subscriptions.ts", "file": "src/gateway/server-runtime-subscriptions.ts", "dir": "src/gateway", "think": "Perfect! Let me now read the server-runtime-subscriptions file:", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 48, "tool": "Bash", "kind": "grep", "detail": "grep -n \"createAgentEventHandler\" ./src/gateway/server-chat.ts | head -5", "file": "", "dir": "src/gateway", "think": "Perfect! Now let me look at how the createAgentEventHandler works:", "mech": {"tool": "Grep", "ch": "第 5 章", "what": "按关键词在文件里搜，缩小范围"}}, {"i": 49, "tool": "Read", "kind": "read", "detail": "src/gateway/server-chat.ts", "file": "src/gateway/server-chat.ts", "dir": "src/gateway", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}, {"i": 50, "tool": "Bash", "kind": "scan", "detail": "find ./src/gateway -type f -name \"server-methods.ts\"", "file": "", "dir": "src/gateway", "think": "Excellent! Now I have a comprehensive understanding. Let me create a final summary document by tracing through a few mor", "mech": {"tool": "Bash", "ch": "第 6 章", "what": "跑 shell 命令列目录、看结构"}}, {"i": 51, "tool": "Read", "kind": "read", "detail": "src/gateway/server-methods.ts", "file": "src/gateway/server-methods.ts", "dir": "src/gateway", "think": "", "mech": {"tool": "Read", "ch": "第 3 章", "what": "读一个文件的指定范围"}}], "snippets": {"src/index.ts": {"code": "1\t#!/usr/bin/env node\n2\timport process from \"node:process\";\n3\timport { fileURLToPath } from \"node:ur", "think": "Let me look at the main entry points and key files:"}, "src/gateway/server.ts": {"code": "1\texport { truncateCloseReason } from \"./server/close-reason.js\";\n2\texport type { GatewayServer, Gat", "think": "Great! Let me read the main gateway server:"}, "src/gateway/server.impl.ts": {"code": "1\timport { monitorEventLoopDelay, performance } from \"node:perf_hooks\";\n2\timport { getActiveEmbedded", "think": "Great! Let me read the main gateway server:"}, "src/routing/resolve-route.ts": {"code": "1\timport { resolveDefaultAgentId } from \"../agents/agent-scope.js\";\n2\timport type { ChatType } from ", "think": "Let me look at the chat directory and routing:"}, "src/gateway/server-methods/chat.ts": {"code": "1\timport { createHash } from \"node:crypto\";\n2\timport fs from \"node:fs\";\n3\timport path from \"node:pat", "think": "Perfect! Let me read the main chat and send files:"}, "src/gateway/server-methods/send.ts": {"code": "1\timport { resolveSessionAgentId } from \"../../agents/agent-scope.js\";\n2\timport { sendDurableMessage", "think": "Now let me look at the send and dispatch logic:"}, "src/auto-reply/dispatch.ts": {"code": "1\timport { normalizeChatType } from \"../channels/chat-type.js\";\n2\timport type { OpenClawConfig } fro", "think": "Now let me look at the auto-reply dispatch:"}, "src/auto-reply/reply/get-reply.ts": {"code": "1\timport fs from \"node:fs/promises\";\n2\timport {\n3\t  resolveAgentConfig,\n4\t  resolveAgentDir,\n5\t  res", "think": "Now let me look at the auto-reply dispatch:"}, "src/agents/pi-embedded-runner.ts": {"code": "1\texport {\n2\t  compactEmbeddedPiSession,\n3\t  compactEmbeddedPiSession as compactEmbeddedAgentSession", "think": "Now let me look at where the model is actually invoked. Let me search for model invocation:"}, "src/agents/pi-embedded-runner/run.ts": {"code": "1\timport { randomBytes } from \"node:crypto\";\n2\timport fs from \"node:fs/promises\";\n3\timport type { Re", "think": "Now let me look at where the model is actually invoked. Let me search for model invocation:"}, "src/channels/message/receive.ts": {"code": "1\timport type { ChannelMessageReceiveAckPolicy } from \"./types.js\";\n2\t\n3\texport type MessageAckPolic", "think": "Let me find the actual message receiving/processing in channels:"}, "src/auto-reply/reply/reply-delivery.ts": {"code": "1\timport { hasOutboundReplyContent } from \"openclaw/plugin-sdk/reply-payload\";\n2\timport { logVerbose", "think": "Perfect! Now let me trace the reply/response path. Let me look at reply delivery:"}, "src/auto-reply/reply/reply-dispatcher.ts": {"code": "1\timport type { TypingCallbacks } from \"../../channels/typing.js\";\n2\timport type { HumanDelayConfig ", "think": "Let me look at the reply-dispatcher to understand how replies are queued and sent:"}, "src/gateway/server-broadcast.ts": {"code": "1\timport { logRejectedLargePayload } from \"../logging/diagnostic-payload.js\";\n2\timport {\n3\t  ADMIN_S", "think": "Now let me look at where responses are actually sent back to clients in gateway:"}, "src/infra/agent-events.ts": {"code": "1\timport type { VerboseLevel } from \"../auto-reply/thinking.js\";\n2\timport { resolveGlobalSingleton }", "think": "Let me look for where agent events are actually emitted/broadcast back to clients:"}, "src/gateway/server-runtime-subscriptions.ts": {"code": "1\timport { clearAgentRunContext, onAgentEvent } from \"../infra/agent-events.js\";\n2\timport { onHeartb", "think": "Perfect! Let me now read the server-runtime-subscriptions file:"}, "src/gateway/server-chat.ts": {"code": "218\texport function createAgentEventHandler({\n219\t  broadcast,\n220\t  broadcastToConnIds,\n221\t  nodeS", "think": "Perfect! Now let me look at how the createAgentEventHandler works:"}, "src/gateway/server-methods.ts": {"code": "1\timport { getPluginRegistryState } from \"../plugins/runtime-state.js\";\n2\timport { withPluginRuntime", "think": "Excellent! Now I have a comprehensive understanding. Let me create a final summary document by traci"}}, "narr": [{"zh": "我来彻底探一遍 OpenClaw 代码库，追用户消息的处理调用链。先看项目结构，再顺着数据流走。", "en": "I'll conduct a thorough exploration of the OpenClaw codebase to trace the user message processing call chain. Let me start by examining the project structure and then follow the data flow.", "src": "agent"}, {"zh": "更系统地看一下目录结构：", "en": "Let me explore the directory structure more systematically:", "src": "agent"}, {"zh": "看看 channels 和 gateway 目录，这俩大概率是入口：", "en": "Now let me examine the channels and gateway directories as these are likely entry points:", "src": "agent"}, {"zh": "find：列出 gateway 下的文件", "src": "cmd"}, {"zh": "看看主入口和几个关键文件：", "en": "Let me look at the main entry points and key files:", "src": "agent"}, {"zh": "find：列出 gateway 下的文件", "src": "cmd"}, {"zh": "find：列出 gateway 下的文件", "src": "cmd"}, {"zh": "find：列出 src 下的文件", "src": "cmd"}, {"zh": "好，读一下 gateway 主服务文件：", "en": "Great! Let me read the main gateway server:", "src": "agent"}, {"zh": "读取 gateway/server.impl.ts", "src": "cmd"}, {"zh": "读取 gateway/server.impl.ts", "src": "cmd"}, {"zh": "搜一下消息处理和 chat 相关的代码：", "en": "Let me search for message handling and chat-related code:", "src": "agent"}, {"zh": "看看 chat 目录和 routing：", "en": "Let me look at the chat directory and routing:", "src": "agent"}, {"zh": "ls：列出 routing/ 目录", "src": "cmd"}, {"zh": "读取 routing/resolve-route.ts", "src": "cmd"}, {"zh": "在 gateway 的方法里找真正处理消息的地方：", "en": "Now let me look for the actual message handling in gateway methods:", "src": "agent"}, {"zh": "find：列出 gateway/server-methods 下的文件", "src": "cmd"}, {"zh": "很好，读一下 chat 和 send 两个主文件：", "en": "Perfect! Let me read the main chat and send files:", "src": "agent"}, {"zh": "读取 gateway/server-methods/chat.ts", "src": "cmd"}, {"zh": "看看 send 和 dispatch 的逻辑：", "en": "Now let me look at the send and dispatch logic:", "src": "agent"}, {"zh": "看看 auto-reply 的 dispatch：", "en": "Now let me look at the auto-reply dispatch:", "src": "agent"}, {"zh": "find：列出 auto-reply 下的文件", "src": "cmd"}, {"zh": "find：列出 auto-reply/reply 下的文件", "src": "cmd"}, {"zh": "读取 auto-reply/reply/get-reply.ts", "src": "cmd"}, {"zh": "接着读这个关键文件：", "en": "Let me continue reading this critical file:", "src": "agent"}, {"zh": "看看模型到底在哪被调用，搜一下调用点：", "en": "Now let me look at where the model is actually invoked. Let me search for model invocation:", "src": "agent"}, {"zh": "find：列出 agents 下的文件", "src": "cmd"}, {"zh": "读取 agents/pi-embedded-runner.ts", "src": "cmd"}, {"zh": "读取 agents/pi-embedded-runner/run.ts", "src": "cmd"}, {"zh": "在 channels 里找真正接收/处理消息的地方：", "en": "Let me find the actual message receiving/processing in channels:", "src": "agent"}, {"zh": "find：列出 channels/message 下的文件", "src": "cmd"}, {"zh": "读取 channels/message/receive.ts", "src": "cmd"}, {"zh": "看看消息在系统里怎么流动，搜消息从 channels 进来的地方：", "en": "Now let me look at how messages flow through the actual system. Let me search for where messages are ingested from channels:", "src": "agent"}, {"zh": "很好，读一下 dispatchInboundMessage 函数本体：", "en": "Perfect! Let me read the actual dispatchInboundMessage function:", "src": "agent"}, {"zh": "很好，现在追回复路径，看 reply delivery：", "en": "Perfect! Now let me trace the reply/response path. Let me look at reply delivery:", "src": "agent"}, {"zh": "搜一下最终把回复发出去/广播的逻辑：", "en": "Now let me search for the final reply sending/broadcasting logic:", "src": "agent"}, {"zh": "看 reply-dispatcher，搞清回复怎么排队和发送：", "en": "Let me look at the reply-dispatcher to understand how replies are queued and sent:", "src": "agent"}, {"zh": "接着读：", "en": "Let me continue reading:", "src": "agent"}, {"zh": "很好，再把 gateway 的响应/发送路径理清楚：", "en": "Perfect! Now let me understand the gateway response/send path better:", "src": "agent"}, {"zh": "看看 gateway 里响应到底在哪发回客户端：", "en": "Now let me look at where responses are actually sent back to clients in gateway:", "src": "agent"}, {"zh": "读取 gateway/server-broadcast.ts", "src": "cmd"}, {"zh": "很好，现在画一张完整的图。搜 chat/agent 事件在哪生成和广播：", "en": "Perfect! Now let me create a comprehensive map. Let me search for where chat/agent events are actually generated and broadcast:", "src": "agent"}, {"zh": "找 agent 事件真正发出/广播回客户端的地方：", "en": "Let me look for where agent events are actually emitted/broadcast back to clients:", "src": "agent"}, {"zh": "读取 infra/agent-events.ts", "src": "cmd"}, {"zh": "读取 infra/agent-events.ts", "src": "cmd"}, {"zh": "看看 gateway 怎么消费这些事件：", "en": "Now let me look at how the gateway consumes these events:", "src": "agent"}, {"zh": "很好，读一下 server-runtime-subscriptions 文件：", "en": "Perfect! Let me now read the server-runtime-subscriptions file:", "src": "agent"}, {"zh": "很好，看看 createAgentEventHandler 怎么工作：", "en": "Perfect! Now let me look at how the createAgentEventHandler works:", "src": "agent"}, {"zh": "读取 gateway/server-chat.ts", "src": "cmd"}, {"zh": "Excellent! Now I have a comprehensive understanding. Let me create a final summary document by tracing through a few more key files to ensure completeness:", "en": "Excellent! Now I have a comprehensive understanding. Let me create a final summary document by tracing through a few more key files to ensure completeness:", "src": "agent"}, {"zh": "读取 gateway/server-methods.ts", "src": "cmd"}]};
+</script>
+<script>
+const $=id=>document.getElementById(id);
+
+/* SVG icon helpers (no emoji) */
+const ICON_PLAY='<svg viewBox="0 0 14 14"><polygon points="3,1 12,7 3,13"/></svg>';
+const ICON_PAUSE='<svg viewBox="0 0 14 14"><rect x="2" y="1" width="3.5" height="12" rx="0.8"/><rect x="8.5" y="1" width="3.5" height="12" rx="0.8"/></svg>';
+const ICON_AGENT='<svg class="src-icon" viewBox="0 0 12 12"><rect x="2" y="1" width="8" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="7" x2="4" y2="9" stroke="currentColor" stroke-width="1"/><line x1="8" y1="7" x2="8" y2="9" stroke="currentColor" stroke-width="1"/><circle cx="4.5" cy="4" r="0.8" fill="currentColor"/><circle cx="7.5" cy="4" r="0.8" fill="currentColor"/></svg>';
+const ICON_TERMINAL='<svg class="src-icon" viewBox="0 0 12 12"><rect x="1" y="2" width="10" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1"/><polyline points="3,5 5,7 3,9" fill="none" stroke="currentColor" stroke-width="1"/><line x1="6.5" y1="9" x2="9" y2="9" stroke="currentColor" stroke-width="1"/></svg>';
+
+/* WHY annotations per step type */
+const WHY_MAP={
+  scan:'先摸清项目有多大、目录怎么组织，才知道从哪下手',
+  grep:'与其逐个文件翻找，不如用关键词直接定位——就像在书里查索引',
+  read:'找到目标文件了，现在要读懂里面的逻辑才能继续追'
+};
+
+/* 旁白来自数据 T.narr:src='agent' 是 agent 真实推理的忠实翻译，
+   src='cmd' 是客观描述命令在做什么（agent 这步没留说明，不替它编想法） */
+const NARR=T.narr||[];
+
+/* 阶段是编者把 51 步分的三段（agent 自己没有"阶段"概念），标注清楚 */
+function phaseOf(n){
+  if(n<=8) return ['编者分段 · 1–8','先摸清结构（find/ls 扇开目录）',1];
+  if(n<=30) return ['编者分段 · 9–30','顺入口往下追（read 深入 + grep 定位）',2];
+  return ['编者分段 · 31–51','回头补全整条链（交叉验证、重读）',3];
+}
+
+const ROWS=T.rows, CHAIN=T.chain, STEPS=T.steps;
+const ROWH=24, TOP=10; // 行高、树顶 padding（treewrap padding .6rem~9.6）
+
+/* build file->steps index for click feature */
+const fileStepsMap={};
+STEPS.forEach(s=>{
+  if(s.file){
+    if(!fileStepsMap[s.file]) fileStepsMap[s.file]=[];
+    fileStepsMap[s.file].push(s.i);
+  }
+});
+
+/* 渲染文件树 */
+const treeEl=$('tree');
+const rowEls=[];
+ROWS.forEach((r,i)=>{
+  const el=document.createElement('div');
+  el.className='row '+r.type;
+  const indent=r.depth*16;
+  const ico=r.type==='dir'?'▸':'·';
+  const badge=r.chain>=0?`<span class="badge" id="badge-${r.chain}">${r.chain+1}</span>`:'';
+  el.innerHTML=`<span style="width:${indent}px;flex-shrink:0"></span>`+
+    (r.chain>=0?badge:`<span class="ico">${ico}</span>`)+
+    `<span class="nm">${r.name}</span><span class="visits" id="vis-${i}"></span>`;
+  el.dataset.path=r.path;
+  el.dataset.rowIdx=i;
+  treeEl.appendChild(el);
+  rowEls.push(el);
+});
+
+/* 文件路径 -> 行索引 */
+const pathToRow={};
+ROWS.forEach((r,i)=>{ if(r.type==='file') pathToRow[r.path]=i; });
+
+/* 计算每行 y 中心（用于连线） */
+function rowY(i){ return TOP + i*ROWH + ROWH/2; }
+
+let cur=1, playing=false, playSpeed=1;
+let prevPhase=0; // track phase changes for crossfade
+let mechCollapsed=false; // mech toggle state
+
+function dirOf(s){ if(s.file){const p=s.file.split('/');return p.length>1?p[1]:p[0];} if(s.dir)return s.dir.replace('src/','');return null;}
+
+/* stagger counter for fade-up */
+let staggerIdx=0;
+
+function applyUpTo(n){
+  staggerIdx=0;
+  const visits={};
+  const litChain=new Set();
+  let cursorRow=-1;
+  for(let k=0;k<n;k++){
+    const s=STEPS[k];
+    if(s.tool==='Read'&&s.file){
+      visits[s.file]=(visits[s.file]||0)+1;
+      if(k===n-1) cursorRow=pathToRow[s.file];
+      const ci=CHAIN.indexOf(s.file);
+      if(ci>=0) litChain.add(ci);
+    } else if(k===n-1){
+      // scan/grep 当前步:光标停在相关目录的第一个文件
+      const dk=dirOf(s);
+      const idx=ROWS.findIndex(r=>r.type==='file'&&r.path.includes('/'+dk+'/'));
+      cursorRow=idx;
+    }
+  }
+
+  // track which badges are newly lit for pulse
+  const prevLit=new Set(document.querySelectorAll('.row.lit'));
+
+  // 渲染行状态
+  rowEls.forEach((el,i)=>{
+    const r=ROWS[i];
+    el.classList.remove('cursor','file-highlight');
+    if(r.type==='file'){
+      const v=visits[r.path]||0;
+      const wasLit=el.classList.contains('lit');
+      el.classList.toggle('read',v>0);
+      $('vis-'+i).textContent = v>1 ? '×'+v : '';
+      if(r.chain>=0){
+        const nowLit=litChain.has(r.chain);
+        el.classList.toggle('lit',nowLit);
+        // pulse badge if newly lit
+        if(nowLit&&!wasLit){
+          const badge=el.querySelector('.badge');
+          if(badge){
+            badge.classList.remove('pulse-badge');
+            void badge.offsetWidth; // reflow to restart
+            badge.classList.add('pulse-badge');
+          }
+        }
+      }
+    }
+  });
+  if(cursorRow>=0) rowEls[cursorRow].classList.add('cursor');
+
+  drawThread(litChain);
+  renderChain(litChain);
+  renderStep(STEPS[n-1],n);
+  updateProgress(n);
+}
+
+/* 连线:按 chain 顺序，连接已点亮的节点行 */
+let prevSegCount=0;
+function drawThread(litChain){
+  const svg=$('thread');
+  const w=svg.clientWidth||svg.parentElement.clientWidth;
+  svg.setAttribute('viewBox',`0 0 ${w} ${treeEl.scrollHeight+TOP}`);
+  let pts=[];
+  CHAIN.forEach((c,ci)=>{
+    if(!litChain.has(ci)) return;
+    const ri=pathToRow[c];
+    if(ri==null) return;
+    const x=ROWS[ri].depth*16+24;
+    pts.push({x,y:rowY(ri),ci});
+  });
+  let segs='';
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i],b=pts[i+1];
+    const mx=Math.max(a.x,b.x)+18;
+    const isNew=i>=prevSegCount-1;
+    segs+=`<path d="M ${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}" fill="none" stroke="rgba(14,124,102,0.5)" stroke-width="1.6" class="${isNew?'thread-seg':''}"/>`;
+  }
+  svg.innerHTML=segs;
+  prevSegCount=pts.length;
+}
+
+function renderStep(s,n){
+  // phase crossfade
+  const [pl,pt,pn]=phaseOf(n);
+  if(pn!==prevPhase){
+    const phaseCard=$('phase-card');
+    phaseCard.classList.add('crossfade');
+    setTimeout(()=>{
+      $('phase-l').textContent=pl;
+      $('phase-t').textContent=pt;
+      phaseCard.classList.remove('crossfade');
+    },150);
+    prevPhase=pn;
+  }else{
+    $('phase-l').textContent=pl;
+    $('phase-t').textContent=pt;
+  }
+
+  // phase progress segments
+  document.querySelectorAll('.pp-seg').forEach(seg=>{
+    const sp=+seg.dataset.phase;
+    seg.classList.remove('pp-active','pp-done');
+    if(sp<pn) seg.classList.add('pp-done');
+    else if(sp===pn) seg.classList.add('pp-active');
+  });
+
+  // step card fade-up
+  const stepcard=$('stepcard');
+  stepcard.classList.remove('fade-up');
+  void stepcard.offsetWidth;
+  stepcard.classList.add('fade-up');
+
+  $('step-n').textContent=`步骤 ${n} / 51`;
+  const act=$('step-act');
+  const k=s.kind; act.className='act '+k;
+  act.textContent=k==='read'?'read 深入':k==='grep'?'grep 收窄':'find 扇开';
+
+  // WHY annotation
+  $('step-why').textContent=WHY_MAP[k]||'';
+
+  // 旁白：agent 步给中英对照；cmd 步只客观描述命令
+  const nr=NARR[n-1]||{zh:'',src:'cmd'};
+  const think=$('step-think');
+  if(nr.src==='agent'){
+    think.className='think';
+    think.innerHTML=
+      `<span class="src agent">${ICON_AGENT} agent 说</span> ${esc(nr.zh)}`+
+      `<span class="en">"${esc(nr.en)}"</span>`;
+  }else{
+    think.className='think cmdonly';
+    think.innerHTML=
+      `<span class="src cmd">${ICON_TERMINAL} 这步没留话</span> ${esc(nr.zh)}`;
+  }
+  // 命令块按 kind 上色
+  const call=$('step-call');
+  call.className='call '+k;
+  call.innerHTML=`<span class="tn ${k}">${s.tool}</span> ${esc(s.detail)}`;
+  // mech section
+  const mc=s.mech, toolcls=mc.tool.toLowerCase();
+  const behav=s.tool==='Read'?'它打开了一个文件':s.kind==='grep'?'它在搜关键词':'它在列目录、看结构';
+  const mechEl=$('step-mech');
+  mechEl.innerHTML=
+    `<span class="lead-tag">讲解</span>${behav}，其实是模型调了一次 `+
+    `<span class="tool ${toolcls}">${mc.tool}</span> 工具（${mc.what}）。`+
+    `<span class="ch">↓ ${mc.ch}我们自己把这个工具写出来</span>`;
+  // apply collapsed state
+  mechEl.classList.toggle('collapsed',mechCollapsed);
+  $('toggle-mech').textContent=mechCollapsed?'[ 点击展开讲解 ]':'[ 点击收起讲解 ]';
+
+  $('cur').textContent=n; $('scrub').value=n;
+}
+
+function renderChain(litChain){
+  $('answer').classList.toggle('lit',litChain.size>0);
+  const labels=['gateway/server.impl','auto-reply/dispatch','reply/get-reply','runner/run','reply/reply-delivery','gateway/broadcast'];
+  const chainEl=$('chain');
+  const prevLitNodes=new Set();
+  chainEl.querySelectorAll('.cnode.lit').forEach(el=>prevLitNodes.add(el.dataset.ci));
+
+  chainEl.innerHTML=CHAIN.map((c,i)=>{
+    const isLit=litChain.has(i);
+    const wasLit=prevLitNodes.has(String(i));
+    const bounceClass=(isLit&&!wasLit)?' bounce':'';
+    return `<span class="cnode${isLit?' lit':''}${bounceClass}" data-ci="${i}">${i+1}·${labels[i]}</span>`+(i<CHAIN.length-1?'<span class="arr">→</span>':'');
+  }).join('');
+}
+
+function updateProgress(n){
+  const pct=(n/51*100).toFixed(1);
+  $('progress-fill').style.width=pct+'%';
+  const [,,pn]=phaseOf(n);
+  $('progress-label').textContent=`${n}/51 · 阶段 ${pn}/3`;
+}
+
+/* ── Controls ── */
+$('scrub').addEventListener('input',e=>{ cur=+e.target.value; applyUpTo(cur); });
+
+$('play').addEventListener('click',togglePlay);
+function togglePlay(){
+  playing=!playing;
+  $('play').innerHTML=playing?ICON_PAUSE:ICON_PLAY;
+  if(playing) tick();
+}
+
+/* speed buttons */
+document.querySelectorAll('.speed-sel button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.speed-sel button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    playSpeed=+btn.dataset.speed;
+  });
+});
+
+let last=0;
+function baseInterval(){ return 560/playSpeed; }
+function tick(){
+  if(!playing) return;
+  const now=Date.now();
+  if(now-last>baseInterval()){
+    last=now;
+    cur=cur>=51?1:cur+1;
+    applyUpTo(cur);
+    if(cur===51){ playing=false; $('play').innerHTML=ICON_PLAY; return; }
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ── Keyboard navigation ── */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'&&e.target.type!=='range') return;
+  switch(e.key){
+    case 'ArrowRight': e.preventDefault(); if(cur<51){cur++;applyUpTo(cur);} break;
+    case 'ArrowLeft': e.preventDefault(); if(cur>1){cur--;applyUpTo(cur);} break;
+    case ' ': e.preventDefault(); togglePlay(); break;
+    case 'Home': e.preventDefault(); cur=1; applyUpTo(cur); break;
+    case 'End': e.preventDefault(); cur=51; applyUpTo(cur); break;
+  }
+});
+
+/* ── Click file in tree to see which steps accessed it ── */
+let selectedFile=null;
+const fileTooltip=$('file-tooltip');
+rowEls.forEach((el,i)=>{
+  const r=ROWS[i];
+  if(r.type!=='file') return;
+  el.addEventListener('click',e=>{
+    e.stopPropagation();
+    const path=r.path;
+    if(selectedFile===path){
+      clearFileSelection();
+      return;
+    }
+    clearFileSelection();
+    selectedFile=path;
+    el.classList.add('file-highlight');
+    const steps=fileStepsMap[path];
+    if(steps&&steps.length>0){
+      fileTooltip.innerHTML=
+        `<div class="ft-title">${esc(path.replace('src/',''))}</div>`+
+        `<div class="ft-steps">被访问于步骤: <b>${steps.join(', ')}</b></div>`;
+      fileTooltip.style.display='block';
+      const rect=el.getBoundingClientRect();
+      fileTooltip.style.left=(rect.right+8)+'px';
+      fileTooltip.style.top=(rect.top-4)+'px';
+      // clamp to viewport
+      requestAnimationFrame(()=>{
+        const tr=fileTooltip.getBoundingClientRect();
+        if(tr.right>window.innerWidth-12) fileTooltip.style.left=(rect.left-tr.width-8)+'px';
+        if(tr.bottom>window.innerHeight-12) fileTooltip.style.top=(window.innerHeight-tr.height-12)+'px';
+      });
+    }
+  });
+});
+function clearFileSelection(){
+  selectedFile=null;
+  fileTooltip.style.display='none';
+  rowEls.forEach(el=>el.classList.remove('file-highlight'));
+}
+document.addEventListener('click',clearFileSelection);
+
+/* ── Toggle mech (click stepcard to expand/collapse) ── */
+$('toggle-mech').addEventListener('click',e=>{
+  e.stopPropagation();
+  mechCollapsed=!mechCollapsed;
+  $('step-mech').classList.toggle('collapsed',mechCollapsed);
+  $('toggle-mech').textContent=mechCollapsed?'[ 点击展开讲解 ]':'[ 点击收起讲解 ]';
+});
+
+/* ── 悬停文件行：浮出 agent 当时读到的真实代码 ── */
+const SNIP=T.snippets||{};
+const codepop=$('codepop');
+function fmtCode(raw){
+  return raw.split('\n').map(line=>{
+    const m=line.match(/^(\d+)\t(.*)$/);
+    if(m) return `<span class="ln">${m[1].padStart(3)}</span>  ${esc(m[2])}`;
+    return esc(line);
+  }).join('\n');
+}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+rowEls.forEach((el,i)=>{
+  const r=ROWS[i];
+  if(r.type!=='file') return;
+  const sn=SNIP[r.path];
+  if(!sn) return;
+  el.addEventListener('mousemove',e=>{
+    const num=r.chain>=0?`<span class="num">${r.chain+1}</span>`:'';
+    codepop.innerHTML=`<div class="pophead">${num}${esc(r.path.replace('src/',''))}</div>`+
+      (sn.think?`<div class="popthink">agent 读完想：${esc(sn.think)}</div>`:'')+
+      `<pre>${fmtCode(sn.code)}</pre>`;
+    codepop.style.display='block';
+    const w=codepop.getBoundingClientRect();
+    codepop.style.left=Math.min(e.clientX+16,window.innerWidth-w.width-12)+'px';
+    codepop.style.top=Math.min(e.clientY-10,window.innerHeight-w.height-12)+'px';
+  });
+  el.addEventListener('mouseleave',()=>{ codepop.style.display='none'; });
+});
+
+/* ── 终局流光回放：焦点沿最终链路快扫一遍 ── */
+let replaying=false;
+$('replay').addEventListener('click',()=>{
+  if(replaying) return;
+  replaying=true; playing=false; $('play').innerHTML=ICON_PLAY;
+  $('replay').classList.add('running'); $('replay').textContent='回放中...';
+  applyUpTo(51);
+  const pts=[];
+  CHAIN.forEach((c,ci)=>{ const ri=pathToRow[c]; if(ri!=null) pts.push({el:rowEls[ri],ci}); });
+  let k=0;
+  function step(){
+    rowEls.forEach(el=>el.classList.remove('cursor'));
+    if(k>=pts.length){
+      $('replay').classList.remove('running'); $('replay').textContent='▶ 一次看完';
+      replaying=false; return;
+    }
+    pts[k].el.classList.add('cursor');
+    pts[k].el.scrollIntoView({block:'nearest',behavior:'smooth'});
+    k++;
+    setTimeout(step,650);
+  }
+  step();
+});
+
+window.addEventListener('resize',()=>applyUpTo(cur));
+applyUpTo(1);
+</script>
+</body>
+</html>

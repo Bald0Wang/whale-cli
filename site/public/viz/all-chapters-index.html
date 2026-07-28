@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Labs - Whale CLI Tutorial</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  padding: 40px 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #D77757;
+  margin-bottom: 6px;
+}
+.subtitle {
+  font-size: 12px;
+  color: #6a6058;
+  margin-bottom: 32px;
+}
+.chapter {
+  margin-bottom: 28px;
+}
+.chapter-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ebe0d2;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #332d28;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chapter-num {
+  color: #D77757;
+  font-size: 11px;
+  background: rgba(215,119,87,0.15);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card {
+  display: block;
+  text-decoration: none;
+  background: #0f0e0c;
+  border: 1px solid #332d28;
+  border-radius: 6px;
+  padding: 10px 14px;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+}
+.card:hover {
+  border-color: #D77757;
+  background: #1a1715;
+}
+.card-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #ebe0d2;
+}
+.card-desc {
+  font-size: 10px;
+  color: #6a6058;
+  margin-top: 2px;
+}
+.tag {
+  display: inline-block;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+}
+.tag-explore { background: rgba(155,126,216,0.2); color: #9b7ed8; }
+.tag-xray { background: rgba(100,119,224,0.2); color: #6477e0; }
+.tag-game { background: rgba(224,200,100,0.2); color: #e0c864; }
+.tag-sandbox { background: rgba(126,195,132,0.2); color: #7ec384; }
+.tag-compare { background: rgba(215,119,87,0.2); color: #D77757; }
+
+.stats {
+  font-size: 11px;
+  color: #6a6058;
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid #332d28;
+  text-align: center;
+}
+.stats span { color: #D77757; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<h1>Interactive Labs</h1>
+<div class="subtitle">Whale CLI Tutorial -- 全部交互可视化组件索引</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch00</span> 开篇</div>
+  <div class="cards">
+    <a class="card" href="ch00-whale-cli-demo.html">
+      <div class="card-name">Whale CLI Demo</div>
+      <div class="card-desc">虚拟终端 -- 自动播放 + 交互式斜杠菜单</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-timeline.html">
+      <div class="card-name">Timeline</div>
+      <div class="card-desc">Coding Agent 五年演化时间轴</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-landscape.html">
+      <div class="card-name">Landscape</div>
+      <div class="card-desc">16 个开源项目浏览器</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-project-timeline.html">
+      <div class="card-name">Project Timeline</div>
+      <div class="card-desc">2023-2026 项目发展时间轴</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-project-gallery.html">
+      <div class="card-name">Project Gallery</div>
+      <div class="card-desc">16 个项目画廊 -- 标签筛选 + 数据卡片</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-trace-viewer.html">
+      <div class="card-name">Trace Viewer</div>
+      <div class="card-desc">OpenClaw 51 步真实 trace + token 占比条</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch00-gantt-timeline.html">
+      <div class="card-name">Gantt Timeline</div>
+      <div class="card-desc">AgentPrism 风格 -- 树视图 + Gantt 时间轴</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch00-ch03-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">12 行核心代码 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-prompt-assembly.html">
+      <div class="card-name">Prompt Assembly</div>
+      <div class="card-desc">逐章 prompt 层可视化 -- Ch01 到完整版</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch00-file-tree.html">
+      <div class="card-name">File Tree</div>
+      <div class="card-desc">项目文件树 -- 三层高亮</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-tool-growth.html">
+      <div class="card-name">Tool Growth</div>
+      <div class="card-desc">双轴图 -- 工具数 + token 增长</div>
+      <span class="tag tag-compare">compare</span>
+    </a>
+    <a class="card" href="ch00-full-turn.html">
+      <div class="card-name">Full Turn</div>
+      <div class="card-desc">一轮完整 agent loop 动画</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch00-curiosity-cards.html">
+      <div class="card-name">Curiosity Cards</div>
+      <div class="card-desc">6 个现象 -- 从好奇心到机制预告</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-two-eras.html">
+      <div class="card-name">Two Eras</div>
+      <div class="card-desc">同一个 Bug -- 2022 复制粘贴 vs 2025 Agent</div>
+      <span class="tag tag-compare">compare</span>
+    </a>
+    <a class="card" href="ch00-capability-unlock.html">
+      <div class="card-name">Capability Unlock</div>
+      <div class="card-desc">渐进式能力解锁 -- 人的工作量怎么一步步减少</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-behavior-cards.html">
+      <div class="card-name">Behavior Cards</div>
+      <div class="card-desc">8 个行为 → 翻面揭示机制 + 章节线索</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch00-concept-roadmap.html">
+      <div class="card-name">Concept Roadmap</div>
+      <div class="card-desc">12 个核心概念路线图 — 从工具调用到权限控制</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch01</span> 最小 Agent Loop</div>
+  <div class="cards">
+    <a class="card" href="ch01-minimal-loop.html">
+      <div class="card-name">Minimal Loop</div>
+      <div class="card-desc">Session viewer -- message 类型卡片</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch01-messages-roles.html">
+      <div class="card-name">Messages Roles</div>
+      <div class="card-desc">4 种 role 解释 -- 聊天 / agent 切换</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch01-messages-growth.html">
+      <div class="card-name">Messages Growth</div>
+      <div class="card-desc">messages 数组逐步增长动画</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch01-schema-compare.html">
+      <div class="card-name">Schema Compare</div>
+      <div class="card-desc">好 vs 差 schema -- 模型行为对比</div>
+      <span class="tag tag-compare">compare</span>
+    </a>
+    <a class="card" href="ch01-session-waterfall.html">
+      <div class="card-name">Session Waterfall</div>
+      <div class="card-desc">AgentOps 风格瀑布图 -- 耗时 + token</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch01-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">main.py 主循环 25 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch01-code-trace-dual.html">
+      <div class="card-name">Code / Trace Dual</div>
+      <div class="card-desc">代码 + trace 双向联动 -- 点击一侧高亮另一侧</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch01-code-terminal.html">
+      <div class="card-name">Code Terminal</div>
+      <div class="card-desc">点击代码行 -- 右侧终端播放运行效果</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch01-time-travel.html">
+      <div class="card-name">Time Travel</div>
+      <div class="card-desc">Slider 时间旅行 -- 2 轮 turn 中 messages/状态同步</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch02</span> 统一工具接口</div>
+  <div class="cards">
+    <a class="card" href="ch02-registry-animation.html">
+      <div class="card-name">Registry Animation</div>
+      <div class="card-desc">@tool 装饰器注册流程动画</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch02-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">registry.py @tool + dispatch 37 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch02-schema-playground.html">
+      <div class="card-name">Schema Playground</div>
+      <div class="card-desc">Description 写法实验 -- 三版对比模型行为 + token 消耗</div>
+      <span class="tag tag-sandbox">sandbox</span>
+    </a>
+    <a class="card" href="ch02-tool-call-dispatch.html">
+      <div class="card-name">Tool Call Dispatch</div>
+      <div class="card-desc">分发全流程逐步执行 -- 正常/查无工具/未知参数三场景</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch03</span> Read</div>
+  <div class="cards">
+    <a class="card" href="ch03-read-xray.html">
+      <div class="card-name">Read X-Ray</div>
+      <div class="card-desc">Read 工具 8 步透视</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch03-binary-detection.html">
+      <div class="card-name">Binary Detection</div>
+      <div class="card-desc">三层检测决策树</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch03-read-context-compare.html">
+      <div class="card-name">Context Compare</div>
+      <div class="card-desc">有无行范围 -- context 占用对比动画</div>
+      <span class="tag tag-compare">compare</span>
+    </a>
+    <a class="card" href="ch03-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">read_file 三层防护 46 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch03-read-routing.html">
+      <div class="card-name">Read Routing</div>
+      <div class="card-desc">一个 Read 工具背后的不同读取路径 -- 5 种文件类型分流</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch04</span> Write + Edit</div>
+  <div class="cards">
+    <a class="card" href="ch04-edit-locate-duel.html">
+      <div class="card-name">Locate Duel</div>
+      <div class="card-desc">数第几个 vs 抄内容 -- 唯一性约束为什么这么设计</div>
+      <span class="tag tag-sandbox">sandbox</span>
+    </a>
+    <a class="card" href="ch04-edit-self-correct.html">
+      <div class="card-name">Edit Self-Correct</div>
+      <div class="card-desc">失败→错误信息→自纠错 4 步动画</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch04-edit-xray.html">
+      <div class="card-name">Edit X-Ray</div>
+      <div class="card-desc">Edit 成功 / 失败场景透视</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch04-edit-failure-lab.html">
+      <div class="card-name">Edit Failure Lab</div>
+      <div class="card-desc">4 种失败场景 + 错误质量对比</div>
+      <span class="tag tag-sandbox">sandbox</span>
+    </a>
+    <a class="card" href="ch04-match-scan.html">
+      <div class="card-name">Match Scan</div>
+      <div class="card-desc">old_string 逐行扫描动画</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch04-error-repair.html">
+      <div class="card-name">Error Repair</div>
+      <div class="card-desc">错误修复回放 -- 犯错→发现→修正 5 步 debugger</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch04-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">edit_file 核心 23 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch05</span> Glob + Grep</div>
+  <div class="cards">
+    <a class="card" href="ch05-search-funnel.html">
+      <div class="card-name">Search Funnel</div>
+      <div class="card-desc">OpenClaw 真实数据 -- 200 文件到 18 文件</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch05-token-battle.html">
+      <div class="card-name">Token Battle</div>
+      <div class="card-desc">先猜再揭晓 -- 暴力 vs agentic 搜索</div>
+      <span class="tag tag-game">game</span>
+    </a>
+    <a class="card" href="ch05-grep-playground.html">
+      <div class="card-name">Grep Playground</div>
+      <div class="card-desc">交互式正则搜索</div>
+      <span class="tag tag-sandbox">sandbox</span>
+    </a>
+    <a class="card" href="ch05-glob-playground.html">
+      <div class="card-name">Glob Playground</div>
+      <div class="card-desc">Glob 模式 -- 文件树高亮</div>
+      <span class="tag tag-sandbox">sandbox</span>
+    </a>
+    <a class="card" href="ch05-decision-trace.html">
+      <div class="card-name">Decision Trace</div>
+      <div class="card-desc">参数从哪来 -- context→黑盒→参数 7 步真实 trace</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch05-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">grep_files 核心 29 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch05-search-without-tools.html">
+      <div class="card-name">Search Without Tools</div>
+      <div class="card-desc">没有搜索工具时模型怎样找文件 -- 猜路径 vs grep 精确命中</div>
+      <span class="tag tag-compare">compare</span>
+    </a>
+    <a class="card" href="ch05-search-narrowing.html">
+      <div class="card-name">Search Narrowing</div>
+      <div class="card-desc">搜索范围在多轮工具调用中逐步缩小 -- 200+ → 12 → 2</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch06</span> Bash</div>
+  <div class="cards">
+    <a class="card" href="ch06-bash-xray.html">
+      <div class="card-name">Bash X-Ray</div>
+      <div class="card-desc">3 场景 -- 执行 / 超时 / 拦截</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch06-safety-checker.html">
+      <div class="card-name">Safety Checker</div>
+      <div class="card-desc">命令黑名单检查 + 绕过演示</div>
+      <span class="tag tag-sandbox">sandbox</span>
+    </a>
+    <a class="card" href="ch06-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">bash_tool 核心 26 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch06-bash-feedback-loop.html">
+      <div class="card-name">Bash Feedback Loop</div>
+      <div class="card-desc">修改→运行→失败→再修改 -- 6 步自修复循环</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch06-bash-safety-layers.html">
+      <div class="card-name">Bash Safety Layers</div>
+      <div class="card-desc">Bash 命令经过哪些检查 -- 三层安全检查流水线</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch07</span> TodoWrite</div>
+  <div class="cards">
+    <a class="card" href="ch07-todo-lifecycle.html">
+      <div class="card-name">Todo Lifecycle</div>
+      <div class="card-desc">6 步生命周期 -- 创建 / 勾选 / 新增</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch07-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">TodoManager 核心 22 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch08</span> Workspace Snapshot</div>
+  <div class="cards">
+    <a class="card" href="ch08-workspace-diff.html">
+      <div class="card-name">Workspace Diff</div>
+      <div class="card-desc">有 / 无 snapshot 对比 -- 3 种项目类型</div>
+      <span class="tag tag-compare">compare</span>
+    </a>
+    <a class="card" href="ch08-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">workspace_collector 核心 25 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch09</span> Prompt Compiler</div>
+  <div class="cards">
+    <a class="card" href="ch09-prompt-layers.html">
+      <div class="card-name">Prompt Layers</div>
+      <div class="card-desc">六层 token 占比 -- 拖滑块看 20 轮增长</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+    <a class="card" href="ch09-context-heatmap.html">
+      <div class="card-name">Context Heatmap</div>
+      <div class="card-desc">messages 数组 token 热力图 -- 10 轮对话 context 增长</div>
+      <span class="tag tag-xray">x-ray</span>
+    </a>
+    <a class="card" href="ch09-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">prompt_compiler compile() 核心 26 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+  </div>
+</div>
+
+<div class="chapter">
+  <div class="chapter-header"><span class="chapter-num">Ch10</span> Session + Safety</div>
+  <div class="cards">
+    <a class="card" href="ch10-safety-dashboard.html">
+      <div class="card-name">Safety Dashboard</div>
+      <div class="card-desc">保命三件套实战 -- 你来当 human-in-the-loop</div>
+      <span class="tag tag-game">game</span>
+    </a>
+    <a class="card" href="ch10-code-explainer.html">
+      <div class="card-name">Code Explainer</div>
+      <div class="card-desc">session.py 持久化 25 行 -- 点击逐行解释</div>
+      <span class="tag tag-explore">explore</span>
+    </a>
+  </div>
+</div>
+
+<div class="stats">
+  <span>59</span> interactive components across <span>11</span> chapters
+</div>
+
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale CLI 真跑一次：修一个失败的测试</title>
+<style>
+:root{
+  --bg0:#faf9f5; --card:#fff; --card2:#fbfaf6;
+  --border:#e8e4d8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c; --teal:#0e7c66; --amber:#c98a2b; --blue:#2563a8; --red:#c2402a;
+  /* 终端深色 */
+  --term-bg:#181512; --term-bg2:#211d19; --term-line:#322c26;
+  --t-text:#d6d0c6; --t-dim:#8a8175; --t-amber:#e0b070; --t-teal:#7ec9a8; --t-blue:#8fb3e8; --t-red:#e08a72; --t-green:#86c98f;
+  --shadow-md:0 1px 3px rgba(41,38,31,.06),0 10px 28px -10px rgba(41,38,31,.16);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,'Inter',system-ui,sans-serif;background:radial-gradient(1100px 700px at 25% -8%,#fefdf9,var(--bg0) 60%);color:var(--text);min-height:100vh;padding:2.2rem 1rem 3rem;}
+.wrap{max-width:1000px;margin:0 auto;}
+h1{font-family:Georgia,'Songti SC',serif;font-size:1.45rem;font-weight:600;color:var(--ink);text-align:center;}
+.subtitle{text-align:center;font-size:0.8rem;color:var(--text2);margin:0.5rem 0 0.3rem;}
+.realtag{text-align:center;font-size:0.7rem;color:var(--teal);margin-bottom:1.2rem;}
+.realtag code{font-family:'JetBrains Mono',monospace;background:rgba(14,124,102,.07);padding:0.1rem 0.4rem;border-radius:4px;}
+
+/* 步骤轨：14 个点，全程一眼可见，点哪步跳哪步 */
+.rail{display:flex;gap:5px;align-items:center;margin-bottom:0.9rem;flex-wrap:wrap;justify-content:center;}
+.rail .tick{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:2px;}
+.rail .dot{width:11px;height:11px;border-radius:50%;background:var(--border2);transition:all .2s;position:relative;}
+.rail .tick.done .dot{background:var(--text3);}
+.rail .tick.cur .dot{transform:scale(1.5);box-shadow:0 0 0 3px rgba(217,119,87,.18);}
+.rail .tick.k-read .dot{background:var(--teal);} .rail .tick.k-grep .dot,.rail .tick.k-glob .dot{background:var(--blue);}
+.rail .tick.k-bash .dot{background:var(--amber);} .rail .tick.k-edit .dot{background:var(--teal);}
+.rail .tick.k-user .dot{background:var(--accent);} .rail .tick.k-answer .dot{background:var(--green);}
+.rail .tick.err .dot{background:var(--red);box-shadow:0 0 0 2px rgba(194,64,42,.2);}
+.rail .lbl{font-size:0.52rem;font-family:'JetBrains Mono',monospace;color:var(--text3);opacity:0;transition:opacity .2s;white-space:nowrap;}
+.rail .tick.cur .lbl{opacity:1;color:var(--accent-deep);font-weight:600;}
+.rail .tick:hover .lbl{opacity:.7;}
+
+.layout{display:grid;grid-template-columns:1fr 300px;gap:1rem;align-items:start;}
+@media(max-width:820px){.layout{grid-template-columns:1fr;}}
+
+/* 终端实录（深色，真实质感）。幻灯片：固定高度，只放当前一步，不累积、不滚轮 */
+.term{background:var(--term-bg);border-radius:12px;box-shadow:var(--shadow-md);overflow:hidden;border:1px solid #2a241e;}
+.term .bar{display:flex;align-items:center;gap:6px;padding:0.6rem 0.85rem;background:var(--term-bg2);border-bottom:1px solid var(--term-line);}
+.term .bar i{width:11px;height:11px;border-radius:50%;}
+.term .bar i:nth-child(1){background:#e0625c}.term .bar i:nth-child(2){background:#e0b24f}.term .bar i:nth-child(3){background:#67c878}
+.term .bar span{margin-left:0.5rem;font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--t-dim);}
+.term .body.slide{padding:1.1rem 1.1rem;font-family:'JetBrains Mono','SF Mono',monospace;font-size:0.8rem;line-height:1.7;height:300px;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;}
+.slidewrap{animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+.ln{margin-bottom:0.15rem;}
+.ln.show{opacity:1;transform:none;}
+.ln.user{color:var(--t-text);margin:0.2rem 0 0.5rem;}
+.ln.user .p{color:var(--t-green);font-weight:700;}
+.ln.tool .dot{font-weight:700;}
+.ln.tool.read .dot,.ln.tool.read .nm{color:var(--t-teal);}
+.ln.tool.grep .dot,.ln.tool.grep .nm,.ln.tool.glob .dot,.ln.tool.glob .nm{color:var(--t-blue);}
+.ln.tool.bash .dot,.ln.tool.bash .nm{color:var(--t-amber);}
+.ln.tool.edit .dot,.ln.tool.edit .nm{color:var(--t-teal);}
+.ln.tool .nm{font-weight:700;}
+.ln.tool .args{color:var(--t-dim);}
+.ln.res{color:var(--t-dim);white-space:pre-wrap;padding-left:1.1rem;}
+.ln.res .pre{color:#5f574d;}
+.ln.res .ok{color:var(--t-green);} .ln.res .bad{color:var(--t-red);} .ln.res .num{color:var(--t-text);}
+.ln.res.err{color:var(--t-red);}
+.ln.answer{color:var(--t-text);margin-top:0.5rem;padding:0.5rem 0.7rem;background:rgba(126,201,168,.06);border-left:2px solid var(--t-teal);border-radius:0 6px 6px 0;white-space:pre-wrap;}
+.cursor{display:inline-block;width:7px;height:1.05em;background:var(--t-teal);vertical-align:-2px;animation:blink 1s step-end infinite;}
+@keyframes blink{50%{opacity:0;}}
+
+/* 右栏：浅色纸感讲解（三种声音里的"编者声音"） */
+.side{display:flex;flex-direction:column;gap:0.7rem;}
+
+/* 控制条 */
+.controls{display:flex;align-items:center;gap:0.7rem;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.55rem 0.9rem;box-shadow:0 1px 2px rgba(41,38,31,.05);margin-top:0.9rem;}
+.navbtn{flex-shrink:0;border:1px solid var(--border2);background:var(--card2);border-radius:8px;padding:0.35rem 0.7rem;font-size:0.74rem;color:var(--text);cursor:pointer;font-family:-apple-system,sans-serif;transition:all .15s;}
+.navbtn:hover{border-color:var(--accent);color:var(--accent-deep);}
+.navbtn:disabled{opacity:0.4;cursor:default;}
+.playbtn{flex-shrink:0;width:34px;height:34px;border-radius:50%;border:1px solid var(--border2);background:var(--card2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--accent-deep);font-size:0.9rem;}
+.playbtn:hover{border-color:var(--accent);}
+.cnt{flex-shrink:0;font-family:-apple-system,sans-serif;font-size:0.74rem;color:var(--text2);}
+.cnt b{color:var(--ink);font-family:'JetBrains Mono',monospace;}
+#scrub{flex:1;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:#efece3;outline:none;cursor:pointer;}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg0);}
+#scrub::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg0);}
+.cnt{flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--text2);}
+
+.notecard{background:linear-gradient(180deg,#fdfbf7,#faf6ef);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:0.7rem 0.85rem;min-height:120px;}
+.notecard .tag{display:inline-block;font-size:0.56rem;font-weight:600;color:#fff;background:var(--accent);padding:0.06rem 0.42rem;border-radius:8px;margin-bottom:0.4rem;}
+.notecard .body{font-size:0.76rem;line-height:1.6;color:var(--text);font-family:Georgia,'Songti SC',serif;}
+.notecard .body.empty{color:var(--text3);font-style:italic;font-family:-apple-system,sans-serif;font-size:0.72rem;}
+
+.tally{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.7rem 0.85rem;box-shadow:0 1px 2px rgba(41,38,31,.05);font-size:0.72rem;color:var(--text2);line-height:1.7;}
+.tally b{color:var(--ink);font-family:'JetBrains Mono',monospace;}
+.tally .hl{color:var(--accent-deep);}
+
+.note{font-size:0.66rem;color:var(--text2);text-align:center;line-height:1.85;margin-top:1.1rem;}
+.note code{font-family:'JetBrains Mono',monospace;color:var(--teal);}
+.note b{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Whale CLI 真跑一次：修一个失败的测试</h1>
+  <p class="subtitle">你说一句话，它自己跑测试、读代码、定位、改、再跑确认。下面是一次真实运行的完整记录——包括它走的弯路。</p>
+  <p class="realtag">● Whale CLI（第 6 章版本）+ qwen-max 真跑 · 12 次工具调用 · 数据见 <code>data/real-run.json</code></p>
+
+  <div class="rail" id="rail"></div>
+
+  <div class="layout">
+    <div class="term">
+      <div class="bar"><i></i><i></i><i></i><span id="bar-label">whale · /tmp/whale_demo_proj</span></div>
+      <div class="body slide" id="termbody"></div>
+    </div>
+
+    <div class="side">
+      <div class="notecard" id="note">
+        <span class="tag">讲解</span>
+        <div class="body empty" id="note-body">点下一步，每一步它在干嘛、为什么这么干，这里讲。</div>
+      </div>
+      <div class="tally" id="tally"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="navbtn" id="prev">◀ 上一步</button>
+    <button class="playbtn" id="play">▶</button>
+    <input type="range" id="scrub" min="0" max="13" value="0">
+    <span class="cnt">第 <b id="cur">0</b> / 13 步</span>
+    <button class="navbtn" id="next">下一步 ▶</button>
+  </div>
+
+  <div class="note">
+    左边是真实终端记录，深色就是它本来的样子。这次有 <b>三处真实的弯路</b>：grep 第一下没猜中、<code>pytest</code> 在环境里找不到、<code>edit_file</code> 连发两次空参数被拦——
+    它没卡死，靠工具返回的报错<b>自己纠正</b>了。这正是后面要讲的"<b>错误即提示</b>"：工具把错误讲清楚，模型就能接着往下走。
+  </div>
+</div>
+
+<script>
+const RUN = {"task": "修一个失败的测试", "steps": [{"t": "user", "text": "whale \"tests/test_api.py 里有个测试失败了，帮我找到原因并修好，修完重新跑确认通过\""}, {"t": "tool", "name": "grep", "args": "pattern='tests/test_api.py.*FAIL', case_insensitive=True", "kind": "grep", "result": "没有匹配结果", "note": "第一下猜的 pattern 没中——grep 搜的是文件内容，不是测试报告"}, {"t": "tool", "name": "read_file", "args": "path='tests/test_api.py'", "kind": "read", "result": "# tests/test_api.py (10 lines, showing 1-10)\n    1  from src.api import delete_user\n    2\n    3  def test_delete_user():\n    4      # 删除用户应该成功返回 200\n    5      resp = delete_user(1, headers={})\n    6      assert resp[\"status\"] == 200"}, {"t": "tool", "name": "bash", "args": "command='pytest -v tests/test_api.py'", "kind": "bash", "result": "exit_code: 2\nstderr: pytest: command not found", "note": "环境里没有裸 pytest，exit 2"}, {"t": "tool", "name": "glob", "args": "pattern='src/api.py'", "kind": "glob", "result": "src/api.py"}, {"t": "tool", "name": "glob", "args": "pattern='src/__init__.py'", "kind": "glob", "result": "src/__init__.py"}, {"t": "tool", "name": "bash", "args": "command='PYTHONPATH=$(pwd)/src pytest -v ...'", "kind": "bash", "result": "exit_code: 2", "note": "加了 PYTHONPATH 还是不行——pytest 本身没装在 PATH 上"}, {"t": "tool", "name": "bash", "args": "command='python -m pytest -v tests/test_api.py'", "kind": "bash", "result": "exit_code: 1\ntests/test_api.py::test_delete_user FAILED       [ 50%]\ntests/test_api.py::test_delete_user_unauthorized PASSED  [100%]\n>       assert resp[\"status\"] == 200\nE       assert 403 == 200", "note": "换成 python -m pytest 跑通了，真正的失败现形：assert 403 == 200"}, {"t": "tool", "name": "read_file", "args": "path='src/api.py'", "kind": "read", "result": "# src/api.py (12 lines, showing 1-12)\n    1  \"\"\"极简用户 API：删除用户需要 admin 权限。\"\"\"\n    ...\n    5  def require_admin(headers):\n    6      return headers.get(\"Authorization\") == \"Bearer admin-token\"\n    8  def delete_user(user_id, headers):\n    9      if not require_admin(headers):\n   10          return {\"status\": 403, \"error\": \"admin required\"}", "note": "读源码看 403 哪来的——delete_user 要求 admin token，测试没带"}, {"t": "tool", "name": "edit_file", "args": "{}", "kind": "edit", "err": true, "result": "Error: edit_file 参数校验失败 — 缺少必需参数 'path'", "note": "模型把参数发空了，工具当场拦下"}, {"t": "tool", "name": "edit_file", "args": "{}", "kind": "edit", "err": true, "result": "Error: edit_file 参数校验失败 — 缺少必需参数 'path'", "note": "又发空了一次——但工具的报错很明确，模型下一步就纠正了"}, {"t": "tool", "name": "edit_file", "args": "path='tests/test_api.py', old_string='...headers={}...', new_string=\"...headers={'Authorization':'Bearer admin-token'}...\"", "kind": "edit", "result": "Applied edit to tests/test_api.py: replaced 1 lines with 1 lines", "note": "第三次参数对了：给测试请求补上 admin token"}, {"t": "tool", "name": "bash", "args": "command='python -m pytest -v tests/test_api.py'", "kind": "bash", "result": "exit_code: 0\ntests/test_api.py::test_delete_user PASSED       [ 50%]\ntests/test_api.py::test_delete_user_unauthorized PASSED  [100%]\n========= 2 passed in 0.01s =========", "note": "重跑，两个测试全绿"}, {"t": "answer", "text": "测试现在全部通过了。test_delete_user 在添加了正确的 Authorization 头之后返回了预期的 200 状态码。问题是测试请求没带 admin token，接口的 require_admin 中间件挡下了删除操作，加上就通过了。"}], "toolCalls": 12, "source": "Whale CLI(chapter-06) + DashScope qwen-max 真跑，2026-06"};
+</script>
+<script>
+const $=id=>document.getElementById(id);
+const body=$('termbody');
+const STEPS=RUN.steps;
+let cur=0, playing=false;
+
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function colorResult(s){
+  return esc(s)
+    .replace(/exit_code: 0/g,'<span class="ok">exit_code: 0</span>')
+    .replace(/exit_code: [12]/g,'<span class="bad">$&</span>')
+    .replace(/PASSED|passed/g,'<span class="ok">$&</span>')
+    .replace(/FAILED|Error|assert 403 == 200/g,'<span class="bad">$&</span>')
+    .replace(/^(\s*\d+)\s/gm,'<span class="pre">$1</span> ');
+}
+
+/* 只渲染当前一步（幻灯片），不累积 */
+function slideFor(s){
+  if(s.t==='user') return `<div class="ln user"><span class="p">&gt;</span> ${esc(s.text.replace(/^whale /,''))}</div>`;
+  if(s.t==='answer') return `<div class="ln answer">${esc(s.text)}</div>`;
+  const k=s.kind;
+  let h=`<div class="ln tool ${k}"><span class="dot">⏺</span> <span class="nm">${s.name}</span><span class="args">(${esc(s.args)})</span></div>`;
+  h+=`<div class="ln ${s.err?'res err':'res'}"><span class="pre">⎿</span> ${colorResult(s.result)}</div>`;
+  return h;
+}
+
+const TKIND=s=>s.t==='user'?'user':s.t==='answer'?'answer':s.kind;
+function buildRail(){
+  $('rail').innerHTML=STEPS.map((s,i)=>{
+    const lbl=s.t==='user'?'任务':s.t==='answer'?'回答':s.name;
+    return `<div class="tick k-${TKIND(s)}${s.err?' err':''}" data-i="${i}"><div class="dot"></div><div class="lbl">${esc(lbl)}</div></div>`;
+  }).join('');
+  $('rail').querySelectorAll('.tick').forEach(t=>t.addEventListener('click',()=>{cur=+t.dataset.i;render(cur);}));
+}
+
+function render(i){
+  const s=STEPS[i];
+  body.innerHTML=`<div class="slidewrap">${slideFor(s)}</div>`;
+  // bar 标签随步变
+  $('bar-label').textContent = s.t==='answer' ? 'whale · 回答' : s.t==='user' ? 'whale · 你的指令' : `whale · 第 ${i} 步`;
+  // 轨：当前高亮、已过的标灰
+  $('rail').querySelectorAll('.tick').forEach((t,k)=>{
+    t.classList.toggle('cur',k===i); t.classList.toggle('done',k<i);
+  });
+  renderNote(s,i);
+  renderTally(i);
+  $('cur').textContent=i; $('scrub').value=i;
+  $('prev').disabled=i<=0; $('next').disabled=i>=STEPS.length-1;
+}
+
+function renderNote(s,i){
+  const nb=$('note-body');
+  if(!s){nb.className='body empty';nb.textContent='…';return;}
+  if(s.note){ nb.className='body'; nb.innerHTML=esc(s.note); }
+  else if(s.t==='user'){ nb.className='body'; nb.innerHTML='你只说了这一句。接下来 12 步全是模型自己决定的——调哪个工具、传什么参数，没人教它。'; }
+  else if(s.t==='answer'){ nb.className='body'; nb.innerHTML='它用自己的话总结了刚才做了什么、为什么测试本来会失败。一句话进，一段话出，中间 12 步它自己跑完。'; }
+  else { nb.className='body empty'; nb.textContent='这一步没有特别要讲的。'; }
+}
+
+function renderTally(upTo){
+  const slice=STEPS.slice(0,upTo+1).filter(s=>s.t==='tool');
+  const tools={}; let errs=0;
+  slice.forEach(s=>{ tools[s.name]=(tools[s.name]||0)+1; if(s.err)errs++; });
+  const parts=Object.entries(tools).map(([k,v])=>`${k} <b>${v}</b>`).join(' · ');
+  $('tally').innerHTML=`到这步：工具调用 <b>${slice.length}</b> 次<br>${parts||'—'}`+
+    (errs?`<br><span class="hl">其中 ${errs} 次参数报错 → 自己改对了</span>`:'');
+}
+
+$('scrub').addEventListener('input',e=>{ cur=+e.target.value; render(cur); });
+$('prev').addEventListener('click',()=>{ if(cur>0){cur--;render(cur);} });
+$('next').addEventListener('click',()=>{ if(cur<STEPS.length-1){cur++;render(cur);} });
+$('play').addEventListener('click',()=>{
+  playing=!playing; $('play').textContent=playing?'❚❚':'▶';
+  if(playing){ if(cur>=STEPS.length-1) cur=0; tick(); }
+});
+let last=0;
+function tick(){
+  if(!playing) return;
+  const now=Date.now();
+  if(now-last>1100){ last=now; cur++; render(cur);
+    if(cur>=STEPS.length-1){ playing=false; $('play').textContent='▶'; return; } }
+  requestAnimationFrame(tick);
+}
+buildRail();
+render(0);
+</script>
+</body>
+</html>

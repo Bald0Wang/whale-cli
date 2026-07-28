@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error Repair Replay -- Agent 错误修复回放</title>
+<style>
+:root {
+  --bg: #f5f5f0;
+  --surface: #ffffff;
+  --border: #e0e0dc;
+  --border-active: #7c3aed;
+  --text: #24292f;
+  --text2: #656d76;
+  --purple: #7c3aed;
+  --purple-light: #f3f0ff;
+  --blue: #0969da;
+  --blue-light: #f0f7ff;
+  --blue-border: #c8ddf5;
+  --red: #cf222e;
+  --red-light: #fff5f5;
+  --red-border: #f5c6c6;
+  --green: #1a7f37;
+  --green-light: #f0fdf4;
+  --green-border: #b7ebc8;
+  --amber: #9a6700;
+  --amber-light: #fff8e1;
+  --amber-border: #ebd29a;
+  --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  --sans: -apple-system, 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 2.5rem 1rem;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 740px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+}
+
+.subtitle {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text2);
+  margin-bottom: 2rem;
+}
+
+/* ── Progress Bar ── */
+.progress-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.progress-node {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.progress-node:hover {
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+.progress-node.active {
+  border-color: var(--purple);
+  background: var(--purple);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+}
+
+.progress-node.done {
+  border-color: var(--purple);
+  background: var(--purple-light);
+  color: var(--purple);
+}
+
+.progress-line {
+  height: 2px;
+  flex: 1;
+  background: var(--border);
+  transition: background 0.3s ease;
+  max-width: 80px;
+}
+
+.progress-line.done {
+  background: var(--purple);
+}
+
+/* ── Controls ── */
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.btn {
+  padding: 0.45rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn:hover {
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+.btn.active {
+  border-color: var(--purple);
+  background: var(--purple-light);
+  color: var(--purple);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Main Panel ── */
+.main-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  min-height: 380px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: border-color 0.3s;
+}
+
+.step-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--purple);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Context/Action Boxes ── */
+.context-box {
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.action-box {
+  background: var(--purple-light);
+  border: 1px solid #d8ccf5;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.box-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.6rem;
+}
+
+.context-box .box-label { color: var(--blue); }
+.action-box .box-label { color: var(--purple); }
+
+.box-content {
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* ── Code Blocks ── */
+.code-block {
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  margin-top: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  line-height: 1.8;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.code-block .line-num {
+  color: var(--text2);
+  user-select: none;
+  display: inline-block;
+  width: 2.5em;
+  text-align: right;
+  margin-right: 1em;
+}
+
+.code-block .hl-target {
+  background: #fff3cd;
+  display: inline;
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+/* ── Result Boxes ── */
+.result-error {
+  background: var(--red-light);
+  border: 1px solid var(--red-border);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-top: 0.8rem;
+}
+
+.result-error .result-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+}
+
+.result-error .result-text {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--red);
+}
+
+.result-success {
+  background: var(--green-light);
+  border: 1px solid var(--green-border);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-top: 0.8rem;
+}
+
+.result-success .result-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+}
+
+.result-success .result-text {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--green);
+}
+
+/* ── Thinking Bubble ── */
+.thinking-bubble {
+  background: var(--amber-light);
+  border: 1px solid var(--amber-border);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-top: 0.8rem;
+  position: relative;
+}
+
+.thinking-bubble .bubble-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+}
+
+.thinking-bubble .bubble-text {
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #6b5900;
+  font-style: italic;
+}
+
+/* ── Insight Box ── */
+.insight-box {
+  background: var(--amber-light);
+  border-left: 3px solid var(--amber);
+  border-radius: 0 8px 8px 0;
+  padding: 0.8rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: #6b5900;
+}
+
+.insight-box strong {
+  color: var(--amber);
+}
+
+/* ── Inline Highlights ── */
+.hl-red {
+  background: rgba(207, 34, 46, 0.1);
+  color: var(--red);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 0.82em;
+}
+
+.hl-green {
+  background: rgba(26, 127, 55, 0.1);
+  color: var(--green);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 0.82em;
+}
+
+.hl-blue {
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 0.82em;
+}
+
+/* ── Tool Call Style ── */
+.tool-call {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.8;
+  margin-top: 0.5rem;
+}
+
+.tool-name {
+  color: var(--purple);
+  font-weight: 600;
+}
+
+.tool-param {
+  color: var(--text2);
+}
+
+.tool-value {
+  color: var(--text);
+}
+
+/* ── Fade-in Animation ── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.main-panel.animating {
+  animation: fadeSlideIn 0.35s ease;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Agent 错误修复回放</h1>
+  <p class="subtitle">像 debugger 一样, 逐步观看 agent 犯错、发现错误、修正的完整过程</p>
+
+  <!-- Progress Bar -->
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-node active" data-step="0" onclick="goStep(0)">1</div>
+    <div class="progress-line" data-line="0"></div>
+    <div class="progress-node" data-step="1" onclick="goStep(1)">2</div>
+    <div class="progress-line" data-line="1"></div>
+    <div class="progress-node" data-step="2" onclick="goStep(2)">3</div>
+    <div class="progress-line" data-line="2"></div>
+    <div class="progress-node" data-step="3" onclick="goStep(3)">4</div>
+    <div class="progress-line" data-line="3"></div>
+    <div class="progress-node" data-step="4" onclick="goStep(4)">5</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn" id="btnPrev" onclick="prev()">&#9664; 上一步</button>
+    <button class="btn" id="btnPlay" onclick="togglePlay()">&#9654; 自动播放</button>
+    <button class="btn" id="btnNext" onclick="next()">下一步 &#9654;</button>
+  </div>
+
+  <!-- Main Panel -->
+  <div class="main-panel" id="mainPanel"></div>
+</div>
+
+<script>
+var current = 0;
+var total = 5;
+var playing = false;
+var timer = null;
+
+var steps = [
+  // Step 1: 读文件
+  {
+    title: '读文件',
+    html: function () {
+      return ''
+        + '<div class="context-box">'
+        + '  <div class="box-label">Agent 看到了什么</div>'
+        + '  <div class="box-content">'
+        + '    用户指令: "把 <code>process</code> 函数里的 <code>result</code> 改成 <code>output</code>"'
+        + '  </div>'
+        + '</div>'
+        + '<div class="action-box">'
+        + '  <div class="box-label">Agent 决定做什么</div>'
+        + '  <div class="box-content">'
+        + '    先读取目标文件, 了解当前代码结构。'
+        + '    <div class="tool-call">'
+        + '      <span class="tool-name">read_file</span>(<span class="tool-param">path=</span><span class="tool-value">"src/utils.py"</span>)'
+        + '    </div>'
+        + '  </div>'
+        + '</div>'
+        + '<div class="code-block">'
+        + '<span class="line-num">43</span>  \n'
+        + '<span class="line-num">44</span>  <span style="color:#6b7394">def</span> <span style="color:#0969da">process</span>(data):\n'
+        + '<span class="line-num">45</span>      validated = check(data)\n'
+        + '<span class="line-num">46</span>      <span class="hl-target">result = transform(data)</span>\n'
+        + '<span class="line-num">47</span>      <span style="color:#6b7394">return</span> result\n'
+        + '<span class="line-num">48</span>  '
+        + '</div>'
+        + '<div class="insight-box">'
+        + '  <strong>注意:</strong> 文件第 46 行的实际代码是 <span class="hl-green">result = transform(data)</span> -- 接下来看 agent 会不会记对。'
+        + '</div>';
+    }
+  },
+
+  // Step 2: 第一次 Edit（失败）
+  {
+    title: '第一次 Edit (失败)',
+    html: function () {
+      return ''
+        + '<div class="context-box">'
+        + '  <div class="box-label">Agent 看到了什么</div>'
+        + '  <div class="box-content">'
+        + '    刚才读到的文件内容已经在 context 里。Agent 准备做替换。'
+        + '  </div>'
+        + '</div>'
+        + '<div class="action-box">'
+        + '  <div class="box-label">Agent 决定做什么</div>'
+        + '  <div class="box-content">'
+        + '    发起 edit_file 调用, 替换 result 为 output:'
+        + '    <div class="tool-call">'
+        + '      <span class="tool-name">edit_file</span>(<span class="tool-param">path=</span><span class="tool-value">"src/utils.py"</span>)\n'
+        + '        <span class="tool-param">old_string: </span><span class="hl-red">result = data * 2</span>\n'
+        + '        <span class="tool-param">new_string: </span><span class="tool-value">output = data * 2</span>'
+        + '    </div>'
+        + '  </div>'
+        + '</div>'
+        + '<div class="result-error">'
+        + '  <div class="result-label">Error</div>'
+        + '  <div class="result-text">'
+        + 'old_string 未找到。\n'
+        + '\n'
+        + '最接近的匹配 (第 46 行):\n'
+        + '    <span style="color:#24292f">result = transform(data)</span>'
+        + '  </div>'
+        + '</div>'
+        + '<div class="insight-box">'
+        + '  <strong>关键发现:</strong> Agent 写的 old_string 是 <span class="hl-red">result = data * 2</span>, 但实际代码是 <span class="hl-green">result = transform(data)</span>。Agent 在生成调用参数时 "记错" 了文件内容。'
+        + '</div>';
+    }
+  },
+
+  // Step 3: Agent 分析错误
+  {
+    title: 'Agent 分析错误',
+    html: function () {
+      return ''
+        + '<div class="context-box">'
+        + '  <div class="box-label">Agent 看到了什么</div>'
+        + '  <div class="box-content">'
+        + '    错误信息返回了两个关键信息:'
+        + '    <div style="margin-top:0.5rem; padding-left:1rem; border-left:2px solid ' + 'var(--blue-border)' + ';">'
+        + '      1. 匹配失败 -- old_string 在文件中不存在<br>'
+        + '      2. 最接近的匹配内容: <span class="hl-green">result = transform(data)</span>'
+        + '    </div>'
+        + '  </div>'
+        + '</div>'
+        + '<div class="thinking-bubble">'
+        + '  <div class="bubble-label">Agent 的思考过程</div>'
+        + '  <div class="bubble-text">'
+        + '    "我给的 old_string 是 <code>data * 2</code>, 但实际代码是 <code>transform(data)</code>。<br>'
+        + '    错误信息已经告诉我正确的内容了。用实际内容重试。"'
+        + '  </div>'
+        + '</div>'
+        + '<div class="insight-box">'
+        + '  <strong>这就是错误信息设计的价值:</strong> 因为工具返回了 "最接近的匹配", agent 不需要重新读文件, 直接从错误信息中获取了正确内容, 一步完成纠错。'
+        + '</div>';
+    }
+  },
+
+  // Step 4: 第二次 Edit（成功）
+  {
+    title: '第二次 Edit (成功)',
+    html: function () {
+      return ''
+        + '<div class="action-box">'
+        + '  <div class="box-label">Agent 决定做什么</div>'
+        + '  <div class="box-content">'
+        + '    用错误信息里返回的实际代码重新发起 edit_file:'
+        + '    <div class="tool-call">'
+        + '      <span class="tool-name">edit_file</span>(<span class="tool-param">path=</span><span class="tool-value">"src/utils.py"</span>)\n'
+        + '        <span class="tool-param">old_string: </span><span class="hl-green">result = transform(data)</span>\n'
+        + '        <span class="tool-param">new_string: </span><span class="hl-green">output = transform(data)</span>'
+        + '    </div>'
+        + '  </div>'
+        + '</div>'
+        + '<div class="result-success">'
+        + '  <div class="result-label">Success</div>'
+        + '  <div class="result-text">'
+        + '已替换 (第 46 行):\n'
+        + '  - result = transform(data)\n'
+        + '  + output = transform(data)'
+        + '  </div>'
+        + '</div>'
+        + '<div class="insight-box">'
+        + '  <strong>对比两次调用:</strong> 第一次用了 "记忆中的代码", 第二次用了 "错误信息提供的实际代码"。工具的错误提示帮 agent 完成了自纠错, 没有浪费额外的工具调用。'
+        + '</div>';
+    }
+  },
+
+  // Step 5: 验证
+  {
+    title: '验证修改结果',
+    html: function () {
+      return ''
+        + '<div class="action-box">'
+        + '  <div class="box-label">Agent 决定做什么</div>'
+        + '  <div class="box-content">'
+        + '    修改完成后, 再次读取文件确认结果:'
+        + '    <div class="tool-call">'
+        + '      <span class="tool-name">read_file</span>(<span class="tool-param">path=</span><span class="tool-value">"src/utils.py"</span>, <span class="tool-param">start_line=</span><span class="tool-value">44</span>, <span class="tool-param">end_line=</span><span class="tool-value">48</span>)'
+        + '    </div>'
+        + '  </div>'
+        + '</div>'
+        + '<div class="code-block">'
+        + '<span class="line-num">44</span>  <span style="color:#6b7394">def</span> <span style="color:#0969da">process</span>(data):\n'
+        + '<span class="line-num">45</span>      validated = check(data)\n'
+        + '<span class="line-num">46</span>      <span class="hl-target" style="background:rgba(26,127,55,0.12)">output = transform(data)</span>\n'
+        + '<span class="line-num">47</span>      <span style="color:#6b7394">return</span> output\n'
+        + '<span class="line-num">48</span>  '
+        + '</div>'
+        + '<div class="result-success">'
+        + '  <div class="result-label">验证通过</div>'
+        + '  <div class="result-text">'
+        + '第 46 行: result -> output  (已确认)\n'
+        + '第 47 行: return result -> return output  (已确认)'
+        + '  </div>'
+        + '</div>'
+        + '<div class="insight-box">'
+        + '  <strong>完整闭环:</strong> 读取 -> 尝试编辑 -> 失败 -> 从错误信息中学习 -> 重试成功 -> 验证。这就是 agent 通过工具反馈实现自纠错的完整过程。工具的错误信息质量, 直接决定了 agent 能不能一次修好。'
+        + '</div>';
+    }
+  }
+];
+
+function render() {
+  var panel = document.getElementById('mainPanel');
+  panel.classList.remove('animating');
+  // Force reflow to restart animation
+  void panel.offsetWidth;
+  panel.classList.add('animating');
+
+  var step = steps[current];
+  panel.innerHTML = ''
+    + '<div class="step-title">'
+    + '  <span class="step-badge">' + (current + 1) + '</span>'
+    + '  ' + step.title
+    + '</div>'
+    + step.html();
+
+  // Update progress bar
+  var nodes = document.querySelectorAll('.progress-node');
+  var lines = document.querySelectorAll('.progress-line');
+  for (var i = 0; i < nodes.length; i++) {
+    nodes[i].className = 'progress-node';
+    if (i < current) nodes[i].className += ' done';
+    if (i === current) nodes[i].className += ' active';
+  }
+  for (var j = 0; j < lines.length; j++) {
+    lines[j].className = 'progress-line';
+    if (j < current) lines[j].className += ' done';
+  }
+
+  // Update button states
+  document.getElementById('btnPrev').disabled = (current === 0);
+  document.getElementById('btnNext').disabled = (current === total - 1);
+}
+
+function goStep(n) {
+  if (n < 0 || n >= total) return;
+  current = n;
+  render();
+}
+
+function prev() {
+  if (current > 0) goStep(current - 1);
+}
+
+function next() {
+  if (current < total - 1) goStep(current + 1);
+}
+
+function togglePlay() {
+  if (playing) {
+    stopPlay();
+  } else {
+    startPlay();
+  }
+}
+
+function startPlay() {
+  playing = true;
+  document.getElementById('btnPlay').textContent = '|| 暂停';
+  document.getElementById('btnPlay').classList.add('active');
+  advancePlay();
+}
+
+function stopPlay() {
+  playing = false;
+  clearTimeout(timer);
+  document.getElementById('btnPlay').textContent = '▶ 自动播放';
+  document.getElementById('btnPlay').classList.remove('active');
+}
+
+function advancePlay() {
+  if (!playing) return;
+  if (current < total - 1) {
+    timer = setTimeout(function () {
+      next();
+      advancePlay();
+    }, 2000);
+  } else {
+    stopPlay();
+  }
+}
+
+// Keyboard support
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    prev();
+    stopPlay();
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    next();
+    stopPlay();
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    togglePlay();
+  }
+});
+
+// Init
+render();
+</script>
+</body>
+</html>

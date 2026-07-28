@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ch00–Ch05 正式配图审阅</title>
+  <style>
+    :root {
+      --paper: #f5f0e7;
+      --paper-deep: #ebe2d4;
+      --card: rgba(255, 253, 248, .92);
+      --ink: #102a56;
+      --muted: #6c7480;
+      --line: rgba(16, 42, 86, .14);
+      --blue: #1769d2;
+      --teal: #17867f;
+      --orange: #d87335;
+      --shadow: 0 18px 50px rgba(54, 42, 27, .11);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(16,42,86,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(16,42,86,.035) 1px, transparent 1px),
+        radial-gradient(circle at 18% 0%, rgba(255,255,255,.95), transparent 34rem),
+        var(--paper);
+      background-size: 28px 28px, 28px 28px, auto, auto;
+      font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", ui-rounded, sans-serif;
+    }
+
+    header {
+      padding: 72px clamp(24px, 6vw, 96px) 42px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 16px;
+      color: var(--teal);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      width: 22px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--orange);
+      content: "";
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(36px, 6vw, 76px);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    .lede {
+      max-width: 780px;
+      margin: 24px 0 0;
+      color: #43516a;
+      font-size: clamp(16px, 2vw, 21px);
+      line-height: 1.8;
+    }
+
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 28px;
+      margin-top: 30px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .summary strong {
+      margin-right: 6px;
+      color: var(--blue);
+      font-size: 24px;
+    }
+
+    .toolbar {
+      position: sticky;
+      z-index: 10;
+      top: 0;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 14px clamp(20px, 5vw, 76px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 240, 231, .9);
+      backdrop-filter: blur(16px);
+      scrollbar-width: none;
+    }
+
+    .toolbar::-webkit-scrollbar { display: none; }
+
+    .filter {
+      flex: 0 0 auto;
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink);
+      background: rgba(255,255,255,.52);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 750;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+
+    .filter:hover { transform: translateY(-1px); border-color: rgba(23,105,210,.4); }
+    .filter.is-active { color: #fff; border-color: var(--ink); background: var(--ink); }
+
+    main { padding: 50px clamp(20px, 5vw, 76px) 96px; }
+
+    .chapter {
+      display: grid;
+      grid-template-columns: minmax(110px, .3fr) minmax(0, 2.7fr);
+      gap: 30px;
+      margin-bottom: 76px;
+    }
+
+    .chapter-head {
+      position: sticky;
+      top: 86px;
+      align-self: start;
+      padding-top: 8px;
+    }
+
+    .chapter-no {
+      display: block;
+      font-size: clamp(26px, 4vw, 52px);
+      font-weight: 850;
+      letter-spacing: -.06em;
+    }
+
+    .chapter-count { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      transition: transform .22s ease, box-shadow .22s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 24px 60px rgba(54, 42, 27, .15);
+    }
+
+    .visual {
+      position: relative;
+      display: block;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      cursor: zoom-in;
+    }
+
+    .visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: transform .35s ease;
+    }
+
+    .card:hover .visual img { transform: scale(1.015); }
+
+    .badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 5px 9px;
+      border: 1px solid rgba(255,255,255,.72);
+      border-radius: 999px;
+      color: #fff;
+      background: rgba(16,42,86,.86);
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+
+    .badge.source { background: rgba(216,115,53,.92); }
+
+    .meta { padding: 18px 18px 16px; }
+
+    .title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.45;
+      letter-spacing: -.015em;
+    }
+
+    .note {
+      min-height: 44px;
+      margin: 8px 0 15px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .path-row { display: flex; align-items: center; gap: 8px; }
+
+    code {
+      min-width: 0;
+      overflow: hidden;
+      color: #536079;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .copy {
+      flex: 0 0 auto;
+      margin-left: auto;
+      padding: 5px 8px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      background: transparent;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .empty { display: none; padding: 80px 0; color: var(--muted); text-align: center; }
+
+    footer {
+      padding: 26px 6vw 42px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (max-width: 820px) {
+      header { padding-top: 48px; }
+      .chapter { grid-template-columns: 1fr; gap: 16px; }
+      .chapter-head { position: static; display: flex; align-items: baseline; gap: 12px; }
+      .grid { grid-template-columns: 1fr; }
+      .note { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Whale CLI · Visual Review</div>
+    <h1>Ch00–Ch05<br />正式配图审阅</h1>
+    <p class="lede">这里只收录正文已经引用的静态图。IP 图负责解释机制，论文与官网截图负责保留原始证据；点击图片可查看原尺寸，路径可以直接复制。</p>
+    <div class="summary">
+      <span><strong>24</strong>正式静态图</span>
+      <span><strong>18</strong>IP 机制图</span>
+      <span><strong>6</strong>论文 / 官网 / 开源截图</span>
+    </div>
+  </header>
+
+  <nav class="toolbar" aria-label="筛选配图">
+    <button class="filter is-active" data-filter="all">全部 24</button>
+    <button class="filter" data-filter="Ch00">Ch00</button>
+    <button class="filter" data-filter="Ch01">Ch01</button>
+    <button class="filter" data-filter="Ch02">Ch02</button>
+    <button class="filter" data-filter="Ch03">Ch03</button>
+    <button class="filter" data-filter="Ch04">Ch04</button>
+    <button class="filter" data-filter="Ch05">Ch05</button>
+    <button class="filter" data-filter="ip">IP 机制图</button>
+    <button class="filter" data-filter="source">原始截图</button>
+  </nav>
+
+  <main id="app"></main>
+  <footer>Ch00–Ch05 visual set · 文件名均带章节编号 · 2026-07-16</footer>
+
+  <script>
+    const figures = [
+      {ch:"Ch00",type:"ip",src:"ch00/ch00-openclaw-capability-growth.webp",title:"Whale CLI 闯关 OpenClaw",note:"课程路线与 25000+ 文件仓库。"},
+      {ch:"Ch00",type:"ip",src:"ch00/ch00-manual-to-agent-loop.webp",title:"Chatbot vs Agent",note:"人工复制粘贴循环与 Agent Loop。"},
+      {ch:"Ch00",type:"source",src:"ch00/ch00-source-github-copilot-2021.png",title:"GitHub Copilot 技术预览",note:"GitHub 官方发布图 · 2021。"},
+      {ch:"Ch00",type:"source",src:"ch00/ch00-source-claude-code-2025.png",title:"Claude Code research preview",note:"Anthropic 官方终端界面 · 2025。"},
+      {ch:"Ch00",type:"source",src:"ch00/ch00-source-openai-chatgpt-codex-merge.png",title:"Codex 并入 ChatGPT 桌面应用",note:"OpenAI 官网原文截图 · 2026。"},
+      {ch:"Ch00",type:"ip",src:"ch00/ch00-openclaw-search-convergence.webp",title:"51 次工具调用收敛到一条链路",note:"OpenClaw 真实搜索过程。"},
+
+      {ch:"Ch01",type:"ip",src:"ch01/ch01-model-request-runtime-executes.webp",title:"模型发请求，本地程序打开文件",note:"tool_call 与本地磁盘执行边界。"},
+      {ch:"Ch01",type:"ip",src:"ch01/ch01-messages-lifecycle-detail.webp",title:"一次工具调用，messages 多出两条",note:"assistant.tool_calls 与 tool result。"},
+      {ch:"Ch01",type:"source",src:"ch01/ch01-source-react-model-overview.png",title:"ReAct 模型概览",note:"Google Research / ReAct 论文 Figure 1。"},
+      {ch:"Ch01",type:"ip",src:"ch01/ch01-messages-stateless-api.webp",title:"历史写在 messages 里",note:"每轮请求携带完整运行现场。"},
+
+      {ch:"Ch02",type:"ip",src:"ch02/ch02-tool-dispatch-detail.webp",title:"一次 tool_call，走过 6 个步骤",note:"解析、查表、校验、执行、回填。"},
+      {ch:"Ch02",type:"ip",src:"ch02/ch02-tool-defined-three-times.webp",title:"新增 list_dir，要登记三处",note:"Schema、函数与名称映射。"},
+      {ch:"Ch02",type:"ip",src:"ch02/ch02-whale-tool-registry.webp",title:"一个 @tool，登记两份信息",note:"TOOLS 与 TOOL_FUNCTIONS 共享注册入口。"},
+      {ch:"Ch02",type:"source",src:"ch02/ch02-source-rich-terminal-features.png",title:"Rich 官方终端示例",note:"颜色、样式、表格与语法高亮。"},
+
+      {ch:"Ch03",type:"ip",src:"ch03/ch03-read-context-budget.webp",title:"Read 返回多少，下一轮就带多少",note:"工具结果持续占用 Context。"},
+      {ch:"Ch03",type:"ip",src:"ch03/ch03-read-range-concrete.webp",title:"2897 行，只返回 309–360",note:"具体范围与 continuation 提示。"},
+      {ch:"Ch03",type:"ip",src:"ch03/ch03-read-context-pipeline-detail.webp",title:"Read 先检查，再返回所需片段",note:"路径、类型、行数、范围与行号。"},
+
+      {ch:"Ch04",type:"ip",src:"ch04/ch04-write-vs-edit-choice.webp",title:"新文件用 Write，局部修改用 Edit",note:"两个任务范围对应两种工具。"},
+      {ch:"Ch04",type:"ip",src:"ch04/ch04-edit-failure-evidence.webp",title:"匹配失败：读回附近代码再改",note:"错误结果为下一轮提供依据。"},
+      {ch:"Ch04",type:"ip",src:"ch04/ch04-edit-self-correction-detail.webp",title:"Edit 失败后，带着错误再读一次",note:"0 处、多处与唯一命中的分支。"},
+
+      {ch:"Ch05",type:"ip",src:"ch05/ch05-gitignore-search-gate.webp",title:"先跳过 node_modules 和 dist",note:".gitignore 作为搜索入口过滤器。"},
+      {ch:"Ch05",type:"source",src:"ch05/ch05-source-ripgrep-search-results.png",title:"Ripgrep 官方搜索结果",note:"路径、行号与命中文本。"},
+      {ch:"Ch05",type:"ip",src:"ch05/ch05-search-attention-funnel.webp",title:"47 个文件 → 3 处命中 → 21 行",note:"Glob、Grep、Read 的收敛过程。"},
+      {ch:"Ch05",type:"ip",src:"ch05/ch05-search-attention-flow-detail.webp",title:"Glob → Grep → Read → Edit",note:"从候选文件走到精确修改。"}
+    ];
+
+    const app = document.querySelector("#app");
+    let active = "all";
+
+    function render() {
+      const selected = active === "all"
+        ? figures
+        : figures.filter(item => item.ch === active || item.type === active);
+
+      app.innerHTML = "";
+      for (const ch of ["Ch00","Ch01","Ch02","Ch03","Ch04","Ch05"]) {
+        const items = selected.filter(item => item.ch === ch);
+        if (!items.length) continue;
+
+        const section = document.createElement("section");
+        section.className = "chapter";
+        section.innerHTML = `
+          <div class="chapter-head">
+            <span class="chapter-no">${ch}</span>
+            <span class="chapter-count">${items.length} 张</span>
+          </div>
+          <div class="grid"></div>`;
+
+        const grid = section.querySelector(".grid");
+        for (const item of items) {
+          const card = document.createElement("article");
+          card.className = "card";
+          card.innerHTML = `
+            <button class="visual" type="button" aria-label="打开 ${item.title} 原图">
+              <img src="${item.src}" alt="${item.title}" loading="lazy" />
+              <span class="badge ${item.type}">${item.type === "ip" ? "IP 机制图" : "原始截图"}</span>
+            </button>
+            <div class="meta">
+              <h2 class="title">${item.title}</h2>
+              <p class="note">${item.note}</p>
+              <div class="path-row">
+                <code>/images/${item.src}</code>
+                <button class="copy" type="button">复制路径</button>
+              </div>
+            </div>`;
+
+          card.querySelector(".visual").addEventListener("click", () => window.open(item.src, "_blank"));
+          card.querySelector(".copy").addEventListener("click", async event => {
+            await navigator.clipboard.writeText(`/images/${item.src}`);
+            event.currentTarget.textContent = "已复制";
+            setTimeout(() => event.currentTarget.textContent = "复制路径", 1200);
+          });
+          grid.appendChild(card);
+        }
+        app.appendChild(section);
+      }
+    }
+
+    document.querySelectorAll(".filter").forEach(button => {
+      button.addEventListener("click", () => {
+        active = button.dataset.filter;
+        document.querySelectorAll(".filter").forEach(node => node.classList.toggle("is-active", node === button));
+        render();
+        window.scrollTo({top: document.querySelector(".toolbar").offsetTop, behavior: "smooth"});
+      });
+    });
+
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edit 工具透视 — 匹配、替换与自纠错</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #1c1816;
+  --panel: #231f1c;
+  --text: #ebe0d2;
+  --dim: #6a6058;
+  --orange: #D77757;
+  --green: #7ec384;
+  --red: #e06464;
+  --border: #332d28;
+  --del-bg: rgba(224, 100, 100, 0.15);
+  --add-bg: rgba(126, 195, 132, 0.15);
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 24px;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--orange);
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--dim);
+  margin-bottom: 24px;
+}
+
+/* Scenario toggle */
+.scenario-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.scenario-btn {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: none;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s;
+  text-align: center;
+}
+
+.scenario-btn:first-child { border-right: 1px solid var(--border); }
+
+.scenario-btn.active {
+  background: var(--border);
+  color: var(--text);
+}
+
+.scenario-btn .icon { margin-right: 6px; }
+
+/* Tool call display */
+.tool-call-bar {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.tool-call-bar .fn-name { color: var(--orange); font-weight: 600; }
+.tool-call-bar .key { color: var(--dim); }
+.tool-call-bar .str { color: var(--green); }
+.tool-call-bar .str.wrong { color: var(--red); }
+
+/* Main stage */
+.stage {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-header .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.panel-header .dot.active { background: var(--orange); }
+.panel-header .dot.success { background: var(--green); }
+.panel-header .dot.error { background: var(--red); }
+
+/* Code display */
+.code-area {
+  padding: 12px 0;
+  font-size: 12.5px;
+  line-height: 1.75;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.code-line {
+  display: flex;
+  padding: 0 16px;
+  transition: background 0.3s;
+  white-space: pre;
+}
+
+.code-line .line-no {
+  width: 32px;
+  flex-shrink: 0;
+  color: var(--dim);
+  text-align: right;
+  margin-right: 16px;
+  user-select: none;
+  opacity: 0.6;
+}
+
+.code-line .line-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.code-line.scanning {
+  background: rgba(215, 119, 87, 0.08);
+}
+
+.code-line.scanning .line-no {
+  color: var(--orange);
+  opacity: 1;
+}
+
+.code-line.matched {
+  background: rgba(215, 119, 87, 0.18);
+}
+
+.code-line.matched .line-text {
+  color: var(--orange);
+  font-weight: 600;
+}
+
+.code-line.deleted {
+  background: var(--del-bg);
+}
+
+.code-line.deleted .line-text {
+  color: var(--red);
+  text-decoration: line-through;
+  text-decoration-color: rgba(224, 100, 100, 0.5);
+}
+
+.code-line.deleted .diff-marker {
+  color: var(--red);
+  margin-right: 4px;
+  font-weight: 700;
+}
+
+.code-line.added {
+  background: var(--add-bg);
+}
+
+.code-line.added .line-text {
+  color: var(--green);
+  font-weight: 500;
+}
+
+.code-line.added .diff-marker {
+  color: var(--green);
+  margin-right: 4px;
+  font-weight: 700;
+}
+
+.code-line.no-match-highlight {
+  background: rgba(224, 100, 100, 0.06);
+}
+
+/* Status message area */
+.status-area {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-area .status-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.status-area .status-text {
+  color: var(--dim);
+}
+
+.status-area .status-text.success { color: var(--green); }
+.status-area .status-text.error { color: var(--red); }
+.status-area .status-text.info { color: var(--orange); }
+
+/* Error message panel */
+.error-panel {
+  background: rgba(224, 100, 100, 0.05);
+  border: 1px solid rgba(224, 100, 100, 0.2);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  line-height: 1.7;
+  display: none;
+}
+
+.error-panel .err-title {
+  color: var(--red);
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.error-panel .err-body {
+  color: var(--dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.error-panel .err-body .highlight {
+  color: var(--text);
+  background: rgba(215, 119, 87, 0.12);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Self-correct panel */
+.correct-panel {
+  background: rgba(126, 195, 132, 0.05);
+  border: 1px solid rgba(126, 195, 132, 0.2);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  line-height: 1.7;
+  display: none;
+}
+
+.correct-panel .correct-title {
+  color: var(--green);
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.correct-panel .correct-body {
+  color: var(--dim);
+}
+
+.correct-panel .correct-body .fn-name { color: var(--orange); font-weight: 600; }
+.correct-panel .correct-body .str { color: var(--green); }
+
+/* Step controls */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ctrl-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.ctrl-btn:hover:not(:disabled) {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.ctrl-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ctrl-btn.play-btn {
+  width: 48px;
+  height: 48px;
+  border-color: var(--orange);
+  color: var(--orange);
+  font-size: 18px;
+}
+
+.ctrl-btn.play-btn:hover:not(:disabled) {
+  background: rgba(215, 119, 87, 0.12);
+}
+
+.ctrl-btn.play-btn.playing {
+  border-color: var(--dim);
+  color: var(--dim);
+}
+
+.step-indicator {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.3s;
+}
+
+.step-dot.active {
+  background: var(--orange);
+  box-shadow: 0 0 8px rgba(215, 119, 87, 0.4);
+}
+
+.step-dot.done {
+  background: var(--dim);
+}
+
+.step-label {
+  font-size: 13px;
+  color: var(--text);
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.pulse {
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+/* Scan cursor animation */
+@keyframes scanGlow {
+  0%, 100% { box-shadow: inset 3px 0 0 var(--orange); }
+  50% { box-shadow: inset 3px 0 0 rgba(215, 119, 87, 0.4); }
+}
+
+.code-line.scanning {
+  animation: scanGlow 0.6s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  body { padding: 12px; }
+  h1 { font-size: 16px; }
+  .tool-call-bar { font-size: 11px; }
+  .code-area { font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Edit 工具透视 — 匹配、替换与自纠错</h1>
+  <p class="subtitle">edit_file 内部流程逐步动画：从读取文件到字符串匹配，再到替换写回或错误自纠</p>
+
+  <!-- Scenario toggle -->
+  <div class="scenario-toggle">
+    <button class="scenario-btn active" data-scenario="success">
+      <span class="icon">&#10004;</span>场景 A：编辑成功
+    </button>
+    <button class="scenario-btn" data-scenario="fail">
+      <span class="icon">&#10008;</span>场景 B：编辑失败 + 模型自纠错
+    </button>
+  </div>
+
+  <!-- Tool call bar -->
+  <div class="tool-call-bar" id="toolCallBar"></div>
+
+  <!-- Main stage -->
+  <div class="stage">
+    <div class="panel" id="mainPanel">
+      <div class="panel-header">
+        <span class="dot" id="panelDot"></span>
+        <span id="panelTitle">src/utils.py</span>
+      </div>
+      <div class="code-area" id="codeArea"></div>
+      <div class="status-area" id="statusArea">
+        <span class="status-icon" id="statusIcon"></span>
+        <span class="status-text" id="statusText">准备就绪</span>
+      </div>
+    </div>
+
+    <div class="error-panel" id="errorPanel">
+      <div class="err-title" id="errTitle"></div>
+      <div class="err-body" id="errBody"></div>
+    </div>
+
+    <div class="correct-panel" id="correctPanel">
+      <div class="correct-title" id="correctTitle"></div>
+      <div class="correct-body" id="correctBody"></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="ctrl-btn" id="prevBtn" disabled>&#9664;</button>
+    <button class="ctrl-btn play-btn" id="playBtn">&#9654;</button>
+    <button class="ctrl-btn" id="nextBtn">&#9654;</button>
+    <div class="step-indicator" id="stepIndicator"></div>
+    <span class="step-label" id="stepLabel"></span>
+  </div>
+</div>
+
+<script>
+// ─── File content ─────────────────────────────────────────────
+const FILE_LINES = [
+  '"""',
+  'utils.py — 数据处理工具模块',
+  '提供 transform、validate 等通用函数',
+  '"""',
+  '',
+  'import logging',
+  'from typing import Any, Dict, Optional',
+  '',
+  'logger = logging.getLogger(__name__)',
+  '',
+  '',
+  'def validate(data: Dict[str, Any]) -> bool:',
+  '    """检查数据格式是否合法"""',
+  '    if not isinstance(data, dict):',
+  '        return False',
+  '    required = ["id", "payload", "timestamp"]',
+  '    return all(k in data for k in required)',
+  '',
+  '',
+  'def process(data: Dict[str, Any]) -> Optional[Dict]:',
+  '    """主处理流程"""',
+  '    if not validate(data):',
+  '        logger.warning("数据校验失败: %s", data.get("id"))',
+  '        return None',
+  '',
+  '    result = transform(data)',
+  '',
+  '    logger.info("处理完成: id=%s", data["id"])',
+  '    return {"status": "ok", "result": result}',
+];
+
+const MATCH_LINE_INDEX = 25; // "    result = transform(data)"
+
+// ─── Scenario definitions ─────────────────────────────────────
+const scenarios = {
+  success: {
+    toolCall() {
+      return `<span class="fn-name">edit_file</span>(<span class="key">path:</span> <span class="str">"src/utils.py"</span>, <span class="key">old_string:</span> <span class="str">"result = transform(data)"</span>, <span class="key">new_string:</span> <span class="str">"result = transform(data, validate=True)"</span>)`;
+    },
+    steps: [
+      {
+        label: '读取文件',
+        action(ctx) {
+          ctx.setDot('active');
+          ctx.setPanelTitle('src/utils.py — 读取中...');
+          ctx.setStatus('info', '⟳', '正在读取 src/utils.py ...');
+          ctx.renderFileLines(-1, false);
+          setTimeout(() => {
+            ctx.setPanelTitle('src/utils.py — 已加载 (' + FILE_LINES.length + ' 行)');
+            ctx.setStatus('info', '📄', '文件已加载，共 ' + FILE_LINES.length + ' 行');
+          }, 400);
+        }
+      },
+      {
+        label: '搜索 old_string',
+        async action(ctx) {
+          ctx.setStatus('info', '🔍', '搜索目标字符串: "result = transform(data)"');
+          // Scan animation line by line up to match
+          for (let i = 0; i <= MATCH_LINE_INDEX; i++) {
+            if (ctx.cancelled) return;
+            ctx.highlightScanLine(i);
+            await ctx.delay(60);
+          }
+          ctx.markMatched(MATCH_LINE_INDEX);
+          ctx.setStatus('info', '🎯', '在第 ' + (MATCH_LINE_INDEX + 1) + ' 行找到匹配');
+        }
+      },
+      {
+        label: '确认匹配数',
+        action(ctx) {
+          ctx.setStatus('success', '✓', '找到 1 处匹配 ✓');
+        }
+      },
+      {
+        label: '执行替换',
+        action(ctx) {
+          ctx.setStatus('info', '⟳', '正在替换...');
+          ctx.showDiff(MATCH_LINE_INDEX,
+            '    result = transform(data)',
+            '    result = transform(data, validate=True)');
+          setTimeout(() => {
+            ctx.setStatus('success', '✓', '替换完成：旧文本 → 新文本');
+          }, 300);
+        }
+      },
+      {
+        label: '写回文件',
+        action(ctx) {
+          ctx.setDot('success');
+          ctx.setPanelTitle('src/utils.py — 已保存');
+          ctx.setStatus('success', '✓', '文件已保存 ✓ 编辑成功完成');
+        }
+      }
+    ]
+  },
+
+  fail: {
+    toolCall() {
+      return `<span class="fn-name">edit_file</span>(<span class="key">path:</span> <span class="str">"src/utils.py"</span>, <span class="key">old_string:</span> <span class="str wrong">"result = data * 2"</span>, <span class="key">new_string:</span> <span class="str">"result = transform(data, validate=True)"</span>)`;
+    },
+    steps: [
+      {
+        label: '读取文件',
+        action(ctx) {
+          ctx.setDot('active');
+          ctx.setPanelTitle('src/utils.py — 读取中...');
+          ctx.setStatus('info', '⟳', '正在读取 src/utils.py ...');
+          ctx.renderFileLines(-1, false);
+          setTimeout(() => {
+            ctx.setPanelTitle('src/utils.py — 已加载 (' + FILE_LINES.length + ' 行)');
+            ctx.setStatus('info', '📄', '文件已加载，共 ' + FILE_LINES.length + ' 行');
+          }, 400);
+        }
+      },
+      {
+        label: '搜索 old_string',
+        async action(ctx) {
+          ctx.setStatus('info', '🔍', '搜索目标字符串: "result = data * 2"');
+          // Scan ALL lines — none match
+          for (let i = 0; i < FILE_LINES.length; i++) {
+            if (ctx.cancelled) return;
+            ctx.highlightScanLine(i);
+            await ctx.delay(55);
+          }
+          // Clear scan highlight from last line
+          ctx.clearScanHighlights();
+          ctx.setStatus('error', '✗', '扫描完毕，未找到任何匹配');
+        }
+      },
+      {
+        label: '匹配失败',
+        action(ctx) {
+          ctx.setDot('error');
+          ctx.setStatus('error', '✗', '0 处匹配 ✗ — old_string 在文件中不存在');
+          // Dim all lines to show "nothing matched"
+          ctx.dimAllLines();
+        }
+      },
+      {
+        label: '构造错误信息',
+        action(ctx) {
+          ctx.setStatus('error', '⚠', '正在构造错误返回信息...');
+          const errPanel = document.getElementById('errorPanel');
+          errPanel.style.display = 'block';
+          errPanel.classList.add('fade-in');
+          document.getElementById('errTitle').textContent = '❌ Error 返回给模型';
+          const snippet = FILE_LINES.slice(22, 29).map((l, i) => `${23 + i} │ ${l}`).join('\n');
+          document.getElementById('errBody').innerHTML =
+            `<span class="highlight">old_string "result = data * 2"</span> 在 src/utils.py 中未找到。\n\n该文件第 23-29 行的内容为：\n\n${snippet}\n\n请检查 old_string 是否与文件内容完全一致。`;
+        }
+      },
+      {
+        label: '模型收到错误',
+        action(ctx) {
+          ctx.setStatus('error', '←', '错误信息已返回到对话上下文中');
+          const errPanel = document.getElementById('errorPanel');
+          errPanel.style.display = 'block';
+          // Add a subtle pulse
+          document.getElementById('errTitle').innerHTML = '❌ Error 已进入 messages — 模型正在分析...';
+        }
+      },
+      {
+        label: '模型自纠错 — 重新调用',
+        action(ctx) {
+          // Show the corrected call
+          const cp = document.getElementById('correctPanel');
+          cp.style.display = 'block';
+          cp.classList.add('fade-in');
+          document.getElementById('correctTitle').textContent = '🔄 模型第二次尝试（基于错误中的文件片段）';
+          document.getElementById('correctBody').innerHTML =
+            `模型分析了错误信息中的文件片段，发现实际内容是\n<span class="str">"result = transform(data)"</span>，而非之前幻觉的 "result = data * 2"。\n\n新调用：\n<span class="fn-name">edit_file</span>(<span class="key">old_string:</span> <span class="str">"result = transform(data)"</span>, ...)`;
+          ctx.setStatus('info', '🔄', '模型发出修正后的 edit_file 调用');
+          // Update tool call bar
+          document.getElementById('toolCallBar').innerHTML =
+            `<span class="fn-name">edit_file</span>(<span class="key">path:</span> <span class="str">"src/utils.py"</span>, <span class="key">old_string:</span> <span class="str">"result = transform(data)"</span>, <span class="key">new_string:</span> <span class="str">"result = transform(data, validate=True)"</span>)`;
+        }
+      },
+      {
+        label: '第二次编辑 — 成功',
+        action(ctx) {
+          // Show the successful edit now
+          ctx.clearAllHighlights();
+          ctx.renderFileLines(MATCH_LINE_INDEX, false);
+          ctx.markMatched(MATCH_LINE_INDEX);
+
+          setTimeout(() => {
+            ctx.showDiff(MATCH_LINE_INDEX,
+              '    result = transform(data)',
+              '    result = transform(data, validate=True)');
+            ctx.setDot('success');
+            ctx.setPanelTitle('src/utils.py — 已保存');
+            ctx.setStatus('success', '✓', '第二次编辑成功 ✓ 自纠错完成');
+          }, 500);
+        }
+      }
+    ]
+  }
+};
+
+// ─── State ────────────────────────────────────────────────────
+let currentScenario = 'success';
+let currentStep = -1;
+let isPlaying = false;
+let playTimer = null;
+let cancelled = false;
+
+// ─── DOM refs ─────────────────────────────────────────────────
+const codeArea = document.getElementById('codeArea');
+const statusIcon = document.getElementById('statusIcon');
+const statusText = document.getElementById('statusText');
+const panelDot = document.getElementById('panelDot');
+const panelTitle = document.getElementById('panelTitle');
+const toolCallBar = document.getElementById('toolCallBar');
+const stepIndicator = document.getElementById('stepIndicator');
+const stepLabel = document.getElementById('stepLabel');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const playBtn = document.getElementById('playBtn');
+const errorPanel = document.getElementById('errorPanel');
+const correctPanel = document.getElementById('correctPanel');
+
+// ─── Context object passed to step actions ────────────────────
+const ctx = {
+  cancelled: false,
+
+  delay(ms) {
+    return new Promise(r => {
+      const id = setTimeout(r, ms);
+      // Store so we can cancel
+      this._delayId = id;
+    });
+  },
+
+  renderFileLines(highlightLine, showAll = true) {
+    codeArea.innerHTML = '';
+    FILE_LINES.forEach((line, i) => {
+      const div = document.createElement('div');
+      div.className = 'code-line';
+      div.dataset.line = i;
+      const noSpan = document.createElement('span');
+      noSpan.className = 'line-no';
+      noSpan.textContent = i + 1;
+      const textSpan = document.createElement('span');
+      textSpan.className = 'line-text';
+      textSpan.textContent = line || ' ';
+      div.appendChild(noSpan);
+      div.appendChild(textSpan);
+      if (i === highlightLine) div.classList.add('matched');
+      codeArea.appendChild(div);
+    });
+  },
+
+  highlightScanLine(index) {
+    // Remove previous scan highlight
+    const prev = codeArea.querySelector('.code-line.scanning');
+    if (prev) prev.classList.remove('scanning');
+    const line = codeArea.querySelector(`.code-line[data-line="${index}"]`);
+    if (line) {
+      line.classList.add('scanning');
+      line.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  },
+
+  clearScanHighlights() {
+    codeArea.querySelectorAll('.code-line.scanning').forEach(el => el.classList.remove('scanning'));
+  },
+
+  markMatched(index) {
+    this.clearScanHighlights();
+    const line = codeArea.querySelector(`.code-line[data-line="${index}"]`);
+    if (line) {
+      line.classList.add('matched');
+      line.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  },
+
+  dimAllLines() {
+    codeArea.querySelectorAll('.code-line').forEach(el => {
+      el.classList.add('no-match-highlight');
+    });
+  },
+
+  clearAllHighlights() {
+    codeArea.querySelectorAll('.code-line').forEach(el => {
+      el.className = 'code-line';
+    });
+  },
+
+  showDiff(lineIndex, oldText, newText) {
+    const line = codeArea.querySelector(`.code-line[data-line="${lineIndex}"]`);
+    if (!line) return;
+
+    // Replace the matched line with deleted + added
+    line.classList.remove('matched');
+    line.classList.add('deleted');
+    const textSpan = line.querySelector('.line-text');
+
+    // Add diff marker
+    const marker = document.createElement('span');
+    marker.className = 'diff-marker';
+    marker.textContent = '−';
+    line.insertBefore(marker, textSpan);
+
+    textSpan.textContent = oldText;
+
+    // Create the added line
+    const addedDiv = document.createElement('div');
+    addedDiv.className = 'code-line added fade-in';
+    addedDiv.dataset.line = lineIndex + '_new';
+
+    const noSpan = document.createElement('span');
+    noSpan.className = 'line-no';
+    noSpan.textContent = lineIndex + 1;
+
+    const addMarker = document.createElement('span');
+    addMarker.className = 'diff-marker';
+    addMarker.textContent = '+';
+
+    const addText = document.createElement('span');
+    addText.className = 'line-text';
+    addText.textContent = newText;
+
+    addedDiv.appendChild(noSpan);
+    addedDiv.appendChild(addMarker);
+    addedDiv.appendChild(addText);
+
+    line.after(addedDiv);
+    addedDiv.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  },
+
+  setStatus(type, icon, text) {
+    statusIcon.textContent = icon;
+    statusText.textContent = text;
+    statusText.className = 'status-text ' + type;
+  },
+
+  setDot(state) {
+    panelDot.className = 'dot ' + state;
+  },
+
+  setPanelTitle(text) {
+    panelTitle.textContent = text;
+  }
+};
+
+// ─── Step management ──────────────────────────────────────────
+function getSteps() {
+  return scenarios[currentScenario].steps;
+}
+
+function renderStepDots() {
+  const steps = getSteps();
+  stepIndicator.innerHTML = '';
+  steps.forEach((_, i) => {
+    const dot = document.createElement('span');
+    dot.className = 'step-dot';
+    if (i < currentStep) dot.classList.add('done');
+    if (i === currentStep) dot.classList.add('active');
+    stepIndicator.appendChild(dot);
+  });
+  stepLabel.textContent = currentStep >= 0 ? getSteps()[currentStep].label : '';
+}
+
+function updateButtons() {
+  const steps = getSteps();
+  prevBtn.disabled = currentStep <= 0;
+  nextBtn.disabled = currentStep >= steps.length - 1;
+  playBtn.innerHTML = isPlaying ? '⏸' : '&#9654;';
+  playBtn.classList.toggle('playing', isPlaying);
+}
+
+function resetView() {
+  cancelled = true;
+  ctx.cancelled = true;
+  clearTimeout(playTimer);
+  isPlaying = false;
+  currentStep = -1;
+
+  // Reset UI
+  codeArea.innerHTML = '';
+  statusIcon.textContent = '';
+  statusText.textContent = '准备就绪 — 点击 ▶ 开始';
+  statusText.className = 'status-text';
+  panelDot.className = 'dot';
+  panelTitle.textContent = 'src/utils.py';
+  errorPanel.style.display = 'none';
+  correctPanel.style.display = 'none';
+
+  // Set tool call bar
+  toolCallBar.innerHTML = scenarios[currentScenario].toolCall();
+
+  renderStepDots();
+  updateButtons();
+
+  // Allow actions again after a tick
+  setTimeout(() => {
+    cancelled = false;
+    ctx.cancelled = false;
+  }, 50);
+}
+
+async function goToStep(index) {
+  const steps = getSteps();
+  if (index < 0 || index >= steps.length) return;
+
+  // If going backwards, reset and replay from start
+  if (index < currentStep) {
+    cancelled = true;
+    ctx.cancelled = true;
+    clearTimeout(playTimer);
+    await new Promise(r => setTimeout(r, 60));
+    cancelled = false;
+    ctx.cancelled = false;
+
+    // Reset visual state
+    codeArea.innerHTML = '';
+    panelDot.className = 'dot';
+    panelTitle.textContent = 'src/utils.py';
+    errorPanel.style.display = 'none';
+    correctPanel.style.display = 'none';
+    toolCallBar.innerHTML = scenarios[currentScenario].toolCall();
+
+    // Replay all steps up to target quickly
+    for (let i = 0; i <= index; i++) {
+      currentStep = i;
+      renderStepDots();
+      updateButtons();
+      await steps[i].action(ctx);
+      // Small delay between replayed steps
+      if (i < index) await new Promise(r => setTimeout(r, 100));
+    }
+  } else {
+    currentStep = index;
+    renderStepDots();
+    updateButtons();
+    await steps[index].action(ctx);
+  }
+}
+
+async function nextStep() {
+  const steps = getSteps();
+  if (currentStep < steps.length - 1) {
+    await goToStep(currentStep + 1);
+  } else {
+    // Animation complete
+    isPlaying = false;
+    updateButtons();
+  }
+}
+
+async function autoPlay() {
+  if (!isPlaying) return;
+  const steps = getSteps();
+  if (currentStep >= steps.length - 1) {
+    isPlaying = false;
+    updateButtons();
+    return;
+  }
+
+  await nextStep();
+
+  if (isPlaying && currentStep < steps.length - 1) {
+    playTimer = setTimeout(() => autoPlay(), 1500);
+  } else {
+    isPlaying = false;
+    updateButtons();
+  }
+}
+
+// ─── Event listeners ──────────────────────────────────────────
+document.querySelectorAll('.scenario-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentScenario = btn.dataset.scenario;
+    resetView();
+  });
+});
+
+prevBtn.addEventListener('click', () => {
+  if (currentStep > 0) {
+    isPlaying = false;
+    clearTimeout(playTimer);
+    goToStep(currentStep - 1);
+  }
+});
+
+nextBtn.addEventListener('click', () => {
+  isPlaying = false;
+  clearTimeout(playTimer);
+  nextStep();
+  updateButtons();
+});
+
+playBtn.addEventListener('click', () => {
+  if (isPlaying) {
+    isPlaying = false;
+    clearTimeout(playTimer);
+    updateButtons();
+  } else {
+    isPlaying = true;
+    updateButtons();
+    if (currentStep >= getSteps().length - 1) {
+      // Restart from beginning
+      resetView();
+      setTimeout(() => {
+        isPlaying = true;
+        updateButtons();
+        autoPlay();
+      }, 100);
+    } else {
+      autoPlay();
+    }
+  }
+});
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    isPlaying = false;
+    clearTimeout(playTimer);
+    nextStep();
+    updateButtons();
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    isPlaying = false;
+    clearTimeout(playTimer);
+    if (currentStep > 0) goToStep(currentStep - 1);
+  }
+});
+
+// ─── Init ─────────────────────────────────────────────────────
+resetView();
+</script>
+</body>
+</html>

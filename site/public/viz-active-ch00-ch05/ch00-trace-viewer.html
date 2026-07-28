@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trace Viewer - Claude Code OpenClaw</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 400px;
+}
+
+/* Top bar */
+.top-bar {
+  padding: 14px 20px;
+  background: #1c1816;
+  border-bottom: 1px solid #332d28;
+  flex-shrink: 0;
+}
+.top-bar h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #D77757;
+  margin-bottom: 4px;
+}
+.top-bar .subtitle {
+  font-size: 11px;
+  color: #6a6058;
+}
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+.stat-item {
+  color: #6a6058;
+}
+.stat-item .num { color: #ebe0d2; font-weight: 500; }
+.stat-item.read .num { color: #6477e0; }
+.stat-item.bash .num { color: #7ec384; }
+.step-counter {
+  margin-left: auto;
+  color: #D77757;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+/* Main area */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Left panel */
+.left-panel {
+  width: 50%;
+  background: #0f0e0c;
+  overflow-y: auto;
+  border-right: 1px solid #332d28;
+  padding: 8px 0;
+}
+.left-panel::-webkit-scrollbar { width: 6px; }
+.left-panel::-webkit-scrollbar-track { background: transparent; }
+.left-panel::-webkit-scrollbar-thumb { background: #332d28; border-radius: 3px; }
+
+/* Event rows */
+.event-row {
+  padding: 8px 14px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.event-row:hover { background: #1a1715; }
+.event-row.active {
+  background: #1f1a16;
+  border-left-color: #D77757;
+  box-shadow: inset 4px 0 8px -4px rgba(215, 119, 87, 0.3);
+}
+
+/* Text event */
+.event-row.type-text { border-left-color: #D77757; }
+.event-row.type-text .event-content { color: #bfb3a5; font-size: 12px; }
+
+/* Tool use */
+.event-row.type-tool_use.tool-Read { border-left-color: #6477e0; }
+.event-row.type-tool_use.tool-Bash { border-left-color: #7ec384; }
+
+/* Tool result */
+.event-row.type-tool_result {
+  padding: 3px 14px 3px 27px;
+  opacity: 0.5;
+  border-left-color: #332d28;
+}
+.event-row.type-tool_result .event-content {
+  font-size: 11px;
+  color: #6a6058;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.event-row.type-tool_result.expanded {
+  opacity: 0.8;
+  padding: 6px 14px 6px 27px;
+}
+.event-row.type-tool_result.expanded .event-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Badge */
+.tool-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.tool-badge.read-badge { background: rgba(100, 119, 224, 0.2); color: #6477e0; }
+.tool-badge.bash-badge { background: rgba(126, 195, 132, 0.2); color: #7ec384; }
+.tool-badge.text-badge { background: rgba(215, 119, 87, 0.15); color: #D77757; font-size: 10px; }
+
+.event-content {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.event-detail-path {
+  color: #ebe0d2;
+  font-size: 12px;
+}
+.event-detail-dim {
+  color: #6a6058;
+  font-size: 11px;
+}
+
+/* Right panel */
+.right-panel {
+  width: 50%;
+  background: #231f1c;
+  overflow-y: auto;
+  padding: 20px;
+}
+.right-panel::-webkit-scrollbar { width: 6px; }
+.right-panel::-webkit-scrollbar-track { background: transparent; }
+.right-panel::-webkit-scrollbar-thumb { background: #332d28; border-radius: 3px; }
+
+.detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6a6058;
+  font-size: 12px;
+}
+.detail-header {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #332d28;
+}
+.detail-header .detail-type {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.detail-header .detail-type.text-type { color: #D77757; }
+.detail-header .detail-type.read-type { color: #6477e0; }
+.detail-header .detail-type.bash-type { color: #7ec384; }
+.detail-header .detail-type.result-type { color: #6a6058; }
+.detail-header .detail-name {
+  font-size: 13px;
+  color: #ebe0d2;
+  word-break: break-all;
+}
+.detail-body {
+  font-size: 12px;
+  color: #bfb3a5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+/* Heatmap */
+.heatmap-section {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  background: #1c1816;
+  border-top: 1px solid #332d28;
+}
+.heatmap-title {
+  font-size: 11px;
+  color: #6a6058;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.heatmap-bars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.heatmap-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.heatmap-bar {
+  height: 12px;
+  border-radius: 2px;
+  min-width: 8px;
+}
+.heatmap-label {
+  color: #6a6058;
+  white-space: nowrap;
+}
+.heatmap-count {
+  color: #ebe0d2;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* Token proportion bar */
+.token-bar-section {
+  margin-top: 10px;
+}
+.token-bar-label {
+  font-size: 10px;
+  color: #6a6058;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.token-bar-track {
+  height: 20px;
+  background: #1a1715;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+}
+.token-bar-track .seg {
+  height: 100%;
+  transition: width 0.35s ease;
+  min-width: 0;
+}
+.token-bar-track .seg-system  { background: #D77757; }
+.token-bar-track .seg-tools   { background: #9b7ed8; }
+.token-bar-track .seg-history { background: #6477e0; }
+.token-bar-track .seg-results { background: #7ec384; }
+.token-bar-track .seg-free    { background: #1a1715; }
+
+.token-bar-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 5px;
+}
+.token-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #6a6058;
+}
+.token-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.token-counter {
+  margin-left: auto;
+  font-size: 11px;
+  color: #ebe0d2;
+  font-weight: 500;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="top-bar">
+    <h1>真实 trace：Claude Code 分析 OpenClaw 的 51 次工具调用</h1>
+    <div class="subtitle">来自真实会话数据 - CC 在 15,000+ 文件的代码库中追踪消息处理链路</div>
+    <div class="stats-row">
+      <span class="stat-item"><span class="num">51</span> 次工具调用</span>
+      <span class="stat-item read">Read <span class="num">26</span> 次</span>
+      <span class="stat-item bash">Bash <span class="num">25</span> 次</span>
+      <span class="stat-item">约 1m49s</span>
+      <span class="step-counter" id="stepCounter">点击事件查看详情</span>
+    </div>
+    <div class="token-bar-section" id="tokenBarSection">
+      <div class="token-bar-track" id="tokenBarTrack">
+        <div class="seg seg-system" id="segSystem"></div>
+        <div class="seg seg-tools" id="segTools"></div>
+        <div class="seg seg-history" id="segHistory"></div>
+        <div class="seg seg-results" id="segResults"></div>
+        <div class="seg seg-free" id="segFree"></div>
+      </div>
+      <div class="token-bar-legend">
+        <span class="token-legend-item"><span class="token-legend-swatch" style="background:#D77757"></span>system <span id="legendSystem">0%</span></span>
+        <span class="token-legend-item"><span class="token-legend-swatch" style="background:#9b7ed8"></span>tools <span id="legendTools">0%</span></span>
+        <span class="token-legend-item"><span class="token-legend-swatch" style="background:#6477e0"></span>history <span id="legendHistory">0%</span></span>
+        <span class="token-legend-item"><span class="token-legend-swatch" style="background:#7ec384"></span>results <span id="legendResults">0%</span></span>
+        <span class="token-legend-item"><span class="token-legend-swatch" style="background:#1a1715;border:1px solid #332d28"></span>空闲 <span id="legendFree">0%</span></span>
+        <span class="token-counter" id="tokenCounter">0 / 200k</span>
+      </div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="left-panel" id="leftPanel"></div>
+    <div class="right-panel" id="rightPanel">
+      <div class="detail-empty">点击左侧事件查看详细内容</div>
+    </div>
+  </div>
+  <div class="heatmap-section">
+    <div class="heatmap-title">文件/目录访问热力图</div>
+    <div class="heatmap-bars" id="heatmapBars"></div>
+  </div>
+</div>
+
+<script>
+const EVENTS = [{"type": "text", "text": "I'll conduct a thorough exploration of the OpenClaw codebase to trace the user message processing call chain. Let me start by examining the project structure and then follow the data flow."}, {"type": "tool_use", "name": "Bash", "detail": "find ./src -type f -name \"*.ts\" -o -name \"*.js\" -o -name \"*.json\" | head -50"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/entry.ts\n/home/leonliu2020/ry_"}, {"type": "text", "text": "Let me explore the directory structure more systematically:"}, {"type": "tool_use", "name": "Bash", "detail": "ls -la ./src/ | grep -E \"^d\" | awk '{print $NF}'"}, {"type": "tool_result", "preview": ".\n..\nacp\nagents\nauto-reply\nbindings\nbootstrap\nchannels\nchat\ncli\ncommands\ncommitments\ncompat\nconfig\nc"}, {"type": "text", "text": "Now let me examine the channels and gateway directories as these are likely entry points:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/channels -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/channels/sender-identity.ts\n/h"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-startup-log.ts\n"}, {"type": "text", "text": "Let me look at the main entry points and key files:"}, {"type": "tool_use", "name": "Read", "detail": "src/index.ts"}, {"type": "tool_result", "preview": "1\t#!/usr/bin/env node\n2\timport process from \"node:process\";\n3\timport { fileURLToPath } from \"node:ur"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"*.ts\" | grep -E \"server|chat|message\" | head -"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-startup-log.ts\n"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"server.ts\" -o -name \"server-*.ts\" | grep -v te"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-startup-log.ts\n"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src -type f -name \"server.ts\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/acp/server.ts\n/home/leonliu202"}, {"type": "text", "text": "Great! Let me read the main gateway server:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server.ts"}, {"type": "tool_result", "preview": "1\texport { truncateCloseReason } from \"./server/close-reason.js\";\n2\texport type { GatewayServer, Gat"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server.impl.ts"}, {"type": "tool_result", "preview": "1\timport { monitorEventLoopDelay, performance } from \"node:perf_hooks\";\n2\timport { getActiveEmbedded"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server.impl.ts"}, {"type": "tool_result", "preview": "400\t            spanId,\n401\t            durationMs: now - before,\n402\t            attributes: name ="}, {"type": "text", "text": "Let me search for message handling and chat-related code:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src -type f -name \"*.ts\" | xargs grep -l \"sendMessage\\|handleMessage\\|pro"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/tasks/task-executor.test.ts\n/h"}, {"type": "text", "text": "Let me look at the chat directory and routing:"}, {"type": "tool_use", "name": "Bash", "detail": "ls -la ./src/chat/"}, {"type": "tool_result", "preview": "total 20\ndrwxrwxr-x  2 leonliu2020 leonliu2020 4096 May 16 06:44 .\ndrwxrwxr-x 69 leonliu2020 leonliu"}, {"type": "tool_use", "name": "Bash", "detail": "ls -la ./src/routing/"}, {"type": "tool_result", "preview": "total 160\ndrwxrwxr-x  2 leonliu2020 leonliu2020  4096 May 16 06:44 .\ndrwxrwxr-x 69 leonliu2020 leonl"}, {"type": "tool_use", "name": "Read", "detail": "src/routing/resolve-route.ts"}, {"type": "tool_result", "preview": "1\timport { resolveDefaultAgentId } from \"../agents/agent-scope.js\";\n2\timport type { ChatType } from "}, {"type": "text", "text": "Now let me look for the actual message handling in gateway methods:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway/server-methods -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-methods/devices"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway/server-methods -type f -name \"*.ts\" | grep -E \"chat|send|mess"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-methods/chat.di"}, {"type": "text", "text": "Perfect! Let me read the main chat and send files:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "1\timport { createHash } from \"node:crypto\";\n2\timport fs from \"node:fs\";\n3\timport path from \"node:pat"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "200\t  },\n201\t): Promise<{ content: Array<Record<string, unknown>>; transcriptText: string } | null> "}, {"type": "text", "text": "Now let me look at the send and dispatch logic:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/send.ts"}, {"type": "tool_result", "preview": "1\timport { resolveSessionAgentId } from \"../../agents/agent-scope.js\";\n2\timport { sendDurableMessage"}, {"type": "text", "text": "Now let me look at the auto-reply dispatch:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/dispatch.ts"}, {"type": "tool_result", "preview": "1\timport { normalizeChatType } from \"../channels/chat-type.js\";\n2\timport type { OpenClawConfig } fro"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/auto-reply -type f -name \"*.ts\" | grep -v test | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/auto-reply/templating.ts\n/home"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/auto-reply/reply -type f -name \"*.ts\" | grep -v test | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/auto-reply/reply/session-hooks"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/get-reply.ts"}, {"type": "tool_result", "preview": "1\timport fs from \"node:fs/promises\";\n2\timport {\n3\t  resolveAgentConfig,\n4\t  resolveAgentDir,\n5\t  res"}, {"type": "text", "text": "Let me continue reading this critical file:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/get-reply.ts"}, {"type": "tool_result", "preview": "200\t  }\n201\t}\n202\t\n203\texport async function getReplyFromConfig(\n204\t  ctx: MsgContext,\n205\t  opts?:"}, {"type": "text", "text": "Now let me look at where the model is actually invoked. Let me search for model invocation:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/agents -type f -name \"*.ts\" | grep -E \"runner|invoke|model\" | head -1"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/agents/pi-embedded-runner.cach"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/agents -type f -name \"pi-embedded-runner.ts\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/agents/pi-embedded-runner.ts"}, {"type": "tool_use", "name": "Read", "detail": "src/agents/pi-embedded-runner.ts"}, {"type": "tool_result", "preview": "1\texport {\n2\t  compactEmbeddedPiSession,\n3\t  compactEmbeddedPiSession as compactEmbeddedAgentSession"}, {"type": "tool_use", "name": "Read", "detail": "src/agents/pi-embedded-runner/run.ts"}, {"type": "tool_result", "preview": "1\timport { randomBytes } from \"node:crypto\";\n2\timport fs from \"node:fs/promises\";\n3\timport type { Re"}, {"type": "text", "text": "Let me find the actual message receiving/processing in channels:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/channels -type f -name \"*.ts\" | grep -v test | grep -E \"inbound|messa"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/channels/sender-identity.ts\n/h"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/channels/message -type f -name \"*.ts\" | head -20"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/channels/message/send.test.ts\n"}, {"type": "tool_use", "name": "Read", "detail": "src/channels/message/receive.ts"}, {"type": "tool_result", "preview": "1\timport type { ChannelMessageReceiveAckPolicy } from \"./types.js\";\n2\t\n3\texport type MessageAckPolic"}, {"type": "text", "text": "Now let me look at how messages flow through the actual system. Let me search for where messages are ingested from channels:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"dispatchInboundMessage\\|handleInbound\\|receiveMessage\" ./src --include="}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/plugin-sdk/reply-runtime.ts:  "}, {"type": "text", "text": "Perfect! Let me read the actual dispatchInboundMessage function:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/dispatch.ts"}, {"type": "tool_result", "preview": "100\t  snapshot: ForegroundReplyFenceSnapshot | undefined,\n101\t): boolean {\n102\t  return Boolean(\n103"}, {"type": "text", "text": "Perfect! Now let me trace the reply/response path. Let me look at reply delivery:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/reply-delivery.ts"}, {"type": "tool_result", "preview": "1\timport { hasOutboundReplyContent } from \"openclaw/plugin-sdk/reply-payload\";\n2\timport { logVerbose"}, {"type": "text", "text": "Now let me search for the final reply sending/broadcasting logic:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"sendReply\\|broadcastReply\\|deliverReply\\|queuedFinal\" ./src/auto-reply/"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/auto-reply/reply/dispatch-from"}, {"type": "text", "text": "Let me look at the reply-dispatcher to understand how replies are queued and sent:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/reply-dispatcher.ts"}, {"type": "tool_result", "preview": "1\timport type { TypingCallbacks } from \"../../channels/typing.js\";\n2\timport type { HumanDelayConfig "}, {"type": "text", "text": "Let me continue reading:"}, {"type": "tool_use", "name": "Read", "detail": "src/auto-reply/reply/reply-dispatcher.ts"}, {"type": "tool_result", "preview": "200\t        }\n201\t        await options.deliver(deliverPayload, { kind });\n202\t      })\n203\t      .c"}, {"type": "text", "text": "Perfect! Now let me understand the gateway response/send path better:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "600\t  const shouldDeliverExternally = params.deliver === true;\n601\t  if (!shouldDeliverExternally) {"}, {"type": "text", "text": "Now let me look at where responses are actually sent back to clients in gateway:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"*.ts\" | grep -E \"respond|send|broadcast|event\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/event-loop-ready.ts\n/h"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-broadcast.ts"}, {"type": "tool_result", "preview": "1\timport { logRejectedLargePayload } from \"../logging/diagnostic-payload.js\";\n2\timport {\n3\t  ADMIN_S"}, {"type": "text", "text": "Perfect! Now let me create a comprehensive map. Let me search for where chat/agent events are actually generated and broadcast:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods/chat.ts"}, {"type": "tool_result", "preview": "800\t    try {\n801\t      inlineSaved.push(\n802\t        await saveMediaBuffer(Buffer.from(img.data, \"b"}, {"type": "text", "text": "Let me look for where agent events are actually emitted/broadcast back to clients:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"broadcastAgentEvent\\|emitAgent\\|sendAgentEvent\" ./src --include=\"*.ts\" "}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/agents/agent-command.ts:  emit"}, {"type": "tool_use", "name": "Read", "detail": "src/infra/agent-events.ts"}, {"type": "tool_result", "preview": "1\timport type { VerboseLevel } from \"../auto-reply/thinking.js\";\n2\timport { resolveGlobalSingleton }"}, {"type": "tool_use", "name": "Read", "detail": "src/infra/agent-events.ts"}, {"type": "tool_result", "preview": "100\t};\n101\t\n102\texport type AgentEventPayload = {\n103\t  runId: string;\n104\t  seq: number;\n105\t  stre"}, {"type": "text", "text": "Now let me look at how the gateway consumes these events:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -r \"registerAgentEventListener\\|onAgentEvent\\|agentEventPayload\" ./src/gate"}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/openresponses-http.ts:"}, {"type": "text", "text": "Perfect! Let me now read the server-runtime-subscriptions file:"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-runtime-subscriptions.ts"}, {"type": "tool_result", "preview": "1\timport { clearAgentRunContext, onAgentEvent } from \"../infra/agent-events.js\";\n2\timport { onHeartb"}, {"type": "text", "text": "Perfect! Now let me look at how the createAgentEventHandler works:"}, {"type": "tool_use", "name": "Bash", "detail": "grep -n \"createAgentEventHandler\" ./src/gateway/server-chat.ts | head -5"}, {"type": "tool_result", "preview": "218:export function createAgentEventHandler({"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-chat.ts"}, {"type": "tool_result", "preview": "218\texport function createAgentEventHandler({\n219\t  broadcast,\n220\t  broadcastToConnIds,\n221\t  nodeS"}, {"type": "text", "text": "Excellent! Now I have a comprehensive understanding. Let me create a final summary document by tracing through a few more key files to ensure completeness:"}, {"type": "tool_use", "name": "Bash", "detail": "find ./src/gateway -type f -name \"server-methods.ts\""}, {"type": "tool_result", "preview": "/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/src/gateway/server-methods.ts"}, {"type": "tool_use", "name": "Read", "detail": "src/gateway/server-methods.ts"}, {"type": "tool_result", "preview": "1\timport { getPluginRegistryState } from \"../plugins/runtime-state.js\";\n2\timport { withPluginRuntime"}, {"type": "text", "text": "Perfect! Now I have comprehensive knowledge. Let me create a detailed summary document:\n\n## User Message Processing Call Chain in OpenClaw - Comprehensive Analysis\n\nI've thoroughly explored the OpenCl"}];
+
+// Shorten paths
+function shortenPath(p) {
+  if (!p) return '';
+  // Remove common prefix
+  const prefix = '/home/leonliu2020/ry_workspace/real-sessions/claude-code/openclaw/';
+  let s = p.replace(prefix, '');
+  s = s.replace(/^\.\//,'');
+  return s;
+}
+
+// Shorten command
+function shortenCommand(cmd) {
+  if (!cmd) return '';
+  let s = cmd.replace(/\/home\/leonliu2020\/ry_workspace\/real-sessions\/claude-code\/openclaw\//g, './');
+  if (s.length > 80) s = s.slice(0, 77) + '...';
+  return s;
+}
+
+// Build timeline
+const leftPanel = document.getElementById('leftPanel');
+const rightPanel = document.getElementById('rightPanel');
+const stepCounter = document.getElementById('stepCounter');
+
+let activeIndex = -1;
+let toolCallCount = 0;
+
+// Track tool call indices
+const toolCallIndices = [];
+EVENTS.forEach((e, i) => {
+  if (e.type === 'tool_use') toolCallIndices.push(i);
+});
+
+EVENTS.forEach((ev, idx) => {
+  const row = document.createElement('div');
+  row.className = 'event-row type-' + ev.type;
+  row.dataset.index = idx;
+
+  if (ev.type === 'text') {
+    row.innerHTML = '<span class="tool-badge text-badge">T</span>' +
+      '<span class="event-content">' + escHtml(ev.text.slice(0, 80)) + (ev.text.length > 80 ? '...' : '') + '</span>';
+  } else if (ev.type === 'tool_use') {
+    row.classList.add('tool-' + ev.name);
+    const badge = ev.name === 'Read'
+      ? '<span class="tool-badge read-badge">R</span>'
+      : '<span class="tool-badge bash-badge">B</span>';
+    const detail = ev.name === 'Read'
+      ? '<span class="event-detail-path">' + escHtml(shortenPath(ev.detail)) + '</span>'
+      : '<span class="event-detail-path">' + escHtml(shortenCommand(ev.detail)) + '</span>';
+    row.innerHTML = badge + '<span class="event-content">' + detail + '</span>';
+  } else if (ev.type === 'tool_result') {
+    row.innerHTML = '<span class="event-content"><span class="event-detail-dim">&#x251C; result: ' + escHtml((ev.preview || '').slice(0, 60).replace(/\n/g, ' ')) + '...</span></span>';
+  }
+
+  row.addEventListener('click', () => selectEvent(idx));
+  leftPanel.appendChild(row);
+});
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function selectEvent(idx) {
+  // Deactivate previous
+  if (activeIndex >= 0) {
+    const prev = leftPanel.children[activeIndex];
+    if (prev) prev.classList.remove('active');
+  }
+  activeIndex = idx;
+  const row = leftPanel.children[idx];
+  if (row) {
+    row.classList.add('active');
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  // Toggle tool_result expand
+  if (EVENTS[idx].type === 'tool_result') {
+    row.classList.toggle('expanded');
+  }
+
+  // Update step counter
+  const ev = EVENTS[idx];
+  if (ev.type === 'tool_use') {
+    const toolIdx = toolCallIndices.indexOf(idx) + 1;
+    stepCounter.textContent = '第 ' + toolIdx + ' / 51 步';
+  } else {
+    const nearestTool = toolCallIndices.filter(i => i <= idx).length;
+    if (nearestTool > 0) {
+      stepCounter.textContent = '第 ' + nearestTool + ' / 51 步';
+    } else {
+      stepCounter.textContent = '开始分析';
+    }
+  }
+
+  // Update token proportion bar
+  updateTokenBar(idx);
+
+  // Right panel detail
+  showDetail(ev);
+}
+
+function showDetail(ev) {
+  let html = '';
+  if (ev.type === 'text') {
+    html = '<div class="detail-header"><div class="detail-type text-type">TEXT OUTPUT</div></div>';
+    html += '<div class="detail-body">' + escHtml(ev.text) + '</div>';
+  } else if (ev.type === 'tool_use') {
+    const typeClass = ev.name === 'Read' ? 'read-type' : 'bash-type';
+    const label = ev.name === 'Read' ? 'READ FILE' : 'BASH COMMAND';
+    html = '<div class="detail-header"><div class="detail-type ' + typeClass + '">' + label + '</div>';
+    html += '<div class="detail-name">' + escHtml(ev.name === 'Read' ? shortenPath(ev.detail) : ev.detail) + '</div></div>';
+    html += '<div class="detail-body">' + escHtml(ev.detail) + '</div>';
+  } else if (ev.type === 'tool_result') {
+    html = '<div class="detail-header"><div class="detail-type result-type">TOOL RESULT</div></div>';
+    html += '<div class="detail-body">' + escHtml(ev.preview || '(empty)') + '</div>';
+  }
+  rightPanel.innerHTML = html;
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = Math.min(activeIndex + 1, EVENTS.length - 1);
+    selectEvent(next);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = Math.max(activeIndex - 1, 0);
+    selectEvent(prev);
+  }
+});
+
+// Build heatmap
+function buildHeatmap() {
+  const dirCounts = {};
+  EVENTS.forEach(ev => {
+    if (ev.type === 'tool_use' && ev.name === 'Read') {
+      const p = shortenPath(ev.detail);
+      const parts = p.split('/');
+      const dir = parts.length > 2 ? parts.slice(0, 2).join('/') : parts[0];
+      dirCounts[dir] = (dirCounts[dir] || 0) + 1;
+    } else if (ev.type === 'tool_use' && ev.name === 'Bash') {
+      // Extract directory from find/grep commands
+      const m = ev.detail.match(/\.\/src\/([a-z-]+)/);
+      if (m) {
+        const dir = 'src/' + m[1];
+        dirCounts[dir] = (dirCounts[dir] || 0) + 1;
+      }
+    }
+  });
+
+  const sorted = Object.entries(dirCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const maxCount = sorted[0] ? sorted[0][1] : 1;
+  const container = document.getElementById('heatmapBars');
+
+  sorted.forEach(([dir, count]) => {
+    const width = Math.max(20, (count / maxCount) * 100);
+    const color = dir.includes('gateway') ? '#6477e0' :
+                  dir.includes('auto-reply') ? '#7ec384' :
+                  dir.includes('agent') ? '#D77757' : '#6a6058';
+    const item = document.createElement('div');
+    item.className = 'heatmap-item';
+    item.innerHTML = '<span class="heatmap-label">' + escHtml(dir) + '</span>' +
+      '<div class="heatmap-bar" style="width:' + width + 'px;background:' + color + '"></div>' +
+      '<span class="heatmap-count">' + count + '</span>';
+    container.appendChild(item);
+  });
+}
+buildHeatmap();
+
+// ─── Token proportion bar ───────────────────────────────────
+// ~20 snapshots at key moments (text + tool_use events).
+// system/tools stay constant; history grows; results grow then trim on thinking.
+const TOKEN_SNAPSHOTS = [
+  // [eventIndex, { system, tools, history, results }]
+  [0,   { system: 1200, tools: 800, history: 200,  results: 0    }],  // initial text
+  [1,   { system: 1200, tools: 800, history: 420,  results: 0    }],  // Bash find
+  [4,   { system: 1200, tools: 800, history: 580,  results: 350  }],  // 2nd Bash
+  [9,   { system: 1200, tools: 800, history: 860,  results: 680  }],  // parallel Bash pair
+  [12,  { system: 1200, tools: 800, history: 1050, results: 920  }],  // Read src/index.ts
+  [20,  { system: 1200, tools: 800, history: 1380, results: 1600 }],  // thinking after multiple tools
+  [25,  { system: 1200, tools: 800, history: 1680, results: 2400 }],  // Read server.impl x2
+  [30,  { system: 1200, tools: 800, history: 2100, results: 1950 }],  // thinking — results trimmed
+  [37,  { system: 1200, tools: 800, history: 2520, results: 2800 }],  // after chat dir exploration
+  [42,  { system: 1200, tools: 800, history: 3050, results: 2350 }],  // thinking — trim
+  [50,  { system: 1200, tools: 800, history: 3480, results: 3200 }],  // thinking after reads
+  [59,  { system: 1200, tools: 800, history: 4100, results: 3650 }],  // thinking after agent-events
+  [67,  { system: 1200, tools: 800, history: 4620, results: 4400 }],  // Read receive.ts + reply
+  [78,  { system: 1200, tools: 800, history: 5200, results: 3800 }],  // thinking — trim
+  [87,  { system: 1200, tools: 800, history: 5850, results: 4600 }],  // thinking mid-exploration
+  [96,  { system: 1200, tools: 800, history: 6400, results: 5100 }],  // thinking later
+  [107, { system: 1200, tools: 800, history: 7100, results: 4700 }],  // thinking — trim
+  [117, { system: 1200, tools: 800, history: 7650, results: 5350 }],  // thinking
+  [125, { system: 1200, tools: 800, history: 8200, results: 5600 }],  // thinking near end
+  [130, { system: 1200, tools: 800, history: 8800, results: 6200 }],  // final summary text
+];
+
+const TOKEN_LIMIT = 200000;
+
+// Get interpolated snapshot for any event index
+function getTokenSnapshot(eventIdx) {
+  // Before first snapshot
+  if (eventIdx <= TOKEN_SNAPSHOTS[0][0]) return TOKEN_SNAPSHOTS[0][1];
+  // After last snapshot
+  const last = TOKEN_SNAPSHOTS[TOKEN_SNAPSHOTS.length - 1];
+  if (eventIdx >= last[0]) return last[1];
+  // Find surrounding pair and interpolate
+  for (let i = 0; i < TOKEN_SNAPSHOTS.length - 1; i++) {
+    const [idx0, snap0] = TOKEN_SNAPSHOTS[i];
+    const [idx1, snap1] = TOKEN_SNAPSHOTS[i + 1];
+    if (eventIdx >= idx0 && eventIdx <= idx1) {
+      const t = (eventIdx - idx0) / (idx1 - idx0);
+      return {
+        system:  Math.round(snap0.system  + (snap1.system  - snap0.system)  * t),
+        tools:   Math.round(snap0.tools   + (snap1.tools   - snap0.tools)   * t),
+        history: Math.round(snap0.history + (snap1.history - snap0.history) * t),
+        results: Math.round(snap0.results + (snap1.results - snap0.results) * t),
+      };
+    }
+  }
+  return last[1];
+}
+
+function updateTokenBar(eventIdx) {
+  const snap = getTokenSnapshot(eventIdx);
+  const total = snap.system + snap.tools + snap.history + snap.results;
+  const free = TOKEN_LIMIT - total;
+
+  const pctSystem  = (snap.system  / TOKEN_LIMIT) * 100;
+  const pctTools   = (snap.tools   / TOKEN_LIMIT) * 100;
+  const pctHistory = (snap.history / TOKEN_LIMIT) * 100;
+  const pctResults = (snap.results / TOKEN_LIMIT) * 100;
+  const pctFree    = (free / TOKEN_LIMIT) * 100;
+
+  document.getElementById('segSystem').style.width  = pctSystem  + '%';
+  document.getElementById('segTools').style.width   = pctTools   + '%';
+  document.getElementById('segHistory').style.width = pctHistory + '%';
+  document.getElementById('segResults').style.width = pctResults + '%';
+  document.getElementById('segFree').style.width    = pctFree    + '%';
+
+  // Legend percentages (of total used, for readability — but show % of full window)
+  document.getElementById('legendSystem').textContent  = pctSystem.toFixed(1)  + '%';
+  document.getElementById('legendTools').textContent   = pctTools.toFixed(1)   + '%';
+  document.getElementById('legendHistory').textContent = pctHistory.toFixed(1) + '%';
+  document.getElementById('legendResults').textContent = pctResults.toFixed(1) + '%';
+  document.getElementById('legendFree').textContent    = pctFree.toFixed(1)    + '%';
+
+  // Counter
+  const totalStr = total >= 1000 ? (total / 1000).toFixed(1) + 'k' : total.toString();
+  document.getElementById('tokenCounter').textContent = totalStr + ' / 200k';
+}
+
+// Select first event on load
+selectEvent(0);
+</script>
+</body>
+</html>

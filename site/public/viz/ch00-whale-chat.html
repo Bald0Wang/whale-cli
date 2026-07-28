@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鲸鱼带你看 Agent Loop</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#faf9f5;display:flex;align-items:stretch;min-height:100vh;padding:0.8rem;gap:0.8rem}
+@media(max-width:720px){body{flex-direction:column}}
+
+/* ── 左：微信聊天框 ── */
+.chat-frame{width:320px;flex-shrink:0;background:#ededed;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);display:flex;flex-direction:column}
+@media(max-width:720px){.chat-frame{width:100%;max-height:50vh}}
+.chat-header{background:#2e2e2e;color:#fff;padding:0.5rem 0.7rem;display:flex;align-items:center;gap:0.45rem;font-size:0.8rem;font-weight:500}
+.chat-header .av{width:26px;height:26px;border-radius:4px;background:#5b9bd5;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.chat-header .av svg{width:26px;height:26px}
+.chat-body{flex:1;overflow-y:auto;padding:0.5rem;display:flex;flex-direction:column;gap:0.4rem;scroll-behavior:smooth}
+.chat-body::-webkit-scrollbar{width:3px}.chat-body::-webkit-scrollbar-thumb{background:#ccc;border-radius:2px}
+.chat-msg{display:flex;align-items:flex-start;gap:0.35rem;max-width:90%}
+.chat-msg.whale{align-self:flex-start}
+.chat-msg.reader{align-self:flex-end;flex-direction:row-reverse}
+.chat-msg .mav{width:28px;height:28px;border-radius:4px;flex-shrink:0;overflow:hidden}
+.chat-msg.whale .mav{background:#5b9bd5}
+.chat-msg.whale .mav svg{width:28px;height:28px}
+.chat-msg.reader .mav{background:#7ec384;display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:#fff;font-weight:600}
+.bbl{padding:0.4rem 0.55rem;border-radius:6px;font-size:0.78rem;line-height:1.5;position:relative;animation:msgPop 0.25s ease-out}
+@keyframes msgPop{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:none}}
+.chat-msg.whale .bbl{background:#fff;color:#333;border-top-left-radius:2px}
+.chat-msg.whale .bbl::before{content:'';position:absolute;top:7px;left:-5px;border:5px solid transparent;border-right-color:#fff}
+.chat-msg.reader .bbl{background:#95ec69;color:#333;border-top-right-radius:2px}
+.chat-msg.reader .bbl::before{content:'';position:absolute;top:7px;right:-5px;border:5px solid transparent;border-left-color:#95ec69}
+.bbl code{font-family:'JetBrains Mono',monospace;font-size:0.72rem;background:rgba(0,0,0,0.06);padding:0.06rem 0.2rem;border-radius:3px}
+.bbl .q{font-weight:600;color:#c45f3c}
+.bbl .em{font-weight:600}
+.chat-input{display:flex;align-items:center;padding:0.4rem;gap:0.35rem;border-top:1px solid #d6d6d6;background:#f5f5f5}
+.chat-input button{font-family:inherit;font-size:0.74rem;padding:0.3rem 0.65rem;border-radius:4px;border:none;background:#07c160;color:#fff;cursor:pointer;transition:background 0.15s}
+.chat-input button:hover{background:#06ad56}
+.chat-input button:disabled{background:#ccc;cursor:not-allowed}
+.chat-input span{font-size:0.68rem;color:#999;flex:1;text-align:center}
+
+/* ── 右：终端 ── */
+.term-frame{flex:1;min-width:0;background:#0f0e0c;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+.term-bar{background:#1a1816;padding:0.4rem 0.65rem;display:flex;align-items:center;gap:6px;border-bottom:1px solid #2a261f}
+.term-bar i{width:9px;height:9px;border-radius:50%}
+.term-bar i:nth-child(1){background:#ff5f57}.term-bar i:nth-child(2){background:#febc2e}.term-bar i:nth-child(3){background:#28c840}
+.term-bar .ttl{margin-left:auto;margin-right:auto;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:#5a5448}
+.term-body{flex:1;overflow-y:auto;padding:0.7rem 0.8rem;font-family:'JetBrains Mono','SF Mono',monospace;font-size:0.78rem;line-height:1.75;color:#c8c0b4;scroll-behavior:smooth}
+.term-body::-webkit-scrollbar{width:4px}.term-body::-webkit-scrollbar-thumb{background:#2a261f;border-radius:2px}
+
+/* 终端内容样式 */
+.t-block{margin-bottom:0.4rem}
+.t-fade{animation:tFade 0.35s ease-out}
+@keyframes tFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.t-prompt{color:#d97757}
+.t-user{color:#e8e0d4;font-weight:500}
+.t-comment{color:#6a9955;font-size:0.72rem}
+.t-kw{color:#569cd6}
+.t-fn{color:#dcdcaa}
+.t-str{color:#ce9178}
+.t-var{color:#9cdcfe}
+.t-tool{color:#7ec384}
+.t-result{color:#7a7468;padding-left:1.2rem;display:block;font-size:0.74rem}
+.t-dim{color:#4a4438}
+.t-json{color:#d4a96a}
+.t-highlight{background:rgba(217,119,87,0.1);display:block;padding:0.15rem 0.35rem;border-radius:3px;border-left:2px solid #d97757;margin:0.15rem 0}
+.t-msg-badge{display:inline-block;font-size:0.62rem;padding:0.08rem 0.3rem;border-radius:3px;margin-right:0.3rem;font-weight:600}
+.t-msg-user{background:rgba(217,119,87,0.15);color:#d97757}
+.t-msg-assistant{background:rgba(126,184,201,0.15);color:#7eb8c9}
+.t-msg-tool{background:rgba(126,195,132,0.15);color:#7ec384}
+.cursor-blink{display:inline-block;width:0.5em;height:1em;background:#d97757;vertical-align:text-bottom;animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.spinner{display:inline-block;color:#5a5448}
+.spinner::after{content:'';display:inline-block;width:3px;height:3px;border-radius:50%;background:#5a5448;margin-left:2px;animation:dots 1.2s steps(3) infinite;box-shadow:6px 0 #5a5448,12px 0 #5a5448}
+@keyframes dots{to{opacity:0.2}}
+</style>
+</head>
+<body>
+
+<div class="chat-frame">
+  <div class="chat-header">
+    <div class="av"><svg viewBox="0 0 28 28"><rect width="28" height="28" rx="4" fill="#5b9bd5"/><ellipse cx="14" cy="16" rx="9" ry="7" fill="#a8d4e6"/><circle cx="18" cy="13" r="1.3" fill="#29261f"/></svg></div>
+    Whale
+  </div>
+  <div class="chat-body" id="chat"></div>
+  <div class="chat-input">
+    <span id="hint">点击"下一步"开始</span>
+    <button id="btn">下一步</button>
+  </div>
+</div>
+
+<div class="term-frame">
+  <div class="term-bar"><i></i><i></i><i></i><span class="ttl">agent_loop.py</span></div>
+  <div class="term-body" id="term"></div>
+</div>
+
+<script>
+const chat=document.getElementById('chat');
+const term=document.getElementById('term');
+const btn=document.getElementById('btn');
+const hint=document.getElementById('hint');
+const WHALE='<svg viewBox="0 0 28 28"><rect width="28" height="28" rx="4" fill="#5b9bd5"/><ellipse cx="14" cy="16" rx="9" ry="7" fill="#a8d4e6"/><circle cx="18" cy="13" r="1.3" fill="#29261f"/></svg>';
+
+async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+function addChat(who,html){
+  const d=document.createElement('div');d.className='chat-msg '+who;
+  if(who==='whale') d.innerHTML=`<div class="mav">${WHALE}</div><div class="bbl">${html}</div>`;
+  else d.innerHTML=`<div class="mav">你</div><div class="bbl">${html}</div>`;
+  chat.appendChild(d);chat.scrollTop=chat.scrollHeight;
+}
+
+function addTerm(html,cls){
+  const d=document.createElement('div');d.className='t-block t-fade'+(cls?' '+cls:'');
+  d.innerHTML=html;term.appendChild(d);term.scrollTop=term.scrollHeight;return d;
+}
+
+async function typeInTerm(container,text,speed){
+  for(let i=0;i<text.length;i++){
+    container.textContent+=text[i];
+    term.scrollTop=term.scrollHeight;
+    await sleep(speed||20);
+  }
+}
+
+async function showSpinner(ms){
+  const sp=addTerm('<span class="spinner"></span>');
+  await sleep(ms);sp.remove();
+}
+
+const SCRIPT=[
+  // 0: 开场
+  async()=>{
+    addChat('whale','我们刚看到,用户一直在替模型"搬运"信息。如果把搬运变成程序能调的工具,代码长什么样？');
+    addTerm('<span class="t-comment"># Agent Loop 骨架 — 跟着左边的对话走</span>');
+  },
+  // 1: while True
+  async()=>{
+    addChat('whale','整个 agent 就是一个 <code>while True</code>。');
+    addTerm(`<span class="t-highlight"><span class="t-kw">while</span> <span class="t-kw">True</span>:</span>
+    response = <span class="t-fn">call_llm</span>(messages, tools)
+    <span class="t-kw">if</span> response.tool_calls:
+        <span class="t-dim">... 执行工具 ...</span>
+    <span class="t-kw">else</span>:
+        <span class="t-fn">print</span>(response.content)
+        <span class="t-kw">break</span>`);
+  },
+  // 2: 提问
+  async()=>{
+    addChat('whale','<span class="q">这个循环什么时候停下来？</span>');
+  },
+  // 3: 回答
+  async()=>{
+    await sleep(600);
+    addChat('reader','tool_calls 为空的时候,break。');
+    await sleep(400);
+    addChat('whale','对。就这一个 <code>if</code> 控制整个循环。');
+    addTerm(`<span class="t-comment"># 退出条件</span>
+<span class="t-kw">if not</span> response.tool_calls:
+    <span class="t-fn">print</span>(response.content)
+    <span class="t-kw">break</span>  <span class="t-comment">← 循环结束</span>`);
+  },
+  // 4: 用户输入
+  async()=>{
+    addChat('whale','来跑一遍。用户输入一句话:');
+    addTerm(`\n<span class="t-comment">──── 开始运行 ────</span>`);
+    await sleep(200);
+    const line=addTerm('<span class="t-prompt">❯ </span><span class="t-user"></span>');
+    const sp=line.querySelector('.t-user');
+    await typeInTerm(sp,'把 README 里的 typo 修一下',35);
+    await sleep(300);
+    addTerm(`<span class="t-dim">messages.append({role: "user", content: "..."})</span>`);
+    addTerm(`<span class="t-dim">→ 发给 API（1 条 message + 工具 schema）</span>`);
+  },
+  // 5: 模型返回 tool_calls
+  async()=>{
+    addChat('whale','模型返回的不是文字,是一个工具调用请求:');
+    await showSpinner(500);
+    addTerm(`<span class="t-comment"># 模型返回</span>
+<span class="t-highlight">response.tool_calls = [{
+  <span class="t-str">"name"</span>: <span class="t-str">"read_file"</span>,
+  <span class="t-str">"arguments"</span>: {<span class="t-str">"path"</span>: <span class="t-str">"README.md"</span>}
+}]</span>`);
+  },
+  // 6: 提问 arguments
+  async()=>{
+    addChat('whale','<span class="q">arguments 里的 path 是谁填的？</span>');
+  },
+  // 7: 回答
+  async()=>{
+    await sleep(600);
+    addChat('reader','模型自己填的,它从 schema 里知道需要 path。');
+    await sleep(300);
+    addChat('whale','对。schema 就是给模型看的"菜单",上面写了每个工具要什么参数。');
+  },
+  // 8: 执行 read_file
+  async()=>{
+    addChat('whale','程序执行工具,结果塞回 messages:');
+    addTerm(`\n<span class="t-tool">⏺ read_file</span>({path: "README.md"})`);
+    await showSpinner(400);
+    addTerm(`<span class="t-result">⎿ # README.md (45 lines)
+     12  A CLI <b style="color:#d97757">codign</b> agent built from scratch</span>`);
+    await sleep(300);
+    addTerm(`<span class="t-dim">messages.append({</span>
+  <span class="t-msg-tool">tool</span> <span class="t-dim">tool_call_id: "call_01"</span>
+  <span class="t-dim">content: "# README.md (45 lines)..."</span>
+<span class="t-dim">})</span>`);
+  },
+  // 9: 提问 role
+  async()=>{
+    addChat('whale','<span class="q">messages 里现在有几种 role？</span>');
+  },
+  // 10: 回答
+  async()=>{
+    await sleep(600);
+    addChat('reader','user、assistant、tool 三种。');
+    await sleep(300);
+    addChat('whale','对。<code>user</code> 是人说的,<code>assistant</code> 是模型说的,<code>tool</code> 是工具结果。');
+    addTerm(`<span class="t-comment"># 此刻 messages 数组:</span>
+[<span class="t-msg-user">user</span>    "把 typo 修一下"
+ <span class="t-msg-assistant">asst</span>    tool_calls: [read_file]
+ <span class="t-msg-tool">tool</span>    "# README.md ... codign ..." ]`);
+  },
+  // 11: 第二轮
+  async()=>{
+    addChat('whale','<code>while True</code> 回到顶部。模型这次看到了文件内容,决定调 edit_file:');
+    await showSpinner(400);
+    addTerm(`\n<span class="t-tool">⏺ edit_file</span>({old: "<span style="color:#d97757">codign</span>", new: "coding"})`);
+    await showSpinner(300);
+    addTerm(`<span class="t-result">⎿ Applied edit to README.md: 1 line</span>`);
+  },
+  // 12: 第三轮
+  async()=>{
+    addChat('whale','再来一轮。模型调 grep 确认没有其他拼错:');
+    await showSpinner(300);
+    addTerm(`<span class="t-tool">⏺ grep</span>({pattern: "codign", path: "."})
+<span class="t-result">⎿ 0 matches</span>`);
+  },
+  // 13: 退出
+  async()=>{
+    addChat('whale','这一轮模型没有返回 tool_calls,返回了一段文字:');
+    await showSpinner(300);
+    addTerm(`\n<span class="t-highlight"><span class="t-comment"># response.tool_calls = None → break</span>
+已修复 README.md 第 12 行: codign → coding</span>`);
+    addTerm(`\n<span class="t-prompt">❯ </span><span class="cursor-blink"></span>`);
+  },
+  // 14: 总结
+  async()=>{
+    addChat('whale','3 轮 API 调用,循环转了 3 圈。以前每一圈都要人在窗口之间搬,现在程序自己转完了。');
+    addTerm(`<span class="t-comment">──── 完成: 3 轮 API 调用 ────</span>`);
+  },
+  // 15: 收尾
+  async()=>{
+    addChat('whale','<span class="em">第 1 章把这段代码写成能跑的 110 行 Python。</span>');
+    hint.textContent='结束';
+    btn.disabled=true;
+  },
+];
+
+let idx=-1;
+let running=false;
+
+async function next(){
+  if(running||idx>=SCRIPT.length-1)return;
+  running=true;
+  idx++;
+  await SCRIPT[idx]();
+  running=false;
+  hint.textContent=idx<SCRIPT.length-1?`${idx+1} / ${SCRIPT.length}`:'结束';
+}
+
+btn.addEventListener('click',next);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='Enter')next()});
+
+setTimeout(next,300);
+</script>
+</body>
+</html>

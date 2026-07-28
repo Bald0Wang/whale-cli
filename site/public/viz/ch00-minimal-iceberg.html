@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>"100 行 Agent" 的真实账本</title>
+<style>
+:root{
+  --bg0:#faf9f5; --card:#fff; --card2:#fbfaf6;
+  --border:#e8e4d8; --border2:#d9d3c2;
+  --ink:#29261f; --text:#3d382e; --text2:#7d766a; --text3:#b3ac9d;
+  --accent:#d97757; --accent-deep:#c45f3c;
+  --teal:#0e7c66; --green:#2e7d4f; --amber:#c98a2b; --blue:#2563a8; --purple:#8a63c9;
+  --water:#dfeef0;
+  --shadow-sm:0 1px 2px rgba(41,38,31,.05);
+  --shadow-md:0 1px 3px rgba(41,38,31,.06),0 10px 28px -10px rgba(41,38,31,.14);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,'Inter',system-ui,sans-serif;background:radial-gradient(1100px 700px at 25% -8%,#fefdf9,var(--bg0) 60%);color:var(--text);min-height:100vh;padding:2.4rem 1rem 3rem;}
+.wrap{max-width:880px;margin:0 auto;}
+h1{font-family:Georgia,'Songti SC',serif;font-size:1.5rem;font-weight:600;color:var(--ink);text-align:center;}
+.subtitle{text-align:center;font-size:0.8rem;color:var(--text2);margin:0.5rem 0 0.4rem;}
+.realtag{text-align:center;font-size:0.7rem;color:var(--teal);margin-bottom:1.6rem;}
+.realtag code{font-family:'JetBrains Mono',monospace;background:rgba(14,124,102,.07);padding:0.1rem 0.4rem;border-radius:4px;}
+
+.layout{display:grid;grid-template-columns:300px 1fr;gap:1.4rem;align-items:start;}
+@media(max-width:760px){.layout{grid-template-columns:1fr;}}
+
+/* 冰山 */
+.berg{background:linear-gradient(180deg,#fbfdfd 0%,#fbfdfd 22%,var(--water) 22%,#cfe4e8 100%);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-md);position:relative;}
+.waterline{position:absolute;left:0;right:0;top:22%;height:1px;background:rgba(37,99,168,.35);z-index:3;}
+.waterline::after{content:'水面 · 你看到的';position:absolute;right:8px;top:3px;font-size:0.6rem;color:var(--blue);font-family:monospace;}
+.seg{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:filter .15s;border-top:1px solid rgba(255,255,255,.4);}
+.seg:hover{filter:brightness(1.04);}
+.seg .nm{font-size:0.74rem;font-weight:600;color:var(--ink);}
+.seg .ln{font-family:'JetBrains Mono',monospace;font-size:0.66rem;color:var(--text2);margin-top:1px;}
+.seg.tip{background:rgba(217,119,87,.16);}
+.seg.tip .nm{color:var(--accent-deep);}
+.seg.active{outline:2px solid var(--teal);outline-offset:-2px;z-index:2;}
+
+/* 右栏 */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.1rem 1.2rem;box-shadow:var(--shadow-sm);min-height:200px;}
+.panel h2{font-family:Georgia,serif;font-size:1.05rem;color:var(--ink);margin-bottom:0.2rem;}
+.panel .big{font-family:'JetBrains Mono',monospace;font-size:1.6rem;font-weight:700;color:var(--accent-deep);margin:0.3rem 0;}
+.panel .desc{font-size:0.8rem;line-height:1.65;color:var(--text);}
+.panel .desc b{color:var(--ink);}
+.panel code{font-family:'JetBrains Mono',monospace;font-size:0.74rem;color:var(--teal);background:rgba(14,124,102,.07);padding:0.1rem 0.35rem;border-radius:4px;}
+
+/* 守恒条 */
+.conserve{margin-top:1.5rem;background:linear-gradient(180deg,#fdfcf8,#f7f5ee);border:1px solid var(--border);border-radius:14px;padding:1.1rem 1.3rem;}
+.conserve h3{font-family:Georgia,serif;font-size:1.05rem;color:var(--ink);text-align:center;margin-bottom:0.2rem;}
+.conserve .sub{text-align:center;font-size:0.72rem;color:var(--text2);margin-bottom:1rem;}
+.swap{display:grid;grid-template-columns:1fr auto 1fr;gap:0.8rem;align-items:center;}
+@media(max-width:620px){.swap{grid-template-columns:1fr;}}
+.swapcard{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:0.8rem;box-shadow:var(--shadow-sm);}
+.swapcard .t{font-size:0.7rem;color:var(--text2);margin-bottom:0.5rem;text-align:center;}
+.swapcard .row{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text);line-height:1.9;}
+.swapcard .row .tool{color:var(--blue);}
+.swapcard .row .as{color:var(--accent-deep);}
+.swap .eq{font-size:1.4rem;color:var(--text3);text-align:center;}
+
+.ledger{display:grid;grid-template-columns:repeat(4,1fr);gap:0.6rem;margin-top:1.5rem;}
+.lc{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:0.7rem;text-align:center;box-shadow:var(--shadow-sm);}
+.lc .k{font-size:0.62rem;color:var(--text2);margin-bottom:0.25rem;line-height:1.3;}
+.lc .v{font-family:'JetBrains Mono',monospace;font-size:1.1rem;font-weight:600;color:var(--ink);}
+@media(max-width:620px){.ledger{grid-template-columns:repeat(2,1fr);}}
+
+.note{font-size:0.66rem;color:var(--text2);text-align:center;line-height:1.85;margin-top:1.1rem;}
+.note code{font-family:'JetBrains Mono',monospace;color:var(--teal);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>“100 行 Agent” 的真实账本</h1>
+  <p class="subtitle">mini-swe-agent 在 SWE-bench Verified 上 74%，自称 100 行——这 100 行是真的，但它不是全部</p>
+  <p class="realtag">● 行数来自本地 clone 的 <code>references/mini-swe-agent</code>，2026-06 实测 <code>wc -l</code></p>
+
+  <div class="layout">
+    <div class="berg" id="berg"></div>
+    <div class="panel" id="panel"></div>
+  </div>
+
+  <div class="conserve">
+    <h3>复杂度守恒：工具没消失，搬进了 prompt</h3>
+    <p class="sub">别家用代码实现的工具，mini-swe-agent 写成 prompt 里的 shell 用法——点上面的 prompt 层看细节</p>
+    <div class="swap">
+      <div class="swapcard">
+        <div class="t">别的 agent（代码里）</div>
+        <div class="row"><span class="tool">Edit</span> 工具 · 唯一匹配 + 时间戳校验</div>
+        <div class="row"><span class="tool">Write</span> 工具 · 整文件覆盖</div>
+        <div class="row"><span class="tool">Read</span> 工具 · 行号 + 分页</div>
+      </div>
+      <div class="eq">⇄</div>
+      <div class="swapcard">
+        <div class="t">mini-swe-agent（prompt 里）</div>
+        <div class="row"><span class="as">sed -i 's/old/new/g'</span></div>
+        <div class="row"><span class="as">cat &lt;&lt;'EOF' &gt; file</span></div>
+        <div class="row"><span class="as">sed -n '1,80p'</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ledger">
+    <div class="lc"><div class="k">宣传的核心</div><div class="v">~100</div></div>
+    <div class="lc"><div class="k">能跑的最小组合</div><div class="v">491</div></div>
+    <div class="lc"><div class="k">src 全部</div><div class="v">5,336</div></div>
+    <div class="lc"><div class="k">测试</div><div class="v">9,464</div></div>
+  </div>
+
+  <div class="note">
+    点冰山任意一层看它是什么。<b>水面上</b>=宣传的 100 行核心循环；<b>水面下</b>=接各家模型的 2297 行、跑基准的 1413 行、1475 行 prompt 模板。
+    最激进的极简主义者，<code>tests/</code> 9464 行写得比源码还多。
+  </div>
+</div>
+
+<script>
+/* 真实行数（2026-06 wc -l，references/mini-swe-agent） */
+const LAYERS=[
+  {key:'core', nm:'agent 核心循环', lines:188, tip:true, color:'rgba(217,119,87,.16)',
+   title:'agent 核心循环', big:'~100 行',
+   desc:'<code>agents/default.py</code>（文件 188 行含注释）。这就是宣传的"100 行"——query → 抽一条 bash 命令 → 执行 → 结果进 messages → 再来。和我们 Ch01 的循环同构，<b>没有任何新东西</b>。控制流全靠异常：完成是 <code>Submitted</code>、超预算是 <code>LimitsExceeded</code>。'},
+  {key:'env', nm:'执行环境', lines:928, color:'rgba(14,124,102,.13)',
+   title:'执行环境', big:'928 行',
+   desc:'<code>environments/</code>。每条命令一个全新 subshell（<code>subprocess.Popen</code>），<code>cd</code> 不持久——故意的。超时杀整个进程组防孤儿进程。换 Docker/singularity 就是换个类。'},
+  {key:'models', nm:'模型适配', lines:2297, color:'rgba(37,99,168,.13)',
+   title:'模型适配（最大的一块）', big:'2,297 行',
+   desc:'<code>models/</code>。接 litellm / openrouter / portkey / requesty 各家 provider，占了 src 的 <b>43%</b>。极简 agent 的复杂度大头不在 agent，在"接各家模型"——和我们 Ch25 的判断一致。'},
+  {key:'run', nm:'运行/基准脚手架', lines:1413, color:'rgba(138,99,201,.12)',
+   title:'运行 + 基准脚手架', big:'1,413 行',
+   desc:'<code>run/</code>。跑 SWE-bench、批量评测、inspector 的入口脚本。论文成绩需要的工程，跟"agent 有多简单"是两回事。'},
+  {key:'prompt', nm:'prompt 模板', lines:1475, color:'rgba(201,138,43,.16)',
+   title:'prompt 模板（复杂度的真实去处）', big:'1,475 行 YAML',
+   desc:'<code>config/*.yaml</code>。别家用 Edit/Write/Read 工具实现的能力，这里全写进 prompt 教模型用 shell：<code>sed</code> 替换、<code>cat &lt;&lt;EOF</code> 建文件，连 macOS 要用 <code>sed -i \'\'</code> 都用 Jinja 条件写进去了。<b>复杂度没消失，换了存放介质。</b>'},
+];
+
+const berg=document.getElementById('berg');
+const panel=document.getElementById('panel');
+const H=440; // 冰山总高
+const total=LAYERS.reduce((s,l)=>s+l.lines,0);
+// 尖部按比例会太小，给核心层一个最小可视高度
+const MINH=58;
+let used=0;
+const heights=LAYERS.map(l=>Math.max(l.lines/total*H, MINH));
+const scale=H/heights.reduce((a,b)=>a+b,0);
+berg.style.height=H+'px';
+berg.innerHTML='<div class="waterline"></div>';
+LAYERS.forEach((l,i)=>{
+  const h=heights[i]*scale;
+  const seg=document.createElement('div');
+  seg.className='seg'+(l.tip?' tip':'');
+  seg.id='seg-'+i;
+  seg.style.height=h+'px';
+  seg.style.background=l.color;
+  seg.innerHTML=`<div class="nm">${l.nm}</div><div class="ln">${l.lines.toLocaleString()} 行</div>`;
+  seg.addEventListener('click',()=>select(i));
+  seg.addEventListener('mouseenter',()=>select(i));
+  berg.appendChild(seg);
+});
+
+function select(i){
+  LAYERS.forEach((_,k)=>document.getElementById('seg-'+k).classList.toggle('active',k===i));
+  const l=LAYERS[i];
+  panel.innerHTML=`<h2>${l.title}</h2><div class="big">${l.big}</div><div class="desc">${l.desc}</div>`;
+}
+select(0);
+</script>
+</body>
+</html>

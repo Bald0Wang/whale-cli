@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一次调一个 vs 一次调三个</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  background: #faf9f5;
+  color: #1c1917;
+  min-height: 100vh;
+  padding: 24px 16px;
+}
+.container { max-width: 1020px; margin: 0 auto; }
+
+h1 {
+  font-family: Georgia, "Songti SC", serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.subtitle {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #78716c;
+  margin-bottom: 24px;
+}
+
+/* Task prompt bar */
+.task-bar {
+  background: #fff;
+  border: 1px solid #e5e5e0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.task-label {
+  font-size: 0.72rem;
+  color: #d97757;
+  font-weight: 700;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.task-text {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.78rem;
+  color: #1c1917;
+  flex: 1;
+  min-width: 200px;
+}
+.send-btn {
+  padding: 7px 22px;
+  background: #d97757;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.send-btn:hover { background: #c4623e; }
+.send-btn:disabled { background: #d6d3d1; cursor: not-allowed; }
+
+/* Speed control */
+.speed-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.speed-label { font-size: 0.7rem; color: #a3a3a3; }
+.speed-slider { width: 110px; accent-color: #d97757; }
+.speed-value { font-size: 0.7rem; color: #78716c; font-weight: 600; min-width: 28px; }
+
+/* Two panels side by side */
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.panel {
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.panel-old { border: 2px solid #d6d3d1; }
+.panel-new { border: 2px solid #0e7c66; }
+
+.panel-header {
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-old .panel-header { background: #fafaf9; color: #78716c; }
+.panel-new .panel-header { background: rgba(14,124,102,0.04); color: #0e7c66; }
+.panel-date { font-size: 0.66rem; font-weight: 400; opacity: 0.7; }
+
+.panel-body {
+  padding: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+}
+
+/* Message stream */
+.msg-stream {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+}
+
+.msg {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.67rem;
+  line-height: 1.5;
+  padding: 5px 9px;
+  border-radius: 5px;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+.msg.visible { opacity: 1; transform: translateY(0); }
+
+.msg-user {
+  background: rgba(217,119,87,0.08);
+  border-left: 3px solid #d97757;
+  color: #92400e;
+}
+.msg-call-old {
+  background: rgba(120,113,108,0.06);
+  border-left: 3px solid #a3a3a3;
+  color: #57534e;
+}
+.msg-call-new {
+  background: rgba(14,124,102,0.06);
+  border-left: 3px solid #0e7c66;
+  color: #065f46;
+}
+.msg-result-old {
+  background: rgba(120,113,108,0.04);
+  border-left: 3px solid #d6d3d1;
+  color: #78716c;
+}
+.msg-result-new {
+  background: rgba(14,124,102,0.04);
+  border-left: 3px solid rgba(14,124,102,0.4);
+  color: #78716c;
+}
+.msg-final-old {
+  background: rgba(120,113,108,0.08);
+  border-left: 3px solid #78716c;
+  color: #57534e;
+  font-weight: 500;
+}
+.msg-final-new {
+  background: rgba(14,124,102,0.08);
+  border-left: 3px solid #0e7c66;
+  color: #065f46;
+  font-weight: 500;
+}
+.msg-wait {
+  background: transparent;
+  border-left: 3px solid #e5e5e0;
+  color: #a3a3a3;
+  font-style: italic;
+}
+
+.msg .lbl {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 1px;
+  display: block;
+}
+.lbl-user { color: #d97757; }
+.lbl-old { color: #78716c; }
+.lbl-new { color: #0e7c66; }
+.lbl-tool { color: #a3a3a3; }
+
+/* Parallel result group */
+.par-group {
+  border: 1px dashed #0e7c66;
+  border-radius: 6px;
+  padding: 5px 4px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: relative;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.25s, transform 0.25s;
+  margin-top: 2px;
+}
+.par-group.visible { opacity: 1; transform: translateY(0); }
+.par-tag {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  background: #0e7c66;
+  color: #fff;
+  font-size: 0.5rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+.par-group .msg { opacity: 1; transform: none; }
+
+/* Elapsed / round counter in panel footer */
+.panel-footer {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pf-label { font-size: 0.62rem; color: #a3a3a3; }
+.pf-val {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.pf-val-old { color: #78716c; }
+.pf-val-new { color: #0e7c66; }
+
+/* Round-trip timeline bar */
+.rt-bar {
+  margin-top: 6px;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  height: 14px;
+}
+.rt-seg {
+  height: 12px;
+  border-radius: 2px;
+  transition: width 0.35s ease;
+  width: 0;
+  flex-shrink: 0;
+}
+.rt-req { background: #d97757; }
+.rt-exec-old { background: #a3a3a3; }
+.rt-exec-new { background: #0e7c66; }
+
+/* Counter bar */
+.counter-bar {
+  background: #fff;
+  border: 1px solid #e5e5e0;
+  border-radius: 10px;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 32px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.counter-item { text-align: center; }
+.counter-num {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.3s;
+}
+.counter-num-old { color: #78716c; }
+.counter-num-new { color: #0e7c66; }
+.counter-desc { font-size: 0.72rem; color: #a3a3a3; margin-top: 4px; }
+.counter-sep { font-size: 1.2rem; color: #d6d3d1; font-weight: 300; }
+
+/* Insight */
+.insight {
+  background: rgba(14,124,102,0.06);
+  border: 1px solid rgba(14,124,102,0.15);
+  border-radius: 10px;
+  padding: 14px 20px;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #065f46;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.5s, transform 0.5s;
+}
+.insight.visible { opacity: 1; transform: translateY(0); }
+.insight code {
+  background: rgba(14,124,102,0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.76rem;
+}
+
+/* Waiting dots */
+@keyframes pdot { 0%,80%,100%{opacity:0.3} 40%{opacity:1} }
+.wdots span { animation: pdot 1.2s infinite; display: inline-block; }
+.wdots span:nth-child(2) { animation-delay: 0.15s; }
+.wdots span:nth-child(3) { animation-delay: 0.3s; }
+
+/* Done checkmark animation */
+@keyframes checkPop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.done-check {
+  display: inline-block;
+  animation: checkPop 0.3s ease-out;
+  color: #0e7c66;
+  font-weight: 700;
+}
+.done-check-old {
+  display: inline-block;
+  animation: checkPop 0.3s ease-out;
+  color: #78716c;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .panels { grid-template-columns: 1fr; }
+  .panel-body { min-height: 280px; }
+  .counter-bar { gap: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>一次调一个 vs 一次调三个</h1>
+  <p class="subtitle">Function Calling (2023.06) 到 Tool Calling (2023.11)，最大的升级是什么？</p>
+
+  <div class="task-bar">
+    <span class="task-label">User</span>
+    <span class="task-text">读取这三个文件: execution.ts, planner.ts, types.ts</span>
+    <button class="send-btn" id="sendBtn" onclick="start()">发送</button>
+  </div>
+
+  <div class="speed-row">
+    <span class="speed-label">速度</span>
+    <input type="range" class="speed-slider" id="speedSlider" min="1" max="5" value="3" step="1">
+    <span class="speed-value" id="speedVal">3x</span>
+  </div>
+
+  <div class="panels">
+    <!-- LEFT: Function Calling (old, serial) -->
+    <div class="panel panel-old">
+      <div class="panel-header">
+        <span>Function Calling</span>
+        <span class="panel-date">2023.06</span>
+      </div>
+      <div class="panel-body">
+        <div class="msg-stream" id="sOld"></div>
+        <div class="panel-footer" id="footOld" style="display:none;">
+          <span class="pf-label">API 轮次</span>
+          <span class="pf-val pf-val-old" id="pfOldVal">0 轮</span>
+        </div>
+        <div class="rt-bar" id="rtOld"></div>
+      </div>
+    </div>
+    <!-- RIGHT: Tool Calling (new, parallel) -->
+    <div class="panel panel-new">
+      <div class="panel-header">
+        <span>Tool Calling</span>
+        <span class="panel-date">2023.11</span>
+      </div>
+      <div class="panel-body">
+        <div class="msg-stream" id="sNew"></div>
+        <div class="panel-footer" id="footNew" style="display:none;">
+          <span class="pf-label">API 轮次</span>
+          <span class="pf-val pf-val-new" id="pfNewVal">0 轮</span>
+        </div>
+        <div class="rt-bar" id="rtNew"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live counter -->
+  <div class="counter-bar" id="ctrBar" style="display:none;">
+    <div class="counter-item">
+      <div class="counter-num counter-num-old" id="ctrOld">0</div>
+      <div class="counter-desc">Function Calling API 调用</div>
+    </div>
+    <div class="counter-sep">|</div>
+    <div class="counter-item">
+      <div class="counter-num counter-num-new" id="ctrNew">0</div>
+      <div class="counter-desc">Tool Calling API 调用</div>
+    </div>
+  </div>
+
+  <!-- Insight (hidden until both done) -->
+  <div class="insight" id="insight">
+    同一个任务，API 调用从 <strong>4 轮</strong>降到 <strong>2 轮</strong>。
+    读 10 个文件就是 11 轮 vs 2 轮。这就是 <code>tool_calls</code> 支持数组的意义。
+  </div>
+</div>
+
+<script>
+var fileSnippets = {
+  'execution.ts': 'export async function execute(plan: Plan) { ... }',
+  'planner.ts':   'export function createPlan(task: string): Plan { ... }',
+  'types.ts':     'export interface Plan { steps: Step[]; context: Ctx }'
+};
+var running = false;
+var timers = [];
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedVal').textContent = this.value + 'x';
+});
+
+function getDelay() {
+  var s = parseInt(document.getElementById('speedSlider').value);
+  return [1400, 1000, 680, 460, 300][s - 1];
+}
+
+function reset() {
+  timers.forEach(clearTimeout);
+  timers = [];
+  document.getElementById('sOld').innerHTML = '';
+  document.getElementById('sNew').innerHTML = '';
+  document.getElementById('rtOld').innerHTML = '';
+  document.getElementById('rtNew').innerHTML = '';
+  document.getElementById('footOld').style.display = 'none';
+  document.getElementById('footNew').style.display = 'none';
+  document.getElementById('ctrBar').style.display = 'none';
+  document.getElementById('insight').classList.remove('visible');
+  document.getElementById('ctrOld').textContent = '0';
+  document.getElementById('ctrNew').textContent = '0';
+  document.getElementById('pfOldVal').textContent = '0 轮';
+  document.getElementById('pfNewVal').textContent = '0 轮';
+}
+
+function showMsg(container, cls, label, labelCls, html) {
+  var el = document.createElement('div');
+  el.className = 'msg ' + cls;
+  el.innerHTML = '<span class="lbl ' + labelCls + '">' + label + '</span>' + html;
+  container.appendChild(el);
+  void el.offsetHeight;
+  el.classList.add('visible');
+  container.scrollTop = container.scrollHeight;
+  return el;
+}
+
+function showParGroup(container, items) {
+  var g = document.createElement('div');
+  g.className = 'par-group';
+  g.innerHTML = '<span class="par-tag">PARALLEL</span>';
+  items.forEach(function(m) {
+    var el = document.createElement('div');
+    el.className = 'msg ' + m.cls;
+    el.innerHTML = '<span class="lbl ' + m.lCls + '">' + m.lbl + '</span>' + m.html;
+    g.appendChild(el);
+  });
+  container.appendChild(g);
+  void g.offsetHeight;
+  g.classList.add('visible');
+  container.scrollTop = container.scrollHeight;
+}
+
+function addRtSeg(track, cls, pct) {
+  var s = document.createElement('div');
+  s.className = 'rt-seg ' + cls;
+  track.appendChild(s);
+  void s.offsetHeight;
+  s.style.width = pct + '%';
+}
+
+function setOldRound(n) {
+  document.getElementById('ctrOld').textContent = n;
+  document.getElementById('pfOldVal').textContent = n + ' 轮';
+}
+function setNewRound(n) {
+  document.getElementById('ctrNew').textContent = n;
+  document.getElementById('pfNewVal').textContent = n + ' 轮';
+}
+
+function later(fn, ms) {
+  var t = setTimeout(fn, ms);
+  timers.push(t);
+}
+
+function start() {
+  if (running) return;
+  running = true;
+  reset();
+
+  var btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.textContent = '运行中...';
+
+  var d = getDelay();
+  var sOld = document.getElementById('sOld');
+  var sNew = document.getElementById('sNew');
+  var rtOld = document.getElementById('rtOld');
+  var rtNew = document.getElementById('rtNew');
+
+  document.getElementById('ctrBar').style.display = 'flex';
+  document.getElementById('footOld').style.display = 'flex';
+  document.getElementById('footNew').style.display = 'flex';
+
+  // ================================================================
+  //  LEFT PANEL: Function Calling -- serial, one tool per response
+  //
+  //  API call 1: user message            -> model returns function_call #1
+  //  API call 2: result #1               -> model returns function_call #2
+  //  API call 3: result #2               -> model returns function_call #3
+  //  API call 4: result #3               -> model returns final answer
+  //
+  //  Total: 4 API calls
+  // ================================================================
+
+  var tL = 0;
+  var oldNewDone = false;
+
+  // -- API call 1: send user message --
+  later(function() {
+    showMsg(sOld, 'msg-user', 'API call 1 request', 'lbl-user',
+      '"读取这三个文件: execution.ts, planner.ts, types.ts"');
+    setOldRound(1);
+    addRtSeg(rtOld, 'rt-req', 11);
+  }, tL);
+
+  // response: function_call #1
+  tL += d;
+  later(function() {
+    showMsg(sOld, 'msg-call-old', 'API call 1 response', 'lbl-old',
+      '<code>function_call</code>: read_file(<code>"execution.ts"</code>)' +
+      '<br><span style="color:#a3a3a3;font-size:0.56rem;">只能返回一个调用，还有 2 个文件要等</span>');
+    addRtSeg(rtOld, 'rt-exec-old', 11);
+  }, tL);
+
+  // execute locally
+  tL += d * 0.6;
+  later(function() {
+    showMsg(sOld, 'msg-result-old', 'execute', 'lbl-tool',
+      'read_file("execution.ts") -> ' + fileSnippets['execution.ts']);
+  }, tL);
+
+  // -- API call 2: send result #1 --
+  tL += d * 0.6;
+  later(function() {
+    showMsg(sOld, 'msg-user', 'API call 2 request', 'lbl-user',
+      '回传结果 #1 (execution.ts)');
+    setOldRound(2);
+    addRtSeg(rtOld, 'rt-req', 11);
+  }, tL);
+
+  // response: function_call #2
+  tL += d;
+  later(function() {
+    showMsg(sOld, 'msg-call-old', 'API call 2 response', 'lbl-old',
+      '<code>function_call</code>: read_file(<code>"planner.ts"</code>)' +
+      '<br><span style="color:#a3a3a3;font-size:0.56rem;">第 2 个，还有 1 个要等</span>');
+    addRtSeg(rtOld, 'rt-exec-old', 11);
+  }, tL);
+
+  // execute locally
+  tL += d * 0.6;
+  later(function() {
+    showMsg(sOld, 'msg-result-old', 'execute', 'lbl-tool',
+      'read_file("planner.ts") -> ' + fileSnippets['planner.ts']);
+  }, tL);
+
+  // -- API call 3: send result #2 --
+  tL += d * 0.6;
+  later(function() {
+    showMsg(sOld, 'msg-user', 'API call 3 request', 'lbl-user',
+      '回传结果 #2 (planner.ts)');
+    setOldRound(3);
+    addRtSeg(rtOld, 'rt-req', 11);
+  }, tL);
+
+  // response: function_call #3
+  tL += d;
+  later(function() {
+    showMsg(sOld, 'msg-call-old', 'API call 3 response', 'lbl-old',
+      '<code>function_call</code>: read_file(<code>"types.ts"</code>)' +
+      '<br><span style="color:#a3a3a3;font-size:0.56rem;">终于轮到最后一个</span>');
+    addRtSeg(rtOld, 'rt-exec-old', 11);
+  }, tL);
+
+  // execute locally
+  tL += d * 0.6;
+  later(function() {
+    showMsg(sOld, 'msg-result-old', 'execute', 'lbl-tool',
+      'read_file("types.ts") -> ' + fileSnippets['types.ts']);
+  }, tL);
+
+  // -- API call 4: send result #3, get final answer --
+  tL += d * 0.6;
+  later(function() {
+    showMsg(sOld, 'msg-user', 'API call 4 request', 'lbl-user',
+      '回传结果 #3 (types.ts)');
+    setOldRound(4);
+    addRtSeg(rtOld, 'rt-req', 11);
+  }, tL);
+
+  tL += d;
+  var oldDoneTime = tL;
+  later(function() {
+    showMsg(sOld, 'msg-final-old', 'API call 4 response', 'lbl-old',
+      '<span class="done-check-old">done</span> 已读取全部 3 个文件。execute() 调用 createPlan()...');
+    addRtSeg(rtOld, 'rt-exec-old', 3);
+    oldNewDone = true;
+  }, tL);
+
+
+  // ================================================================
+  //  RIGHT PANEL: Tool Calling -- parallel, all tools in one response
+  //
+  //  API call 1: user message           -> model returns tool_calls [#1,#2,#3]
+  //                                        (execute all 3 locally in parallel)
+  //  API call 2: three results at once   -> model returns final answer
+  //
+  //  Total: 2 API calls
+  // ================================================================
+
+  var tR = 0;
+
+  // -- API call 1: send user message --
+  later(function() {
+    showMsg(sNew, 'msg-user', 'API call 1 request', 'lbl-user',
+      '"读取这三个文件: execution.ts, planner.ts, types.ts"');
+    setNewRound(1);
+    addRtSeg(rtNew, 'rt-req', 45);
+  }, tR);
+
+  // response: 3 tool_calls at once
+  tR += d;
+  later(function() {
+    showMsg(sNew, 'msg-call-new', 'API call 1 response', 'lbl-new',
+      '<code>tool_calls</code>: [' +
+      '<br>  { id: <code>"call_001"</code>, read_file(<code>"execution.ts"</code>) },' +
+      '<br>  { id: <code>"call_002"</code>, read_file(<code>"planner.ts"</code>) },' +
+      '<br>  { id: <code>"call_003"</code>, read_file(<code>"types.ts"</code>) }' +
+      '<br>]' +
+      '<br><span style="color:#0e7c66;font-size:0.56rem;">一次返回三个调用，各有唯一 id</span>');
+    addRtSeg(rtNew, 'rt-exec-new', 45);
+  }, tR);
+
+  // execute all 3 in parallel
+  tR += d * 0.8;
+  later(function() {
+    showParGroup(sNew, [
+      { cls: 'msg-result-new', lbl: 'execute (parallel)', lCls: 'lbl-tool',
+        html: 'call_001: execution.ts -> ' + fileSnippets['execution.ts'] },
+      { cls: 'msg-result-new', lbl: 'execute (parallel)', lCls: 'lbl-tool',
+        html: 'call_002: planner.ts -> ' + fileSnippets['planner.ts'] },
+      { cls: 'msg-result-new', lbl: 'execute (parallel)', lCls: 'lbl-tool',
+        html: 'call_003: types.ts -> ' + fileSnippets['types.ts'] }
+    ]);
+  }, tR);
+
+  // -- API call 2: send all 3 results, get final answer --
+  tR += d * 0.6;
+  later(function() {
+    showMsg(sNew, 'msg-user', 'API call 2 request', 'lbl-user',
+      '回传 3 个结果 (tool_call_id 精确对应)');
+    setNewRound(2);
+    addRtSeg(rtNew, 'rt-req', 8);
+  }, tR);
+
+  tR += d;
+  var newDoneTime = tR;
+  later(function() {
+    showMsg(sNew, 'msg-final-new', 'API call 2 response', 'lbl-new',
+      '<span class="done-check">done</span> 已读取全部 3 个文件。execute() 调用 createPlan()...');
+    addRtSeg(rtNew, 'rt-exec-new', 2);
+  }, tR);
+
+  // ================================================================
+  //  RIGHT finishes first. Show a "waiting for the other side..." hint.
+  // ================================================================
+
+  // After right finishes, show waiting message if left isn't done yet
+  later(function() {
+    if (!oldNewDone) {
+      showMsg(sNew, 'msg-wait', '', 'lbl-tool',
+        '<span style="font-size:0.6rem;">已完成，等左边的 Function Calling 跑完对比...</span>');
+    }
+  }, newDoneTime + d * 0.3);
+
+  // ================================================================
+  //  After BOTH panels done, show insight
+  // ================================================================
+
+  var endTime = Math.max(oldDoneTime, newDoneTime) + d * 0.8;
+  later(function() {
+    document.getElementById('insight').classList.add('visible');
+    btn.disabled = false;
+    btn.textContent = '重新演示';
+    running = false;
+  }, endTime);
+}
+</script>
+</body>
+</html>

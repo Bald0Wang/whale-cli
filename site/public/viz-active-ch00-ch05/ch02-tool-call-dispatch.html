@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工具调用分发 · 逐步执行</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  background: #f5f5f0;
+  color: #1c1917;
+  min-height: 100vh;
+  padding: 16px;
+}
+.container { max-width: 1080px; margin: 0 auto; }
+h1 { font-size: 1.1rem; font-weight: 600; text-align: center; margin-bottom: 4px; }
+.subtitle { text-align: center; font-size: 0.78rem; color: #78716c; margin-bottom: 14px; }
+
+/* Scenario tabs */
+.scenario-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 14px; }
+.scenario-btn {
+  padding: 6px 14px; border: 1px solid #e5e5e0; border-radius: 6px;
+  background: #fff; font-size: 0.78rem; cursor: pointer; font-family: inherit;
+  color: #78716c; transition: all 0.15s;
+}
+.scenario-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+.scenario-btn.active.err { background: #dc2626; border-color: #dc2626; }
+
+/* Step controls */
+.step-nav {
+  display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 14px;
+}
+.nav-btn {
+  padding: 6px 18px; border: 1px solid #e5e5e0; border-radius: 6px;
+  background: #fff; font-size: 0.82rem; cursor: pointer; font-family: inherit; color: #1c1917;
+}
+.nav-btn:hover:not(:disabled) { border-color: #7c3aed; color: #7c3aed; }
+.nav-btn:disabled { opacity: 0.35; cursor: default; }
+.step-dots { display: flex; gap: 6px; }
+.step-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: #e5e5e0; cursor: pointer;
+  transition: all 0.15s;
+}
+.step-dot.done { background: #c4b5fd; }
+.step-dot.current { background: #7c3aed; transform: scale(1.3); }
+
+/* Layout */
+.panels { display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.panel { background: #fff; border: 1px solid #e5e5e0; border-radius: 10px; overflow: hidden; }
+.panel-header {
+  padding: 8px 14px; background: #f5f5f0; font-size: 0.75rem; font-weight: 600;
+  color: #78716c; display: flex; align-items: center; gap: 8px;
+}
+.panel-header .file-tag {
+  padding: 1px 8px; border-radius: 4px; font-size: 0.68rem;
+  background: rgba(124,58,237,0.1); color: #7c3aed; font-weight: 600;
+}
+.code-body {
+  padding: 10px 0; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.74rem; line-height: 1.75; overflow-x: auto;
+}
+.code-line { display: flex; padding: 0 14px; white-space: pre; transition: background 0.2s; }
+.code-line .ln { color: #a3a3a3; min-width: 1.8rem; text-align: right; margin-right: 12px; user-select: none; }
+.code-line.hl { background: rgba(124,58,237,0.09); border-left: 3px solid #7c3aed; padding-left: 11px; }
+.code-line.hl-err { background: rgba(220,38,38,0.08); border-left: 3px solid #dc2626; padding-left: 11px; }
+.code-line.dim { opacity: 0.45; }
+
+/* syntax */
+.kw { color: #cf222e; }
+.str { color: #0a3069; }
+.fn { color: #8250df; }
+.num { color: #953800; }
+.cm { color: #6e7781; font-style: italic; }
+
+/* State panel */
+.state-body { padding: 12px 14px; font-size: 0.76rem; line-height: 1.7; }
+.var-row {
+  margin-bottom: 10px; padding: 8px 10px; border: 1px solid #f0f0eb; border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+  opacity: 0.35; transition: opacity 0.2s;
+}
+.var-row.live { opacity: 1; border-color: #e5e5e0; }
+.var-row.fresh { opacity: 1; border-color: #7c3aed; background: rgba(124,58,237,0.04); }
+.var-row.fresh-err { opacity: 1; border-color: #dc2626; background: rgba(220,38,38,0.04); }
+.var-name { color: #7c3aed; font-weight: 600; margin-right: 6px; }
+.var-val { color: #1c1917; white-space: pre-wrap; word-break: break-all; }
+.var-note { color: #78716c; font-size: 0.68rem; font-family: -apple-system, system-ui; margin-top: 3px; }
+.type-tag {
+  display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 0.64rem; margin-left: 6px;
+  background: rgba(120,113,108,0.12); color: #78716c; font-family: -apple-system, system-ui;
+}
+.type-tag.warn { background: rgba(220,38,38,0.1); color: #dc2626; }
+.type-tag.ok { background: rgba(22,163,74,0.1); color: #16a34a; }
+
+/* Explanation */
+.explain {
+  background: #fff; border: 1px solid #e5e5e0; border-radius: 10px;
+  padding: 14px 16px; font-size: 0.82rem; line-height: 1.75; min-height: 76px;
+}
+.explain .step-label {
+  font-size: 0.7rem; font-weight: 700; color: #7c3aed; margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.explain .step-label.err { color: #dc2626; }
+.explain code {
+  background: rgba(0,0,0,0.05); padding: 1px 4px; border-radius: 3px;
+  font-size: 0.74rem; font-family: 'JetBrains Mono', monospace;
+}
+
+@media (max-width: 760px) { .panels { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>工具调用分发 · 逐步执行</h1>
+  <p class="subtitle">从模型返回 tool_calls 到本地函数真正执行，每一步的数据长什么样</p>
+
+  <div class="scenario-row">
+    <button class="scenario-btn active" data-s="normal" onclick="setScenario('normal', this)">正常执行</button>
+    <button class="scenario-btn" data-s="unknown" onclick="setScenario('unknown', this)">调不存在的工具</button>
+    <button class="scenario-btn" data-s="badparam" onclick="setScenario('badparam', this)">传未知参数</button>
+  </div>
+
+  <div class="step-nav">
+    <button class="nav-btn" id="prevBtn" onclick="go(-1)">← 上一步</button>
+    <div class="step-dots" id="dots"></div>
+    <button class="nav-btn" id="nextBtn" onclick="go(1)">下一步 →</button>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">代码 <span class="file-tag" id="fileTag">main.py</span></div>
+      <div class="code-body" id="codeBody"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">数据状态</div>
+      <div class="state-body" id="stateBody"></div>
+    </div>
+  </div>
+
+  <div class="explain" id="explain"></div>
+</div>
+
+<script>
+// ---- code listings ----
+var MAIN_CODE = [
+  'response = llm.chat(messages, tools=tools_schema)',
+  'tool_calls = response.get(<s>"tool_calls"</s>)',
+  '',
+  '<k>for</k> call <k>in</k> tool_calls:',
+  '    name = call[<s>"function"</s>][<s>"name"</s>]',
+  '    call_args = json.<f>loads</f>(',
+  '        call[<s>"function"</s>][<s>"arguments"</s>])',
+  '    result = <f>run_tool</f>(name, call_args)',
+  '    messages.<f>append</f>({<s>"role"</s>: <s>"tool"</s>,',
+  '        <s>"tool_call_id"</s>: call[<s>"id"</s>],',
+  '        <s>"content"</s>: result})',
+]
+var REG_CODE = [
+  '<k>def</k> <f>run_tool</f>(name, args):',
+  '    entry = _TOOLS.<f>get</f>(name)',
+  '    <k>if</k> entry <k>is</k> <k>None</k>:',
+  '        <k>return</k> <s>f"Error: 工具 \'{name}\' 不存在。已注册：..."</s>',
+  '    err = <f>_validate_args</f>(args, entry[<s>"schema"</s>])',
+  '    <k>if</k> err:',
+  '        <k>return</k> <s>f"Error: {name} 参数校验失败 — {err}"</s>',
+  '    <k>try</k>:',
+  '        result = entry[<s>"fn"</s>](**args)',
+  '        <k>return</k> result',
+  '    <k>except</k> Exception <k>as</k> exc:',
+  '        <k>return</k> <s>f"Error: {name} — {type(exc).__name__}: {exc}"</s>',
+]
+
+// ---- variable state fragments ----
+function respJson(name, argStr) {
+  return '"tool_calls": [{\n  "id": "call_001",\n  "function": {\n    "name": "' + name + '",\n    "arguments": \'' + argStr + '\'\n  }\n}]'
+}
+
+// ---- scenarios ----
+var SCENARIOS = {
+  normal: {
+    steps: [
+      { file: 'main', hl: [1, 2], vars: [
+          { n: 'response', v: respJson('read_file', '{"path": "a.py"}'), note: '模型返回的 tool_calls 数组，本场景只有一个调用', state: 'fresh' },
+        ],
+        label: '第 1 步 · 模型返回', text: '模型判断需要读文件，返回了 <code>tool_calls</code>。注意 <code>arguments</code> 的值带引号——它是 JSON <strong>字符串</strong>，不是对象。' },
+      { file: 'main', hl: [5], vars: [
+          { n: 'response', v: respJson('read_file', '{"path": "a.py"}'), state: 'live' },
+          { n: 'name', v: '"read_file"', tag: 'str', note: '两层方括号逐层取值：call → function → name', state: 'fresh' },
+        ],
+        label: '第 2 步 · 取工具名', text: '<code>call["function"]["name"]</code>——普通的字典取值，挖两层拿到工具名，本来就是现成的字符串，直接用。' },
+      { file: 'main', hl: [6, 7], vars: [
+          { n: 'name', v: '"read_file"', state: 'live' },
+          { n: 'arguments（原始）', v: '\'{"path": "a.py"}\'', tag: 'str', note: '字符串——模型逐 token 生成，不保证合法，所以实际代码里包了 try/except', state: 'live' },
+          { n: 'call_args', v: '{"path": "a.py"}', tag: 'dict', note: 'json.loads 之后才变成能用的字典', state: 'fresh' },
+        ],
+        label: '第 3 步 · 解析参数', text: '<code>arguments</code> 是 JSON 字符串（Ch01 §5.2 踩过的坑），必须 <code>json.loads</code> 一道才能变成字典。' },
+      { file: 'reg', hl: [2], vars: [
+          { n: '_TOOLS', v: '{"read_file": {"schema": {…}, "fn": <function>}}', note: '启动时 import tools 已填好的注册表', state: 'live' },
+          { n: 'entry', v: '{"schema": {…}, "fn": <function read_file>}', tag: 'ok', tagText: '找到了', note: '拿到 schema 和函数本身', state: 'fresh' },
+        ],
+        label: '第 4 步 · 查注册表', text: 'main.py 把 <code>name</code> 和 <code>call_args</code> 交给 <code>run_tool</code>。第一道关：按名字查 <code>_TOOLS</code> 字典。<code>read_file</code> 在注册表里，往下走。' },
+      { file: 'reg', hl: [5, 6], vars: [
+          { n: 'entry', v: '{"schema": {…}, "fn": <function read_file>}', state: 'live' },
+          { n: 'err', v: 'None', tag: 'ok', tagText: '校验通过', note: '必填参数 path 在，类型 string 也对', state: 'fresh' },
+        ],
+        label: '第 5 步 · 参数校验', text: '第二道关：拿 schema 里的定义验参数——必填字段缺不缺、已知字段类型对不对。都对，<code>err</code> 是 None，继续。' },
+      { file: 'reg', hl: [9], vars: [
+          { n: 'entry["fn"](**args)', v: '等价于 read_file(path="a.py")', note: '** 把字典摊开成命名参数', state: 'fresh' },
+          { n: 'result', v: '"# a.py (12 lines)\\n 1  import os\\n 2  …"', tag: 'str', note: '函数真的执行了——磁盘上的文件被读了', state: 'fresh' },
+        ],
+        label: '第 6 步 · 真正执行', text: '<code>**args</code> 把字典摊开：<code>fn(**{"path": "a.py"})</code> 就是 <code>read_file(path="a.py")</code>。这一行是"模型的决策"变成"真实函数调用"的瞬间——前面全是搬运数据，只有这里碰了你的文件系统。' },
+      { file: 'main', hl: [9, 10, 11], vars: [
+          { n: 'result', v: '"# a.py (12 lines)…"', state: 'live' },
+          { n: 'messages（新增一条）', v: '{"role": "tool",\n "tool_call_id": "call_001",\n "content": "# a.py (12 lines)…"}', note: '带上 tool_call_id 跟调用对应，下一轮发给模型', state: 'fresh' },
+        ],
+        label: '第 7 步 · 结果回灌', text: '执行结果以 <code>role: "tool"</code> 塞回 messages。下一轮 API 调用，模型读到文件内容，继续推理。一次完整的工具调用到此闭环。' },
+    ]
+  },
+  unknown: {
+    steps: [
+      { file: 'main', hl: [1, 2], vars: [
+          { n: 'response', v: respJson('grep', '{"pattern": "TODO"}'), note: '模型想搜代码——但我们只注册了 read_file', state: 'fresh' },
+        ],
+        label: '第 1 步 · 模型返回', text: '模型幻觉出了一个不存在的工具 <code>grep</code>。它并不知道注册表里有什么，只是"觉得应该有一个搜索工具"。' },
+      { file: 'main', hl: [5, 6, 7], vars: [
+          { n: 'name', v: '"grep"', tag: 'str', state: 'fresh' },
+          { n: 'call_args', v: '{"pattern": "TODO"}', tag: 'dict', state: 'fresh' },
+        ],
+        label: '第 2 步 · 解析', text: '解析本身不出错——取名字、loads 参数都正常。main.py 不知道 <code>grep</code> 存不存在，它只管搬运。' },
+      { file: 'reg', hl: [2, 3, 4], hlErr: true, vars: [
+          { n: '_TOOLS', v: '{"read_file": {…}}', note: '注册表里只有 read_file', state: 'live' },
+          { n: 'entry', v: 'None', tag: 'warn', tagText: '查不到', note: 'dict.get 查不到不报错，安静地返回 None', state: 'fresh-err' },
+        ],
+        label: '第 3 步 · 查注册表 → 拦截', text: '第一道关拦下。注意这里<strong>没有任何东西抛出</strong>——<code>get</code> 返回 None，<code>if</code> 判断到了，主动 return 错误字符串。守卫式提前返回，不是异常。' },
+      { file: 'reg', hl: [4], hlErr: true, vars: [
+          { n: 'return 值', v: '"Error: 工具 \'grep\' 不存在。已注册的工具：read_file"', tag: 'warn', tagText: 'Error 字符串', note: '关键设计：把已注册的工具列表附在报错里', state: 'fresh-err' },
+        ],
+        label: '第 4 步 · 错误即提示', text: '报错信息不只说"不存在"，还附上<strong>已注册工具的完整列表</strong>。只说"不存在"，模型只能瞎猜换名重试；给它列表，下一轮直接选对。错误信息就是写给模型的 prompt。' },
+      { file: 'main', hl: [9, 10, 11], vars: [
+          { n: 'messages（新增一条）', v: '{"role": "tool",\n "content": "Error: 工具 \'grep\' 不存在。已注册的工具：read_file"}', note: '错误和正常结果走同一条路回去', state: 'fresh' },
+        ],
+        label: '第 5 步 · 模型自纠错', text: 'main.py 不区分成功还是失败——Error 字符串照样当工具结果塞回 messages。下一轮模型读到它，改调 <code>read_file</code>。循环没有断，agent 自己把错误消化了。' },
+    ]
+  },
+  badparam: {
+    steps: [
+      { file: 'main', hl: [1, 2], vars: [
+          { n: 'response', v: respJson('read_file', '{"path": "a.py", "lines": 10}'), note: '工具名对，但多了一个 lines 参数', state: 'fresh' },
+        ],
+        label: '第 1 步 · 模型返回', text: '这次工具名没错，但模型幻觉出了一个 <code>lines</code> 参数——<code>read_file</code> 的签名里根本没有它。' },
+      { file: 'main', hl: [5, 6, 7], vars: [
+          { n: 'name', v: '"read_file"', tag: 'str', state: 'fresh' },
+          { n: 'call_args', v: '{"path": "a.py", "lines": 10}', tag: 'dict', note: '多余的 lines 也老老实实解析进来了', state: 'fresh' },
+        ],
+        label: '第 2 步 · 解析', text: 'JSON 本身合法，解析一路绿灯。多余的参数就这样混进了 <code>call_args</code>。' },
+      { file: 'reg', hl: [2], vars: [
+          { n: 'entry', v: '{"schema": {…}, "fn": <function read_file>}', tag: 'ok', tagText: '找到了', state: 'fresh' },
+        ],
+        label: '第 3 步 · 查注册表', text: '<code>read_file</code> 在注册表里，第一道关顺利通过。' },
+      { file: 'reg', hl: [5, 6], vars: [
+          { n: 'err', v: 'None', tag: 'warn', tagText: '漏过了！', note: '校验只查"必填缺不缺"和"认识的字段类型对不对"——不认识的 lines 直接跳过', state: 'fresh-err' },
+        ],
+        label: '第 4 步 · 校验漏过', text: '反直觉的一步：<strong>校验层拦不住未知参数</strong>。<code>_validate_args</code> 查 lines 时发现 schema 里没这个字段，<code>properties.get("lines", {})</code> 拿到空 dict，检查直接跳过——校验通过。这是手写校验器的真实缺口（jsonschema 加 <code>additionalProperties: false</code> 才能拦）。' },
+      { file: 'reg', hl: [9], hlErr: true, vars: [
+          { n: 'entry["fn"](**args)', v: '等价于 read_file(path="a.py", lines=10)', note: '函数签名是 def read_file(path)——lines 没有座位', state: 'live' },
+          { n: '💥 TypeError', v: "read_file() got an unexpected\nkeyword argument 'lines'", tag: 'warn', tagText: '调用瞬间炸', note: '参数绑定失败，函数体一行都没执行，文件没被读', state: 'fresh-err' },
+        ],
+        label: '第 5 步 · 调用瞬间炸', text: 'Python 在<strong>调用的瞬间</strong>做参数绑定——拿传入的参数跟函数签名对号入座。<code>lines</code> 找不到座位，当场抛 TypeError。注意此时 <code>read_file</code> 的函数体一行都没跑。' },
+      { file: 'reg', hl: [11, 12], vars: [
+          { n: 'return 值', v: '"Error: read_file — TypeError: read_file() got an unexpected keyword argument \'lines\'"', tag: 'warn', tagText: 'except 接住', note: '异常没有炸出去，被转成了字符串', state: 'fresh-err' },
+        ],
+        label: '第 6 步 · 安全网兜住', text: '<code>except</code> 接住 TypeError，转成 Error 字符串返回。安全网不在校验层，在 try/except 层——校验漏掉的球，这里全部兜住。' },
+      { file: 'main', hl: [9, 10, 11], vars: [
+          { n: 'messages（新增一条）', v: '{"role": "tool",\n "content": "Error: read_file — TypeError: …\'lines\'"}', note: '模型看到 lines 不该传，下一轮修正', state: 'fresh' },
+        ],
+        label: '第 7 步 · 模型自纠错', text: '错误照常塞回 messages。模型读到 "unexpected keyword argument \'lines\'"，明白这个参数不存在，下一轮只传 <code>path</code> 重试成功。三种错误殊途同归：全部变成字符串，喂给模型自己消化。' },
+    ]
+  },
+}
+
+var scenario = 'normal'
+var step = 0
+
+function renderCode(file, hl, hlErr) {
+  var lines = file === 'main' ? MAIN_CODE : REG_CODE
+  document.getElementById('fileTag').textContent = file === 'main' ? 'main.py' : 'registry.py'
+  var html = ''
+  lines.forEach(function(line, i) {
+    var num = i + 1
+    var cls = 'code-line'
+    if (hl.indexOf(num) !== -1) cls += hlErr ? ' hl-err' : ' hl'
+    else cls += ' dim'
+    var content = line
+      .replace(/<k>/g, '<span class="kw">').replace(/<\/k>/g, '</span>')
+      .replace(/<s>/g, '<span class="str">').replace(/<\/s>/g, '</span>')
+      .replace(/<f>/g, '<span class="fn">').replace(/<\/f>/g, '</span>')
+    html += '<div class="' + cls + '"><span class="ln">' + num + '</span><span>' + (content || ' ') + '</span></div>'
+  })
+  document.getElementById('codeBody').innerHTML = html
+}
+
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function renderState(vars) {
+  var html = ''
+  vars.forEach(function(v) {
+    var cls = 'var-row ' + (v.state || 'live')
+    var tag = ''
+    if (v.tag === 'str') tag = '<span class="type-tag">str</span>'
+    else if (v.tag === 'dict') tag = '<span class="type-tag">dict</span>'
+    else if (v.tag === 'ok') tag = '<span class="type-tag ok">' + (v.tagText || 'OK') + '</span>'
+    else if (v.tag === 'warn') tag = '<span class="type-tag warn">' + (v.tagText || '!') + '</span>'
+    html += '<div class="' + cls + '"><span class="var-name">' + esc(v.n) + '</span>' + tag +
+      '<div class="var-val">' + esc(v.v) + '</div>' +
+      (v.note ? '<div class="var-note">' + esc(v.note) + '</div>' : '') + '</div>'
+  })
+  document.getElementById('stateBody').innerHTML = html
+}
+
+function render() {
+  var steps = SCENARIOS[scenario].steps
+  var s = steps[step]
+  renderCode(s.file, s.hl, s.hlErr)
+  renderState(s.vars)
+  var isErr = scenario !== 'normal' && (s.hlErr || (s.label && s.label.indexOf('拦截') !== -1))
+  document.getElementById('explain').innerHTML =
+    '<div class="step-label' + (isErr ? ' err' : '') + '">' + s.label + '（' + (step + 1) + '/' + steps.length + '）</div>' + s.text
+
+  var dots = ''
+  steps.forEach(function(_, i) {
+    var c = 'step-dot' + (i < step ? ' done' : i === step ? ' current' : '')
+    dots += '<span class="' + c + '" onclick="jump(' + i + ')"></span>'
+  })
+  document.getElementById('dots').innerHTML = dots
+  document.getElementById('prevBtn').disabled = step === 0
+  document.getElementById('nextBtn').disabled = step === steps.length - 1
+}
+
+function go(d) {
+  var max = SCENARIOS[scenario].steps.length - 1
+  step = Math.max(0, Math.min(max, step + d))
+  render()
+}
+function jump(i) { step = i; render() }
+function setScenario(s, btn) {
+  scenario = s
+  step = 0
+  document.querySelectorAll('.scenario-btn').forEach(function(b) {
+    b.classList.remove('active', 'err')
+  })
+  btn.classList.add('active')
+  if (s !== 'normal') btn.classList.add('err')
+  render()
+}
+
+render()
+</script>
+</body>
+</html>

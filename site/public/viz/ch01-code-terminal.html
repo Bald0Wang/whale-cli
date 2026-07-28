@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ch01 -- 代码 → 终端</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #faf9f5;
+  --panel: #ffffff;
+  --panel-header: #faf9f5;
+  --border: #e5e5e0;
+  --code-text: #1c1917;
+  --code-dim: rgba(28,25,23,0.35);
+  --text: #1c1917;
+  --text2: #78716c;
+  --accent: #d97757;
+  --accent-glow: rgba(217,119,87,0.08);
+  --kw: #cf222e;
+  --str: #0a3069;
+  --fn: #8250df;
+  --bi: #0550ae;
+  --cm: #6e7781;
+  --num: #953800;
+  --green: #116329;
+  --yellow: #953800;
+  --cyan: #0550ae;
+  --line-height: 22px;
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  text-align: center;
+  padding: 28px 20px 20px;
+}
+.page-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.page-header p {
+  font-size: 12px;
+  color: var(--text2);
+  font-weight: 400;
+}
+
+.container {
+  display: flex;
+  gap: 16px;
+  padding: 0 24px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* -- Shared panel chrome -- */
+.panel {
+  background: var(--panel);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  background: var(--panel-header);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #f3aba2; }
+.dot-y { background: #f9e2af; }
+.dot-g { background: #a6e3a1; }
+.panel-header .title {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--cm);
+  font-weight: 500;
+}
+
+/* -- Code Panel (left) -- */
+.code-panel { flex: 1; min-width: 0; }
+
+.code-body {
+  padding: 10px 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 1px 14px 1px 0;
+  cursor: default;
+  transition: background 0.15s, opacity 0.3s;
+  border-left: 3px solid transparent;
+  min-height: var(--line-height);
+  line-height: var(--line-height);
+}
+.code-line.clickable {
+  cursor: pointer;
+  border-left: 3px solid #e5e0fa;
+}
+.code-line.clickable:hover {
+  background: rgba(217,119,87,0.06);
+  border-left-color: var(--accent);
+}
+.code-line.active {
+  background: var(--accent-glow);
+  border-left-color: var(--accent);
+}
+/* When any line is active, dim others */
+.code-body.has-active .code-line:not(.active) {
+  opacity: 0.35;
+}
+.code-body.has-active .code-line:not(.active):hover {
+  opacity: 0.7;
+}
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.line-num {
+  flex: 0 0 40px;
+  text-align: right;
+  padding-right: 14px;
+  color: #9399b2;
+  font-size: 12px;
+  user-select: none;
+  line-height: var(--line-height);
+}
+.line-code {
+  white-space: pre;
+  font-size: 12.5px;
+  line-height: var(--line-height);
+}
+
+/* Syntax tokens */
+.kw  { color: var(--kw); }
+.str { color: var(--str); }
+.fn  { color: var(--fn); }
+.bi  { color: var(--bi); }
+.cm  { color: var(--cm); font-style: italic; }
+.num { color: var(--num); }
+.op  { color: var(--code-text); }
+
+/* -- Terminal Panel (right) -- */
+.terminal-panel {
+  background: #ffffff; flex: 1; min-width: 0;
+  border: 1px solid #e5e5e0; border-radius: 10px;
+}
+.terminal-panel .panel-header {
+  background: #faf9f5;
+  border-bottom: 1px solid #e5e5e0;
+}
+.terminal-panel .panel-header .title {
+  color: #44403c;
+}
+
+.terminal-body {
+  padding: 14px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #1c1917;
+  position: relative;
+}
+
+.terminal-body .prompt-line {
+  color: #16a34a;
+  margin-bottom: 2px;
+}
+.terminal-body .prompt-sign {
+  color: var(--accent);
+  font-weight: 600;
+}
+.terminal-body .output-block {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #44403c;
+}
+.terminal-body .label {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.terminal-body .label.api { color: #b45309; }
+.terminal-body .label.tool { color: #0e7490; }
+.terminal-body .label.msgs { color: #d97757; }
+.terminal-body .label.out { color: #16a34a; }
+
+.terminal-body .json-block {
+  background: #faf9f5;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-x: auto;
+}
+.terminal-body .json-key { color: var(--cyan); }
+.terminal-body .json-str { color: var(--str); }
+.terminal-body .json-num { color: var(--num); }
+.terminal-body .json-bracket { color: var(--cm); }
+
+.terminal-body .spinner {
+  display: inline-block;
+  color: var(--yellow);
+}
+
+.terminal-body .cursor-blink {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  background: var(--code-text);
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes spin {
+  0% { content: "|"; }
+  25% { content: "/"; }
+  50% { content: "-"; }
+  75% { content: "\\"; }
+}
+
+.terminal-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--cm);
+  font-size: 12px;
+  line-height: 1.8;
+  flex: 1;
+  padding: 40px 20px;
+}
+
+.footer {
+  text-align: center;
+  padding: 12px;
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* -- Responsive -- */
+@media (max-width: 800px) {
+  .container {
+    flex-direction: column;
+    padding: 0 12px 16px;
+    gap: 12px;
+  }
+  .panel { min-height: 320px; }
+  .page-header { padding: 18px 12px 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Whale CLI -- 点击代码，观察运行</h1>
+  <p>左侧主循环代码 / 右侧模拟终端 -- 点击任意可交互行查看运行效果</p>
+</div>
+
+<div class="container">
+  <!-- Left: Code -->
+  <div class="panel code-panel">
+    <div class="panel-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span class="title">main.py -- agent loop</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <!-- Right: Terminal -->
+  <div class="panel terminal-panel">
+    <div class="panel-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span class="title">终端</span>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <div class="terminal-default" id="termDefault">
+        点击左侧代码中高亮的行<br>观察每一步在终端的真实效果
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Ch01 -- Agent Loop 主循环 | 点击代码行查看运行动画</div>
+
+<script>
+// ─── Code lines (syntax-highlighted HTML) ───
+// Each entry: { html, clickable, id }
+const CODE_LINES = [
+  { html: '<span class="bi">messages</span> = [{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: args.task}]', id: 'init_messages' },
+  { html: '<span class="bi">tools_schema</span> = <span class="fn">get_tools_schema</span>()', id: null },
+  { html: '', id: null },
+  { html: '<span class="kw">for</span> turn <span class="kw">in</span> <span class="fn">range</span>(args.max_turns):', id: null },
+  { html: '    response = <span class="fn">llm.chat</span>(messages, <span class="bi">tools</span>=tools_schema)', id: 'llm_chat' },
+  { html: '    messages.<span class="fn">append</span>(response)', id: null },
+  { html: '', id: null },
+  { html: '    tool_calls = response.<span class="fn">get</span>(<span class="str">"tool_calls"</span>)', id: null },
+  { html: '    <span class="kw">if not</span> tool_calls:', id: null },
+  { html: '        <span class="fn">print</span>(response.<span class="fn">get</span>(<span class="str">"content"</span>, <span class="str">""</span>))', id: 'print_final' },
+  { html: '        <span class="kw">return</span>', id: null },
+  { html: '', id: null },
+  { html: '    <span class="kw">for</span> call <span class="kw">in</span> tool_calls:', id: null },
+  { html: '        name = call[<span class="str">"function"</span>][<span class="str">"name"</span>]', id: null },
+  { html: '        args = json.<span class="fn">loads</span>(call[<span class="str">"function"</span>][<span class="str">"arguments"</span>])', id: null },
+  { html: '        result = <span class="fn">run_tool</span>(name, args)', id: 'run_tool' },
+  { html: '', id: null },
+  { html: '        messages.<span class="fn">append</span>({', id: 'append_tool' },
+  { html: '            <span class="str">"role"</span>: <span class="str">"tool"</span>,', id: null },
+  { html: '            <span class="str">"tool_call_id"</span>: call[<span class="str">"id"</span>],', id: null },
+  { html: '            <span class="str">"content"</span>: result,', id: null },
+  { html: '        })', id: null },
+];
+
+// ─── Terminal animation scripts ───
+// Each is an async function that writes into the terminal
+const SPINNERS = ['|', '/', '-', '\\'];
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function htmlEl(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+
+// Typewriter: appends characters one-by-one into an element
+function typewrite(container, text, speed) {
+  return new Promise(resolve => {
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < text.length) {
+        container.textContent += text[i];
+        i++;
+        // auto-scroll
+        container.closest('.terminal-body').scrollTop = container.closest('.terminal-body').scrollHeight;
+      } else {
+        clearInterval(interval);
+        resolve();
+      }
+    }, speed);
+    // stash so we can cancel
+    currentTimers.push(interval);
+  });
+}
+
+// Typewriter that writes HTML char by char (treating tags as atomic)
+function typewriteHtml(container, html, speed) {
+  return new Promise(resolve => {
+    // Parse into atomic tokens: tags are single tokens, text chars are individual tokens
+    const tokens = [];
+    let j = 0;
+    while (j < html.length) {
+      if (html[j] === '<') {
+        const end = html.indexOf('>', j);
+        if (end !== -1) {
+          tokens.push(html.slice(j, end + 1));
+          j = end + 1;
+        } else {
+          tokens.push(html[j]);
+          j++;
+        }
+      } else {
+        tokens.push(html[j]);
+        j++;
+      }
+    }
+    let i = 0;
+    let built = '';
+    const interval = setInterval(() => {
+      if (i < tokens.length) {
+        built += tokens[i];
+        container.innerHTML = built;
+        i++;
+        container.closest('.terminal-body').scrollTop = container.closest('.terminal-body').scrollHeight;
+      } else {
+        clearInterval(interval);
+        resolve();
+      }
+    }, speed);
+    currentTimers.push(interval);
+  });
+}
+
+function wait(ms) {
+  return new Promise(resolve => {
+    const t = setTimeout(resolve, ms);
+    currentTimers.push(t);
+  });
+}
+
+// Spinner animation for N ms
+function showSpinner(container, ms) {
+  return new Promise(resolve => {
+    let i = 0;
+    const span = el('span', 'spinner');
+    container.appendChild(span);
+    const interval = setInterval(() => {
+      span.textContent = SPINNERS[i % 4] + ' ';
+      i++;
+    }, 100);
+    currentTimers.push(interval);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      span.textContent = '';
+      resolve();
+    }, ms);
+    currentTimers.push(timeout);
+  });
+}
+
+let currentTimers = [];
+let currentAnimation = null;
+
+function cancelCurrent() {
+  for (const t of currentTimers) {
+    clearTimeout(t);
+    clearInterval(t);
+  }
+  currentTimers = [];
+}
+
+// ─── Animation definitions ───
+
+async function animInitMessages(body) {
+  const p = htmlEl('div', 'prompt-line', '<span class="prompt-sign">$</span> whale <span style="color:var(--str)">"README.md"</span>');
+  body.appendChild(p);
+  await wait(300);
+
+  const lbl = el('div', 'label msgs', 'messages');
+  body.appendChild(lbl);
+
+  const block = el('div', 'json-block');
+  body.appendChild(block);
+  const jsonText =
+`[
+  {
+    "role": "user",
+    "content": "README.md"
+  }
+]`;
+  await typewrite(block, jsonText, 18);
+
+  await wait(200);
+  const note = el('div', 'output-block');
+  note.style.color = 'var(--cm)';
+  note.style.fontSize = '11px';
+  note.textContent = '// 1 条消息，对话从这里开始';
+  body.appendChild(note);
+}
+
+async function animLlmChat(body) {
+  const lbl = el('div', 'label api', '发送 API 请求');
+  body.appendChild(lbl);
+
+  const sending = el('div', 'output-block');
+  sending.textContent = '正在发送请求 ';
+  body.appendChild(sending);
+  await showSpinner(sending, 1200);
+  sending.textContent = '请求发送完成';
+
+  await wait(200);
+  const rlbl = el('div', 'label', '模型返回');
+  rlbl.style.color = 'var(--green)';
+  body.appendChild(rlbl);
+
+  const block = el('div', 'json-block');
+  body.appendChild(block);
+  const json =
+`{
+  "role": "assistant",
+  "tool_calls": [
+    {
+      "id": "call_01",
+      "function": {
+        "name": "read_file",
+        "arguments": "{\\"path\\": \\"README.md\\"}"
+      }
+    }
+  ]
+}`;
+  await typewrite(block, json, 14);
+
+  await wait(200);
+  const note = el('div', 'output-block');
+  note.style.color = 'var(--cm)';
+  note.style.fontSize = '11px';
+  note.textContent = '// 模型决定调用 read_file 工具';
+  body.appendChild(note);
+}
+
+async function animRunTool(body) {
+  const lbl = el('div', 'label tool', '执行工具');
+  body.appendChild(lbl);
+
+  const cmd = el('div', 'output-block');
+  cmd.style.color = 'var(--cyan)';
+  body.appendChild(cmd);
+  await typewrite(cmd, 'read_file({"path": "README.md"})', 25);
+
+  await wait(400);
+
+  const rlbl = el('div', 'label', '执行结果');
+  rlbl.style.color = 'var(--green)';
+  body.appendChild(rlbl);
+
+  const block = el('div', 'json-block');
+  body.appendChild(block);
+  const content =
+`# Whale CLI
+
+A minimal AI coding assistant.
+
+## Quick Start
+  pip install whale-cli
+  whale "explain this code"
+
+## Features
+- Agent loop with tool use
+- File reading and writing
+- Code analysis`;
+  await typewrite(block, content, 16);
+}
+
+async function animAppendTool(body) {
+  const lbl = el('div', 'label msgs', 'messages 数组变化');
+  body.appendChild(lbl);
+
+  // Show before
+  const before = el('div', 'output-block');
+  before.style.color = 'var(--cm)';
+  before.style.fontSize = '11px';
+  before.textContent = '执行前：2 条消息';
+  body.appendChild(before);
+
+  await wait(300);
+
+  const block = el('div', 'json-block');
+  body.appendChild(block);
+
+  const lines = [
+    { text: 'messages = [', delay: 30 },
+    { text: '  { role: "user",      content: "..." }', delay: 30 },
+    { text: '  { role: "assistant", tool_calls: [...] }', delay: 30 },
+  ];
+
+  for (const line of lines) {
+    await typewrite(block, (block.textContent ? '\n' : '') + line.text, line.delay);
+  }
+
+  await wait(400);
+
+  // Animate the new message appearing
+  const newEntry = '\n  { role: "tool",      content: "# Whale CLI\\n..." }';
+  // type new entry in green
+  const greenSpan = el('span', '');
+  greenSpan.style.color = 'var(--green)';
+  block.appendChild(greenSpan);
+  await typewrite(greenSpan, newEntry, 22);
+
+  await typewrite(block, '\n]', 30);
+
+  await wait(200);
+  const after = el('div', 'output-block');
+  after.style.color = 'var(--green)';
+  after.style.fontSize = '11px';
+  body.appendChild(after);
+  await typewrite(after, '执行后：3 条消息，工具结果已追加', 20);
+}
+
+async function animPrintFinal(body) {
+  const lbl = el('div', 'label', 'Second Loop Iteration');
+  lbl.style.color = 'var(--yellow)';
+  body.appendChild(lbl);
+
+  const note1 = el('div', 'output-block');
+  note1.style.color = 'var(--cm)';
+  note1.style.fontSize = '11px';
+  note1.textContent = '// 模型看到工具结果，这次没有再调工具';
+  body.appendChild(note1);
+
+  await wait(400);
+
+  const sending = el('div', 'output-block');
+  sending.textContent = 'llm.chat() ';
+  body.appendChild(sending);
+  await showSpinner(sending, 800);
+  sending.textContent = 'llm.chat() 完成（没有 tool_calls，输出最终回答）';
+
+  await wait(300);
+
+  const lbl2 = el('div', 'label out', '最终回答');
+  body.appendChild(lbl2);
+
+  const output = el('div', 'json-block');
+  body.appendChild(output);
+  const answer =
+`This is the README for Whale CLI, a minimal
+AI coding assistant.
+
+Key points:
+- Install with: pip install whale-cli
+- Run with: whale "explain this code"
+- Supports file reading, writing, and
+  code analysis via an agent loop.`;
+  await typewrite(output, answer, 18);
+
+  await wait(200);
+  const done = el('div', 'output-block');
+  done.style.color = 'var(--green)';
+  done.style.fontWeight = '600';
+  body.appendChild(done);
+  await typewrite(done, 'Loop ends. Task complete.', 30);
+}
+
+const ANIMATIONS = {
+  init_messages: animInitMessages,
+  llm_chat: animLlmChat,
+  run_tool: animRunTool,
+  append_tool: animAppendTool,
+  print_final: animPrintFinal,
+};
+
+// ─── Render code panel ───
+const codeBody = document.getElementById('codeBody');
+const termBody = document.getElementById('terminalBody');
+
+CODE_LINES.forEach((line, idx) => {
+  const row = document.createElement('div');
+  const isBlank = line.html === '';
+  row.className = 'code-line' + (isBlank ? ' blank' : '') + (line.id ? '' : (!isBlank ? ' blank' : ''));
+
+  const num = el('span', 'line-num', String(idx + 1));
+  const code = htmlEl('span', 'line-code', line.html || '&nbsp;');
+  row.appendChild(num);
+  row.appendChild(code);
+
+  if (line.id) {
+    row.classList.remove('blank');
+    row.classList.add('clickable');
+    row.dataset.id = line.id;
+    row.addEventListener('click', () => handleClick(line.id, row));
+  }
+
+  codeBody.appendChild(row);
+});
+
+let activeRow = null;
+
+function handleClick(id, row) {
+  if (activeRow === row) return; // same row, skip
+
+  // Update active state
+  if (activeRow) activeRow.classList.remove('active');
+  row.classList.add('active');
+  activeRow = row;
+  codeBody.classList.add('has-active');
+
+  // Cancel previous animation
+  cancelCurrent();
+
+  // Clear terminal and prepare for new animation
+  termBody.innerHTML = '';
+
+  // Run animation
+  const animFn = ANIMATIONS[id];
+  if (animFn) {
+    currentAnimation = animFn(termBody);
+  }
+}
+
+// Make non-clickable lines with no id truly inert
+document.querySelectorAll('.code-line.blank').forEach(el => {
+  el.style.cursor = 'default';
+});
+</script>
+</body>
+</html>

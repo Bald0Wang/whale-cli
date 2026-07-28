@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ch02 registry.py 代码解读</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0a0c10;
+  --panel: #0d1117;
+  --border: #1e2430;
+  --text: #c9d1d9;
+  --text-dim: #484f58;
+  --accent: #58a6ff;
+  --accent-bg: rgba(88,166,255,0.08);
+  --accent-border: rgba(88,166,255,0.4);
+  --kw: #ff7b72;
+  --str: #a5d6ff;
+  --fn: #d2a8ff;
+  --bi: #79c0ff;
+  --cm: #484f58;
+  --num: #79c0ff;
+  --green: #3fb950;
+  --green-bg: rgba(63,185,80,0.06);
+  --orange: #d29922;
+  --orange-bg: rgba(210,153,34,0.06);
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: calc(100vh - 32px);
+}
+
+/* -- Code Panel -- */
+.code-panel {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,17,23,0.8);
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #e05252; }
+.dot-y { background: #e8b863; }
+.dot-g { background: #7ec384; }
+
+.code-header span {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.code-body {
+  padding: 16px 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 16px 2px 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 3px solid transparent;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.code-line:hover {
+  background: var(--accent-bg);
+}
+
+.code-line.active {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+}
+
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.code-line.blank:hover {
+  background: transparent;
+}
+
+.line-num {
+  flex: 0 0 44px;
+  text-align: right;
+  padding-right: 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+  user-select: none;
+  line-height: 24px;
+}
+
+.line-code {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 24px;
+}
+
+/* Syntax colors */
+.kw  { color: var(--kw); }
+.str { color: var(--str); }
+.bi  { color: var(--bi); }
+.cm  { color: var(--cm); font-style: italic; }
+.fn  { color: var(--fn); }
+.op  { color: var(--text); }
+.pr  { color: var(--text); }
+.num { color: var(--num); }
+.dec { color: var(--fn); }
+
+/* -- Explain Panel -- */
+.explain-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.explain-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.8;
+  flex: 1;
+}
+
+.explain-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  pointer-events: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.explain-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.card-label {
+  font-size: 12px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.card-explain {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.9;
+  opacity: 0.88;
+}
+
+.card-structure {
+  background: var(--orange-bg);
+  border-left: 3px solid var(--orange);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.card-structure code {
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.card-dispatch {
+  background: var(--green-bg);
+  border-left: 3px solid var(--green);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.hint {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 12px;
+}
+
+/* -- Responsive -- */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    padding: 8px;
+    gap: 8px;
+  }
+  .explain-panel {
+    min-height: 280px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span>registry.py -- Ch02 @tool decorator</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <div class="explain-panel" id="explainPanel">
+    <div class="explain-default" id="defaultPrompt">
+      点击任意一行代码<br>看 decorator 怎么把 schema 和函数绑在一起
+    </div>
+    <div class="explain-card" id="explainCard">
+      <div class="card-label" id="cardLabel"></div>
+      <div class="card-title" id="cardTitle"></div>
+      <div class="card-explain" id="cardExplain"></div>
+      <div class="card-structure" id="cardStructure"></div>
+      <div class="card-dispatch" id="cardDispatch"></div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">点击任意一行查看解释 | Ch02 registry.py @tool 装饰器 + dispatch</div>
+
+<script>
+const lines = [
+  { num: 1,  code: '<span class="pr">_TOOLS</span>: <span class="bi">dict</span>[<span class="bi">str</span>, <span class="bi">dict</span>] <span class="op">=</span> {}' },
+  { num: 2,  code: '', blank: true },
+  { num: 3,  code: '<span class="kw">def</span> <span class="fn">tool</span>(<span class="pr">name</span>: <span class="bi">str</span>, <span class="pr">description</span>: <span class="bi">str</span>, <span class="pr">parameters</span>: <span class="bi">dict</span>):' },
+  { num: 4,  code: '    <span class="cm">"""装饰器：把函数注册为一个工具。"""</span>' },
+  { num: 5,  code: '', blank: true },
+  { num: 6,  code: '    <span class="kw">def</span> <span class="fn">decorator</span>(<span class="pr">fn</span>):' },
+  { num: 7,  code: '        _TOOLS[name] <span class="op">=</span> {' },
+  { num: 8,  code: '            <span class="str">"schema"</span>: {' },
+  { num: 9,  code: '                <span class="str">"type"</span>: <span class="str">"function"</span>,' },
+  { num: 10, code: '                <span class="str">"function"</span>: {' },
+  { num: 11, code: '                    <span class="str">"name"</span>: name,' },
+  { num: 12, code: '                    <span class="str">"description"</span>: description,' },
+  { num: 13, code: '                    <span class="str">"parameters"</span>: parameters,' },
+  { num: 14, code: '                },' },
+  { num: 15, code: '            },' },
+  { num: 16, code: '            <span class="str">"fn"</span>: fn,' },
+  { num: 17, code: '        }' },
+  { num: 18, code: '        <span class="kw">return</span> fn' },
+  { num: 19, code: '    <span class="kw">return</span> decorator' },
+  { num: 20, code: '', blank: true },
+  { num: 21, code: '<span class="kw">def</span> <span class="fn">get_tools_schema</span>() <span class="op">-></span> <span class="bi">list</span>[<span class="bi">dict</span>]:' },
+  { num: 22, code: '    <span class="kw">return</span> [entry[<span class="str">"schema"</span>] <span class="kw">for</span> entry <span class="kw">in</span> _TOOLS.<span class="fn">values</span>()]' },
+  { num: 23, code: '', blank: true },
+  { num: 24, code: '<span class="kw">def</span> <span class="fn">run_tool</span>(<span class="pr">name</span>: <span class="bi">str</span>, <span class="pr">args</span>: <span class="bi">dict</span>) <span class="op">-></span> <span class="bi">str</span>:' },
+  { num: 25, code: '    <span class="pr">entry</span> <span class="op">=</span> _TOOLS.<span class="fn">get</span>(name)' },
+  { num: 26, code: '    <span class="kw">if</span> entry <span class="kw">is</span> <span class="bi">None</span>:' },
+  { num: 27, code: '        <span class="kw">return</span> <span class="str">f"Error: 工具 \'{name}\' 不存在"</span>' },
+  { num: 28, code: '', blank: true },
+  { num: 29, code: '    <span class="pr">err</span> <span class="op">=</span> <span class="fn">_validate_args</span>(args, entry[<span class="str">"schema"</span>])' },
+  { num: 30, code: '    <span class="kw">if</span> err:' },
+  { num: 31, code: '        <span class="kw">return</span> <span class="str">f"Error: {name} 参数校验失败 — {err}"</span>' },
+  { num: 32, code: '', blank: true },
+  { num: 33, code: '    <span class="kw">try</span>:' },
+  { num: 34, code: '        <span class="pr">result</span> <span class="op">=</span> entry[<span class="str">"fn"</span>](<span class="op">**</span>args)' },
+  { num: 35, code: '        <span class="kw">return</span> result <span class="kw">if</span> <span class="bi">isinstance</span>(result, <span class="bi">str</span>) <span class="kw">else</span> <span class="bi">str</span>(result)' },
+  { num: 36, code: '    <span class="kw">except</span> <span class="bi">Exception</span> <span class="kw">as</span> exc:' },
+  { num: 37, code: '        <span class="kw">return</span> <span class="str">f"Error: {name} — {type(exc).__name__}: {exc}"</span>' },
+];
+
+const explanations = {
+  1: {
+    label: '第 1 行',
+    title: '_TOOLS：全局注册表',
+    explain: '一个模块级字典，所有工具在导入时通过 decorator 把自己登记到这里。key 是工具名（如 "read_file"），value 是一个包含 schema 和执行函数的 dict。',
+    structure: '<strong>_TOOLS 的结构：</strong>字典的每个 value 有两个字段：<code>"schema"</code> 是给 LLM API 看的 JSON 描述（name + description + parameters），<code>"fn"</code> 是真正执行的 Python 函数。schema 和 fn 绑在同一个 entry 里，新增工具只要写一个 @tool 装饰的函数，不用到处注册。',
+    dispatch: '<strong>对比 Ch01：</strong>Ch01 的 tools.py 里 TOOLS_SCHEMA 和 run_tool 是分开维护的——schema 写一份、if-else 写一份。两处不同步就会出 bug。_TOOLS 把它们合在一个地方，一处定义，处处一致。'
+  },
+  3: {
+    label: '第 3 行',
+    title: 'tool() 是一个装饰器工厂',
+    explain: 'tool() 本身不是装饰器，它返回一个装饰器。这是 Python 的"带参数装饰器"模式：@tool(name=...) 先调用 tool() 拿到 decorator，再用 decorator 去装饰函数。',
+    structure: '<strong>三层嵌套：</strong>tool(name, desc, params) 是外层工厂，返回 decorator(fn)。decorator(fn) 做注册并返回原函数 fn。写 @tool(...) 时 Python 做了两步：(1) 调 tool(...) 拿到 decorator，(2) 调 decorator(fn) 完成注册。',
+    dispatch: '<strong>为什么不用 tool(fn, name, desc, params)？</strong>因为 @tool(fn) 没法传额外参数。带参数的装饰器必须用工厂模式——先传参数，再传函数。这是 Python 装饰器的固有限制。'
+  },
+  4: {
+    label: '第 4 行',
+    title: 'docstring 说明用途',
+    explain: '这行 docstring 让 help(tool) 有输出，也让读代码的人一眼知道这个函数是干什么的。三引号包裹，跟在 def 后面第一行。',
+    structure: '<strong>文档习惯：</strong>Python 约定 def 后面紧跟 docstring。写了 docstring 的函数可以用 help() 或 IDE 悬浮查看说明。registry 的每个公开函数都有 docstring。',
+    dispatch: '<strong>实际作用：</strong>在调试时 help(tool) 会打印这段话。虽然运行时不影响逻辑，但对维护者和使用者是必要的上下文。'
+  },
+  6: {
+    label: '第 6 行',
+    title: 'decorator：真正的装饰器函数',
+    explain: '这是被 @tool(...) 返回的那个函数。Python 拿到它之后，会把被装饰的函数（比如 read_file）作为参数 fn 传进来。',
+    structure: '<strong>闭包捕获：</strong>decorator 内部能访问外层 tool() 的 name、description、parameters 参数——这就是闭包。Python 在 decorator 被调用时，外层的参数仍然"活着"，可以拿来用。',
+    dispatch: '<strong>执行时机：</strong>decorator(fn) 在模块导入时就执行了。也就是说 import tools.read_file 的瞬间，read_file 函数就被注册进 _TOOLS 了，不需要额外调用任何初始化代码。'
+  },
+  7: {
+    label: '第 7-17 行',
+    title: '往 _TOOLS 里写入一条注册记录',
+    explain: '把工具名作为 key，把 schema 和 fn 打包成 dict 存进去。这一步完成后，get_tools_schema() 能找到它的 schema，run_tool() 能找到它的执行函数。',
+    structure: '<strong>_TOOLS["read_file"] 长什么样：</strong><code>{"schema": {"type": "function", "function": {"name": "read_file", "description": "...", "parameters": {...}}}, "fn": &lt;function read_file&gt;}</code>。schema 是给 API 的，fn 是给 run_tool 的。',
+    dispatch: '<strong>为什么用 dict 不用 class？</strong>骨架阶段 dict 最简单、可读性也够。生产级（如 Claude Code 的 Tool.ts）会用类或接口，因为需要继承、验证、生命周期等功能。Ch02 先用 dict 跑通，后面再升级。'
+  },
+  8: {
+    label: '第 8-15 行',
+    title: 'schema：给 LLM 看的工具描述',
+    explain: '这个嵌套结构遵循 OpenAI function calling 协议。type="function" 是固定的，function 对象里有 name、description、parameters 三个字段。模型根据这些描述决定什么时候调用什么工具。',
+    structure: '<strong>schema 的层级：</strong>外层 <code>{"type": "function", "function": {...}}</code> 是 API 的信封格式。里层 function.description 是模型决策的关键——写得好不好直接影响模型选工具的准确率。function.parameters 是 JSON Schema 格式，告诉模型参数的类型和约束。',
+    dispatch: '<strong>为什么不自动从函数签名生成 schema？</strong>可以做（Pydantic + inspect），但骨架版本显式写 schema 更直观。读者能清楚看到"模型看到了什么"。自动生成是第 11 章的升级方向。'
+  },
+  16: {
+    label: '第 16 行',
+    title: '"fn": fn -- 把执行函数存进去',
+    explain: '把 Python 函数对象本身（不是调用结果）存进字典。后面 run_tool() 要执行时，从字典里取出这个函数对象再调用。',
+    structure: '<strong>函数是一等公民：</strong>Python 里函数可以赋值给变量、存进字典、当参数传递。这里就是把函数"存"起来，等需要时再"取"出来调用。这是 registry 模式的核心——把"谁来执行"和"什么时候执行"分开。',
+    dispatch: '<strong>fn vs fn()：</strong><code>"fn": fn</code> 存的是函数对象，<code>"fn": fn()</code> 存的是调用结果。写错一个括号，整个 registry 就废了——函数在导入时就被执行了而不是注册。'
+  },
+  18: {
+    label: '第 18 行',
+    title: 'return fn -- 保持原函数不变',
+    explain: '装饰器返回原函数本身，不做任何包装。这意味着 @tool 只有"注册"这一个副作用，不改变函数的行为。read_file 在注册前后是同一个函数。',
+    structure: '<strong>对比常见装饰器：</strong>很多装饰器会返回一个 wrapper 函数（如 @lru_cache 返回缓存包装）。但 @tool 的目的只是注册，不需要改变函数行为，所以直接 return fn。保持简单。',
+    dispatch: '<strong>好处：</strong>因为函数没有被包装，你可以直接调用 read_file(path="...") 做单元测试，不需要经过 registry。注册和执行完全正交。'
+  },
+  19: {
+    label: '第 19 行',
+    title: 'return decorator -- 完成工厂模式',
+    explain: 'tool() 返回 decorator 函数，Python 拿到后调用 decorator(fn) 完成注册。整个流程：@tool(name=...) -> tool() 返回 decorator -> decorator(read_file) 注册并返回 read_file。',
+    structure: '<strong>两层 return 的含义：</strong>第 19 行 return decorator 是"工厂生产装饰器"，第 18 行 return fn 是"装饰器处理完函数后归还"。两层 return 对应两步调用：先 tool(...)，再 decorator(fn)。',
+    dispatch: '<strong>完整调用链：</strong>Python 解释器看到 @tool(name="read_file", ...) def read_file(...)，先执行 tool(name="read_file", ...) 得到 decorator，再执行 decorator(read_file) 得到 read_file（本身），同时副作用是 _TOOLS 多了一个条目。'
+  },
+  21: {
+    label: '第 21-22 行',
+    title: 'get_tools_schema：给 LLM 用的工具列表',
+    explain: '遍历 _TOOLS 的所有 entry，把 schema 字段抽出来组成列表。返回值直接传给 llm.chat(tools=...)。',
+    structure: '<strong>列表推导式：</strong><code>[entry["schema"] for entry in _TOOLS.values()]</code> 从每个注册条目里只取 schema 部分。LLM API 不需要知道 fn 是什么，只要 schema 描述。',
+    dispatch: '<strong>动态性：</strong>每次调用 get_tools_schema() 都是实时读 _TOOLS。如果运行时动态注册了新工具（比如插件加载），下一次调用就能拿到新工具的 schema。不需要重启。'
+  },
+  24: {
+    label: '第 24 行',
+    title: 'run_tool：dispatch 入口',
+    explain: '主循环调用 run_tool(name, args) 来执行工具。这个函数负责：查找 -> 校验 -> 执行 -> 错误兜底。',
+    structure: '<strong>签名设计：</strong>name 是字符串（模型返回的工具名），args 是字典（模型返回的参数）。返回 str——所有工具的结果都序列化成字符串返回给模型。不管成功还是失败，都是字符串。',
+    dispatch: '<strong>对比 Ch01：</strong>Ch01 的 run_tool 是 if name == "read_file": ... elif name == "list_files": ... 。每加一个工具就要改 run_tool。Ch02 的 run_tool 通过 _TOOLS 字典查找，加新工具不用改这个函数——这就是 registry 模式的价值。'
+  },
+  25: {
+    label: '第 25 行',
+    title: '从 _TOOLS 查找工具',
+    explain: '用 .get(name) 查找。如果工具名不存在返回 None，下一行判断后返回错误信息——不会 raise 异常。',
+    structure: '<strong>dict.get() vs dict[]：</strong><code>_TOOLS.get(name)</code> 找不到返回 None，<code>_TOOLS[name]</code> 找不到抛 KeyError。在 agent 场景下绝对不能 raise——崩溃就没人救了，要把错误信息返回给模型让它自纠。',
+    dispatch: '<strong>dispatch 第一步：查表。</strong>模型说要调 "read_file"，就用 "read_file" 去字典里找。O(1) 复杂度，不管注册了多少工具都是一次查找。Ch01 的 if-else 是 O(n) 链——虽然工具少时没差，但设计理念不同。'
+  },
+  26: {
+    label: '第 26-27 行',
+    title: '工具不存在的防御',
+    explain: '如果模型幻觉了一个不存在的工具名（比如 "write_file"，但你还没实现），不会崩溃，而是返回一条友好的错误信息，并告诉模型有哪些工具可用。',
+    structure: '<strong>错误信息带上下文：</strong>返回 "工具 \'write_file\' 不存在。已注册的工具：read_file, list_files, grep"——模型看到后能纠正，下一拍改调存在的工具。',
+    dispatch: '<strong>错误即提示：</strong>这是整个教程最重要的设计原则之一。工具执行出了任何问题，都不 raise，而是返回错误字符串。模型拿到错误信息后能理解发生了什么，并在下一轮自我修正。'
+  },
+  29: {
+    label: '第 29-31 行',
+    title: '参数校验',
+    explain: '_validate_args() 检查必填字段是否存在、类型是否匹配。如果校验失败，同样返回错误字符串而不是 raise。',
+    structure: '<strong>校验内容：</strong>required 字段缺失返回"缺少必需参数 \'path\'"。类型不对返回"参数 \'path\' 应为 string，实际是 int"。简单但够用。生产级用 jsonschema 或 Pydantic。',
+    dispatch: '<strong>dispatch 第二步：校验。</strong>先查表确认工具存在，再校验参数格式。两层检查都通过后才执行。如果模型传了错误参数（比如 path 传了数字），校验层拦截，错误信息返回给模型，模型下一拍修正参数重试。'
+  },
+  33: {
+    label: '第 33-37 行',
+    title: 'try/except：最后一道防线',
+    explain: '工具函数内部可能抛出任何异常。try/except 兜住所有异常，格式化成错误字符串返回。except Exception 捕获所有非系统异常。',
+    structure: '<strong>三层防御：</strong>(1) 第 26 行：工具不存在 (2) 第 30 行：参数不合法 (3) 第 36 行：执行时崩了。三层都不会让程序退出，都返回字符串给模型。',
+    dispatch: '<strong>dispatch 第三步：执行。</strong><code>entry["fn"](**args)</code> 从字典取出函数对象，用 ** 展开参数调用。如果返回值不是字符串，转成字符串。如果抛异常，格式化成 "Error: read_file -- FileNotFoundError: ..."。模型拿到后能理解发生了什么。'
+  },
+  34: {
+    label: '第 34 行',
+    title: 'entry["fn"](**args) -- 真正的执行',
+    explain: '从 _TOOLS 字典取出注册时存的函数对象，用 **args 展开参数并调用。比如 entry["fn"] 是 read_file 函数，args 是 {"path": "main.py"}，等价于 read_file(path="main.py")。',
+    structure: '<strong>** 展开：</strong><code>**{"path": "main.py", "start_line": 1}</code> 等价于 <code>path="main.py", start_line=1</code>。Python 自动把字典的 key-value 映射到函数的关键字参数上。如果 key 和函数参数名不匹配会抛 TypeError。',
+    dispatch: '<strong>dispatch 完整路径：</strong>模型返回 tool_calls -> 主循环调 run_tool("read_file", {"path": "main.py"}) -> 查 _TOOLS 找到 entry -> 校验参数 -> entry["fn"](**args) 执行 -> 返回字符串结果。整个链条里 run_tool 不知道也不关心具体是哪个工具——它只做查找和分发。'
+  },
+  35: {
+    label: '第 35 行',
+    title: '确保返回值是字符串',
+    explain: '如果函数返回的是 str 就直接用，否则强转成 str。因为 tool message 的 content 必须是字符串，不能是 dict 或 list。',
+    structure: '<strong>类型归一化：</strong>工具函数可以返回任何类型，但 run_tool 保证最终输出一定是 str。这让主循环不需要做类型判断——拿到 run_tool 的返回值直接塞进 messages 就行。',
+    dispatch: '<strong>约定优于配置：</strong>与其要求每个工具函数都必须返回 str（然后到处写 return str(...)），不如在 run_tool 统一处理。工具作者少一个心智负担。'
+  },
+  36: {
+    label: '第 36-37 行',
+    title: 'except 兜底：任何异常都不让程序崩',
+    explain: 'except Exception 捕获所有非系统异常（不包括 KeyboardInterrupt、SystemExit 等）。把异常类型和消息格式化成字符串返回给模型。',
+    structure: '<strong>错误格式：</strong>"Error: read_file -- FileNotFoundError: [Errno 2] No such file or directory: \'xxx\'"。包含工具名 + 异常类型 + 异常信息，模型拿到后能精确理解哪里出了问题。',
+    dispatch: '<strong>为什么不 raise？</strong>agent 的主循环是自动化的，没有人在旁边看着。如果 raise 了异常，整个程序崩溃，用户得重来。如果返回错误字符串，模型可能换个参数重试，或者换一个工具绕过去。这就是"错误即提示"的核心思想。'
+  }
+};
+
+// Build code lines
+const codeBody = document.getElementById('codeBody');
+lines.forEach(line => {
+  const el = document.createElement('div');
+  el.className = 'code-line' + (line.blank ? ' blank' : '');
+  el.dataset.num = line.num;
+  el.innerHTML = '<span class="line-num">' + line.num + '</span><span class="line-code">' + line.code + '</span>';
+  if (!line.blank) {
+    el.addEventListener('click', () => selectLine(line.num));
+  }
+  codeBody.appendChild(el);
+});
+
+let activeLine = null;
+const defaultPrompt = document.getElementById('defaultPrompt');
+const explainCard = document.getElementById('explainCard');
+const cardLabel = document.getElementById('cardLabel');
+const cardTitle = document.getElementById('cardTitle');
+const cardExplain = document.getElementById('cardExplain');
+const cardStructure = document.getElementById('cardStructure');
+const cardDispatch = document.getElementById('cardDispatch');
+
+// Multi-line groupings
+const lineGroups = {
+  7: [7,8,9,10,11,12,13,14,15,16,17],
+  8: [8,9,10,11,12,13,14,15],
+  9: [8,9,10,11,12,13,14,15],
+  10: [8,9,10,11,12,13,14,15],
+  11: [8,9,10,11,12,13,14,15],
+  12: [8,9,10,11,12,13,14,15],
+  13: [8,9,10,11,12,13,14,15],
+  14: [8,9,10,11,12,13,14,15],
+  15: [8,9,10,11,12,13,14,15],
+  21: [21,22],
+  22: [21,22],
+  26: [26,27],
+  27: [26,27],
+  29: [29,30,31],
+  30: [29,30,31],
+  31: [29,30,31],
+  33: [33,34,35,36,37],
+  36: [36,37],
+  37: [36,37],
+};
+
+// Map certain lines to a canonical explanation key
+const lineKeyMap = {
+  8:8, 9:8, 10:8, 11:8, 12:8, 13:8, 14:8, 15:8,
+  22:21,
+  27:26, 30:29, 31:29,
+  37:36,
+};
+
+function selectLine(num) {
+  if (activeLine === num) return;
+
+  document.querySelectorAll('.code-line.active').forEach(el => el.classList.remove('active'));
+
+  const group = lineGroups[num];
+  if (group) {
+    group.forEach(n => {
+      const el = document.querySelector('.code-line[data-num="' + n + '"]');
+      if (el) el.classList.add('active');
+    });
+  } else {
+    const el = document.querySelector('.code-line[data-num="' + num + '"]');
+    if (el) el.classList.add('active');
+  }
+
+  activeLine = num;
+  const key = lineKeyMap[num] || num;
+  const data = explanations[key];
+  if (!data) return;
+
+  defaultPrompt.style.display = 'none';
+
+  explainCard.classList.remove('visible');
+  requestAnimationFrame(() => {
+    explainCard.style.transition = 'none';
+    explainCard.style.opacity = '0';
+    explainCard.style.transform = 'translateY(12px)';
+    void explainCard.offsetHeight;
+    explainCard.style.transition = '';
+    explainCard.style.opacity = '';
+    explainCard.style.transform = '';
+
+    cardLabel.textContent = data.label;
+    cardTitle.textContent = data.title;
+    cardExplain.textContent = data.explain;
+    cardStructure.innerHTML = data.structure;
+    cardDispatch.innerHTML = data.dispatch;
+    explainCard.classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edit 核心代码解读</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* -- Code Panel -- */
+.code-panel {
+  background: #0f0e0c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #332d28;
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #e05252; }
+.dot-y { background: #e8b863; }
+.dot-g { background: #7ec384; }
+
+.code-header span {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #6a6058;
+}
+
+.code-body {
+  padding: 16px 0;
+  overflow-x: auto;
+}
+
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 16px 2px 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 3px solid transparent;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.code-line:hover {
+  background: rgba(215,119,87,0.06);
+}
+
+.code-line.active {
+  background: rgba(215,119,87,0.1);
+  border-left-color: #D77757;
+}
+
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.code-line.blank:hover {
+  background: transparent;
+}
+
+.line-num {
+  flex: 0 0 44px;
+  text-align: right;
+  padding-right: 16px;
+  color: #6a6058;
+  font-size: 13px;
+  user-select: none;
+  line-height: 24px;
+}
+
+.line-code {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 24px;
+}
+
+/* Syntax colors */
+.kw  { color: #c084e8; }
+.str { color: #e8b863; }
+.bi  { color: #6477e0; }
+.cm  { color: #6a6058; font-style: italic; }
+.fn  { color: #D77757; }
+.op  { color: #ebe0d2; }
+.pr  { color: #ebe0d2; }
+
+/* -- Explanation Panel -- */
+.explain-panel {
+}
+
+.explain-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: #6a6058;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.explain-card {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  pointer-events: none;
+  overflow-y: auto;
+}
+
+.explain-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.card-label {
+  font-size: 12px;
+  color: #D77757;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ebe0d2;
+  line-height: 1.4;
+}
+
+.card-explain {
+  font-size: 13px;
+  color: #ebe0d2;
+  line-height: 1.9;
+  opacity: 0.88;
+}
+
+.card-insight {
+  background: rgba(126,195,132,0.06);
+  border-left: 3px solid #7ec384;
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: #ebe0d2;
+  opacity: 0.85;
+}
+
+.card-chapter {
+  margin-top: auto;
+  font-size: 13px;
+  color: #6477e0;
+  padding-top: 8px;
+  border-top: 1px solid #332d28;
+}
+
+/* -- Responsive -- */
+@media (max-width: 500px) {
+  .container {
+    padding: 8px;
+    gap: 8px;
+  }
+  .explain-panel {
+    min-height: 260px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span>edit_file.py</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <div class="explain-panel" id="explainPanel">
+    <div class="explain-default" id="defaultPrompt">
+      点击左边任意一行代码<br>看 Edit 工具背后发生了什么
+    </div>
+    <div class="explain-card" id="explainCard">
+      <div class="card-label" id="cardLabel"></div>
+      <div class="card-title" id="cardTitle"></div>
+      <div class="card-explain" id="cardExplain"></div>
+      <div class="card-insight" id="cardInsight"></div>
+      <div class="card-chapter" id="cardChapter"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const lines = [
+  { num: 1,  code: '<span class="kw">def</span> <span class="fn">edit_file</span>(file_path, old_string, new_string):' },
+  { num: 2,  code: '    <span class="str">"""精确匹配 old_string 并替换为 new_string"""</span>' },
+  { num: 3,  code: '    <span class="pr">content</span> <span class="op">=</span> Path(file_path).<span class="fn">read_text</span>()' },
+  { num: 4,  code: '', blank: true },
+  { num: 5,  code: '    <span class="cm"># 计算 old_string 出现了几次</span>' },
+  { num: 6,  code: '    <span class="pr">count</span> <span class="op">=</span> content.<span class="fn">count</span>(old_string)' },
+  { num: 7,  code: '', blank: true },
+  { num: 8,  code: '    <span class="kw">if</span> count <span class="op">==</span> <span class="bi">0</span>:' },
+  { num: 9,  code: '        <span class="pr">snippet</span> <span class="op">=</span> content[:<span class="bi">200</span>]' },
+  { num: 10, code: '        <span class="kw">raise</span> <span class="bi">ToolError</span>(' },
+  { num: 11, code: '            <span class="str">f"old_string not found in {file_path}.\\n"</span>' },
+  { num: 12, code: '            <span class="str">f"File starts with:\\n{snippet}"</span>' },
+  { num: 13, code: '        )' },
+  { num: 14, code: '', blank: true },
+  { num: 15, code: '    <span class="kw">if</span> count <span class="op">></span> <span class="bi">1</span>:' },
+  { num: 16, code: '        <span class="kw">raise</span> <span class="bi">ToolError</span>(' },
+  { num: 17, code: '            <span class="str">f"old_string appeared {count} times.\\n"</span>' },
+  { num: 18, code: '            <span class="str">f"Provide more context to make it unique."</span>' },
+  { num: 19, code: '        )' },
+  { num: 20, code: '', blank: true },
+  { num: 21, code: '    <span class="pr">new_content</span> <span class="op">=</span> content.<span class="fn">replace</span>(old_string, new_string, <span class="bi">1</span>)' },
+  { num: 22, code: '    Path(file_path).<span class="fn">write_text</span>(new_content)' },
+  { num: 23, code: '    <span class="kw">return</span> <span class="str">f"Edited {file_path}"</span>' },
+];
+
+const explanations = {
+  1: {
+    label: '第 1 行',
+    title: '三个参数，缺一不可',
+    explain: 'file_path 定位文件，old_string 是要改的原文，new_string 是改成什么。注意这里没有 line_number 参数——Edit 不按行号定位，而是按内容精确匹配。这避免了"行号漂移"问题：你读文件时是第 42 行，等你改的时候别的工具可能已经插了几行，42 行变成了第 45 行。',
+    insight: '按内容匹配而不是行号，是 Edit 工具最核心的设计决策。Claude Code、Cursor、Aider 都不约而同选了这条路。',
+    chapter: '→ 第 4 章 · Write + Edit'
+  },
+  2: {
+    label: '第 2 行',
+    title: 'docstring 也是给模型看的',
+    explain: '这句注释不只是给人看——模型在读 tool schema 时会看到这段描述，明白这个工具的核心语义是"精确匹配并替换"。措辞越精确，模型越不容易传错参数。',
+    insight: '后面第 11 章会专门讲 tool description 的写法。一个坏描述可以让模型把 old_string 和 new_string 传反。',
+    chapter: '→ 第 11 章 · 工具设计法则'
+  },
+  3: {
+    label: '第 3 行',
+    title: '先把整个文件读进来',
+    explain: '一次性读全文到内存，然后做字符串操作。没有逐行处理，因为 old_string 可能跨越多行——比如你要替换一整个函数体。',
+    insight: '对于超大文件（几十 MB），这种方式会有内存压力。但 agent 改的代码文件很少超过 1 MB，所以实际没问题。',
+    chapter: '→ 第 3 章 · Read'
+  },
+  6: {
+    label: '第 6 行',
+    title: '数一数：出现了几次？',
+    explain: 'content.count(old_string) 在全文里统计出现次数。这一步决定了后面的三条路：0 次 → 找不到；1 次 → 正好替换；> 1 次 → 有歧义，拒绝执行。这是"精确匹配"的核心：必须有且仅有一处匹配。',
+    insight: '为什么不能匹配到多处就全替换？因为模型可能只想改其中一处。如果盲目全替换，可能把不该改的地方也改了，引入 bug。宁可报错让模型加更多上下文来消歧。',
+    chapter: '→ 第 4 章 · Write + Edit'
+  },
+  8: {
+    label: '第 8-13 行',
+    title: '找不到？带着线索报错',
+    explain: 'count == 0 意味着 old_string 在文件里完全不存在。可能是模型记错了文件内容——它上次读文件可能是好几轮之前了，中间文件被改过。错误信息不只说"找不到"，还附上文件开头 200 字符的片段。',
+    insight: '这 200 字符片段是关键设计。模型看到文件的真实内容，就能对比自己传入的 old_string 到底哪里写错了——可能多了空格，可能缩进不对，可能内容已经被之前的 edit 改过了。这让模型能够自纠错而不是反复猜。',
+    chapter: '→ 第 16 章 · 错误即提示'
+  },
+  9: {
+    label: '第 9 行',
+    title: '取 200 字符作为参考',
+    explain: '取文件开头的 200 字符。不取太多是因为错误信息会占 token，不取太少是因为要给模型足够信息来定位问题。200 是一个经验值，大约 5-8 行代码的长度。',
+    insight: '有的实现会取 old_string 附近的上下文而不是文件开头。各有取舍：取开头简单可靠，取附近更精确但"附近"本身就找不到——因为 old_string 已经不在文件里了。',
+    chapter: '→ 第 4 章 · Write + Edit'
+  },
+  15: {
+    label: '第 15-19 行',
+    title: '多处匹配？拒绝执行',
+    explain: 'count > 1 意味着 old_string 太短或太通用，在文件里出现了不止一次。比如你传了 "return None"，文件里有 3 个函数都有这行。错误信息告诉模型具体出现了几次，让它在 old_string 前后多带几行上下文来消除歧义。',
+    insight: '这里体现了 Edit 工具的"宁可报错也不猜"哲学。和 replace(old, new) 全局替换的思路完全相反。安全性是第一位的——改错一行代码比不改更糟糕。',
+    chapter: '→ 第 4 章 · Write + Edit'
+  },
+  21: {
+    label: '第 21 行',
+    title: '为什么是 replace(..., 1)？',
+    explain: 'content.replace(old_string, new_string, 1)——第三个参数 1 表示最多替换 1 次。虽然前面的 count 检查已经保证了只有一处匹配，这里仍然加了 1 作为防御性编程。万一某个并发场景下文件被改了，也不会意外替换多处。',
+    insight: '如果用 replace(old, new) 不带第三个参数，Python 默认全局替换。在 count == 1 时结果一样，但加上 1 是一道额外的安全网。在改用户代码的场景下，防御性编程是值得的。',
+    chapter: '→ 第 4 章 · Write + Edit'
+  },
+  22: {
+    label: '第 22 行',
+    title: '原子性？并没有',
+    explain: 'write_text 直接覆盖写入。如果写到一半程序崩了，文件可能被截断。生产级的实现会先写临时文件再 rename——rename 在大多数文件系统上是原子操作。',
+    insight: '骨架版本用直接写入是因为简单够用。第 10 章讲 Session 安全时会升级为"先写临时文件再 rename"的模式。',
+    chapter: '→ 第 10 章 · Session + Safety'
+  },
+  23: {
+    label: '第 23 行',
+    title: '成功信息也很重要',
+    explain: '返回 "Edited {file_path}" 看似简单，但它告诉模型两件事：(1) 操作成功了，(2) 改的是哪个文件。模型看到成功信息，才会继续下一步而不是重试。',
+    insight: '有些实现会在成功信息里带上改动的 diff，让模型确认改对了。但这会额外消耗 token。Whale CLI 的策略是：成功了就简短回报，失败了才带详细信息。',
+    chapter: '→ 第 4 章 · Write + Edit'
+  }
+};
+
+// Build code lines
+const codeBody = document.getElementById('codeBody');
+lines.forEach(line => {
+  const el = document.createElement('div');
+  el.className = 'code-line' + (line.blank ? ' blank' : '');
+  el.dataset.num = line.num;
+  el.innerHTML = '<span class="line-num">' + line.num + '</span><span class="line-code">' + line.code + '</span>';
+  if (!line.blank) {
+    el.addEventListener('click', () => selectLine(line.num));
+  }
+  codeBody.appendChild(el);
+});
+
+let activeLine = null;
+const defaultPrompt = document.getElementById('defaultPrompt');
+const explainCard = document.getElementById('explainCard');
+const cardLabel = document.getElementById('cardLabel');
+const cardTitle = document.getElementById('cardTitle');
+const cardExplain = document.getElementById('cardExplain');
+const cardInsight = document.getElementById('cardInsight');
+const cardChapter = document.getElementById('cardChapter');
+
+function selectLine(num) {
+  // Find the explanation — some explanations cover ranges (e.g. 8 covers 8-13)
+  let data = explanations[num];
+  if (!data) {
+    // Check if this line falls within a range
+    if (num >= 8 && num <= 13) data = explanations[8];
+    else if (num >= 15 && num <= 19) data = explanations[15];
+    else if (num === 5) data = explanations[6];
+    else if (num >= 10 && num <= 13) data = explanations[8];
+    else return;
+  }
+
+  if (activeLine === num) return;
+
+  // Remove previous active
+  const prev = document.querySelector('.code-line.active');
+  if (prev) prev.classList.remove('active');
+
+  // Set new active
+  const el = document.querySelector('.code-line[data-num="' + num + '"]');
+  if (el) el.classList.add('active');
+
+  activeLine = num;
+
+  // Hide default prompt
+  defaultPrompt.style.display = 'none';
+
+  // Animate card out then in
+  explainCard.classList.remove('visible');
+
+  requestAnimationFrame(() => {
+    explainCard.style.transition = 'none';
+    explainCard.style.opacity = '0';
+    explainCard.style.transform = 'translateY(12px)';
+
+    void explainCard.offsetHeight;
+
+    explainCard.style.transition = '';
+    explainCard.style.opacity = '';
+    explainCard.style.transform = '';
+    cardLabel.textContent = data.label;
+    cardTitle.textContent = data.title;
+    cardExplain.textContent = data.explain;
+    cardInsight.textContent = data.insight;
+    cardChapter.textContent = data.chapter;
+    explainCard.classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

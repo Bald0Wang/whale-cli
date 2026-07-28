@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages 顺序：为什么 tool 必须跟在 assistant 后面</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'Inter', system-ui, sans-serif;
+  background: #f5f5f0;
+  color: #1c1917;
+  min-height: 100vh;
+  padding: 20px;
+}
+.container { max-width: 960px; margin: 0 auto; }
+
+h1 { font-size: 1.15rem; font-weight: 600; text-align: center; margin-bottom: 4px; }
+.subtitle { text-align: center; font-size: 0.8rem; color: #78716c; margin-bottom: 20px; }
+
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+.panel {
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.panel.error { border: 2px solid #ef4444; }
+.panel.ok { border: 2px solid #22c55e; }
+
+.panel-header {
+  padding: 10px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel.error .panel-header { background: #fef2f2; color: #dc2626; }
+.panel.ok .panel-header { background: #f0fdf4; color: #16a34a; }
+
+.msg-list { padding: 12px; }
+
+.msg {
+  border: 1px solid #e5e5e0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: all 0.3s;
+  position: relative;
+}
+.msg.highlighted { box-shadow: 0 0 0 2px #7c3aed; }
+.msg.error-highlight { box-shadow: 0 0 0 2px #ef4444; background: #fef2f2; }
+.msg.ok-highlight { box-shadow: 0 0 0 2px #22c55e; background: #f0fdf4; }
+
+.msg-header {
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.msg-header .role {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+.role.user { background: rgba(100,119,224,0.15); color: #4f46e5; }
+.role.assistant { background: rgba(215,119,87,0.15); color: #c2410c; }
+.role.tool { background: rgba(34,197,94,0.15); color: #16a34a; }
+
+.msg-header .index {
+  color: #a3a3a3;
+  font-size: 0.65rem;
+  margin-left: auto;
+}
+
+.msg-body {
+  padding: 4px 10px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: #57534e;
+  line-height: 1.5;
+}
+.msg-body .key { color: #0a3069; }
+.msg-body .val { color: #116329; }
+.msg-body .null { color: #953800; }
+
+/* Arrows */
+.arrow-link {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.arrow-link.match { background: rgba(34,197,94,0.15); color: #16a34a; }
+.arrow-link.broken { background: rgba(239,68,68,0.15); color: #dc2626; }
+
+/* Result bar */
+.result-bar {
+  padding: 10px 16px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-align: center;
+}
+.panel.error .result-bar { background: #fef2f2; color: #dc2626; }
+.panel.ok .result-bar { background: #f0fdf4; color: #16a34a; }
+
+/* Explanation */
+.explanation {
+  margin-top: 20px;
+  background: #fff;
+  border: 1px solid #e5e5e0;
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+.explanation h3 {
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+.explanation code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.75rem;
+}
+
+/* Step buttons */
+.step-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.step-btn {
+  padding: 6px 14px;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: inherit;
+  color: #78716c;
+  transition: all 0.2s;
+}
+.step-btn.active {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+}
+
+@media (max-width: 700px) {
+  .panels { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Messages 顺序：为什么 tool 必须跟在 assistant 后面</h1>
+  <p class="subtitle">点击每一步，看 messages 数组怎么增长，以及 API 怎么校验</p>
+
+  <div class="step-row" id="stepRow"></div>
+  <div class="panels" id="panels"></div>
+  <div class="explanation" id="explanation"></div>
+</div>
+
+<script>
+var steps = [
+  {
+    name: '初始状态',
+    wrong: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' }
+    ],
+    right: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' }
+    ],
+    explain: '用户输入一句话，messages 数组里只有一条 user 消息。两边一样，还没有区别。'
+  },
+  {
+    name: '模型返回 tool_calls',
+    wrong: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' }
+    ],
+    right: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' }
+    ],
+    explain: '模型返回了一个 response，里面有 <code>tool_calls: [{name: "read_file", id: "call_001"}]</code>。现在程序要做两件事：把 response 追加到 messages 里，然后执行工具把结果也追加进去。<strong>问题是：先追加哪个？</strong>'
+  },
+  {
+    name: '❌ 错误：先塞 tool result',
+    wrong: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' },
+      { role: 'tool', body: '<span class="key">tool_call_id</span>: <span class="val">"call_001"</span>\n<span class="key">content</span>: <span class="val">"# README..."</span>', highlight: 'error', arrow: 'broken', arrowText: '← 找不到 call_001' },
+    ],
+    right: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' },
+      { role: 'assistant', body: '<span class="key">content</span>: <span class="null">null</span>\n<span class="key">tool_calls</span>: [{<span class="key">id</span>: <span class="val">"call_001"</span>, <span class="key">name</span>: <span class="val">"read_file"</span>}]', highlight: 'ok' },
+    ],
+    explain: '<strong>左边（错误）</strong>：程序先执行了工具，先把 tool result 塞进了 messages。API 看到这条 <code>role: "tool"</code> 的消息，往前找 <code>tool_call_id: "call_001"</code> 对应的 assistant 消息——找不到，因为 assistant 还没追加。<strong>400 报错。</strong><br><br><strong>右边（正确）</strong>：程序先把模型的 response（带 tool_calls 的 assistant 消息）追加进去。'
+  },
+  {
+    name: '❌ 400 vs ✅ 继续',
+    wrong: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' },
+      { role: 'tool', body: '<span class="key">tool_call_id</span>: <span class="val">"call_001"</span>\n<span class="key">content</span>: <span class="val">"# README..."</span>', highlight: 'error', arrow: 'broken', arrowText: '← 前面没有 assistant' },
+      { role: 'assistant', body: '<span class="key">tool_calls</span>: [{<span class="key">id</span>: <span class="val">"call_001"</span>}]', highlight: 'error' },
+    ],
+    right: [
+      { role: 'user', body: '<span class="key">content</span>: <span class="val">"读 README.md"</span>' },
+      { role: 'assistant', body: '<span class="key">content</span>: <span class="null">null</span>\n<span class="key">tool_calls</span>: [{<span class="key">id</span>: <span class="val">"call_001"</span>, <span class="key">name</span>: <span class="val">"read_file"</span>}]', highlight: 'ok', arrow: 'match', arrowText: 'call_001 ↓' },
+      { role: 'tool', body: '<span class="key">tool_call_id</span>: <span class="val">"call_001"</span>\n<span class="key">content</span>: <span class="val">"# README..."</span>', highlight: 'ok', arrow: 'match', arrowText: '↑ call_001 匹配' },
+    ],
+    explain: '<strong>左边</strong>：即使后来补上了 assistant 消息，顺序已经错了——tool 在 assistant 前面，API 校验不通过。<strong>返回 400 错误。</strong><br><br><strong>右边</strong>：assistant（带 <code>tool_calls</code>）在前，tool（带 <code>tool_call_id</code>）紧跟其后。<code>call_001</code> 能对上。API 校验通过，继续下一轮。<br><br><strong>一句话记住：先记录"模型说了什么"，再记录"工具做了什么"。</strong>'
+  },
+]
+
+var currentStep = 0
+
+function renderMsg(m, idx) {
+  var hlClass = m.highlight ? (m.highlight === 'error' ? ' error-highlight' : ' ok-highlight') : ''
+  var arrowHtml = m.arrow ? '<span class="arrow-link ' + m.arrow + '">' + m.arrowText + '</span>' : ''
+  return '<div class="msg' + hlClass + '">' +
+    '<div class="msg-header">' +
+      '<span class="role ' + m.role + '">' + m.role + '</span>' +
+      '<span class="index">[' + idx + ']</span>' +
+      arrowHtml +
+    '</div>' +
+    '<div class="msg-body"><pre>' + m.body + '</pre></div>' +
+  '</div>'
+}
+
+function render() {
+  var s = steps[currentStep]
+
+  // Step buttons
+  var btns = ''
+  for (var i = 0; i < steps.length; i++) {
+    btns += '<button class="step-btn' + (i === currentStep ? ' active' : '') + '" onclick="goStep(' + i + ')">' + steps[i].name + '</button>'
+  }
+  document.getElementById('stepRow').innerHTML = btns
+
+  // Panels
+  var wrongMsgs = s.wrong.map(function(m, i) { return renderMsg(m, i) }).join('')
+  var rightMsgs = s.right.map(function(m, i) { return renderMsg(m, i) }).join('')
+
+  var wrongResult = currentStep === 3 ? '<div class="result-bar">❌ 400: tool message 前面没有对应的 assistant</div>' : ''
+  var rightResult = currentStep === 3 ? '<div class="result-bar">✅ 校验通过，发送第二次 API 请求</div>' : ''
+
+  document.getElementById('panels').innerHTML =
+    '<div class="panel error">' +
+      '<div class="panel-header">❌ 错误顺序：先塞 tool result</div>' +
+      '<div class="msg-list">' + wrongMsgs + '</div>' +
+      wrongResult +
+    '</div>' +
+    '<div class="panel ok">' +
+      '<div class="panel-header">✅ 正确顺序：先塞 assistant response</div>' +
+      '<div class="msg-list">' + rightMsgs + '</div>' +
+      rightResult +
+    '</div>'
+
+  document.getElementById('explanation').innerHTML = '<h3>第 ' + (currentStep + 1) + ' 步：' + s.name + '</h3><p>' + s.explain + '</p>'
+}
+
+function goStep(i) {
+  currentStep = i
+  render()
+}
+
+render()
+</script>
+</body>
+</html>

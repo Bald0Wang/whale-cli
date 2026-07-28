@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Assembly Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+/* -- Header -- */
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.header h1 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ebe0d2;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+.header p {
+  font-size: 11px;
+  color: #6a6058;
+}
+
+/* -- Chapter Tabs -- */
+.chapter-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  background: #231f1c;
+  border-radius: 8px;
+  border: 1px solid #332d28;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #332d28 transparent;
+}
+.chapter-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+.chapter-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chapter-tabs::-webkit-scrollbar-thumb {
+  background: #332d28;
+  border-radius: 2px;
+}
+.chapter-tab {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6a6058;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  white-space: nowrap;
+}
+.chapter-tab.active {
+  color: #ebe0d2;
+  background: #2d2824;
+}
+.chapter-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background: #D77757;
+  border-radius: 1px 1px 0 0;
+}
+.chapter-tab:hover:not(.active) {
+  color: #9a8e82;
+  background: #28231f;
+}
+
+/* -- Token Summary Bar -- */
+.token-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+}
+.token-summary-label {
+  font-size: 11px;
+  color: #6a6058;
+  white-space: nowrap;
+}
+.token-bar-track {
+  flex: 1;
+  height: 6px;
+  background: #332d28;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.token-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #D77757, #e8b863);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  min-width: 1px;
+}
+.token-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: #D77757;
+  white-space: nowrap;
+  min-width: 100px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- Layers Stack -- */
+.layers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* -- Single Layer -- */
+.layer {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.35s ease, max-height 0.4s ease, opacity 0.3s ease;
+  position: relative;
+  max-height: 200px;
+}
+.layer.ghosted {
+  opacity: 0.35;
+  pointer-events: none;
+  max-height: 60px;
+}
+.layer.ghosted .layer-header { cursor: default; }
+.layer.hidden-layer {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  overflow: hidden;
+}
+
+/* left color stripe */
+.layer::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 8px 0 0 8px;
+}
+.layer[data-color="green"]::before  { background: #7ec384; }
+.layer[data-color="blue"]::before   { background: #6477e0; }
+.layer[data-color="orange"]::before { background: #D77757; }
+.layer[data-color="yellow"]::before { background: #e8b863; }
+.layer[data-color="purple"]::before { background: #c084e8; }
+
+/* -- Layer Header -- */
+.layer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.layer-icon {
+  font-size: 9px;
+  font-weight: 600;
+  flex-shrink: 0;
+  width: 32px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  background: #332d28;
+  border-radius: 3px;
+  color: #6a6058;
+  letter-spacing: 0.5px;
+}
+
+.layer-info { flex: 1; min-width: 0; }
+.layer-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ebe0d2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.layer.disabled .layer-name {
+  text-decoration: line-through;
+  color: #6a6058;
+}
+.layer-desc {
+  font-size: 10px;
+  color: #6a6058;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* -- Badges -- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badge-cache {
+  background: rgba(126, 195, 132, 0.15);
+  color: #7ec384;
+}
+.badge-dynamic {
+  background: rgba(215, 119, 87, 0.15);
+  color: #D77757;
+}
+.badge-new {
+  background: rgba(126, 195, 132, 0.2);
+  color: #7ec384;
+  font-weight: 600;
+}
+.badge-ghost {
+  background: rgba(106, 96, 88, 0.2);
+  color: #6a6058;
+}
+
+/* -- Token Count (right side) -- */
+.layer-tokens {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6a6058;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: right;
+}
+.layer:not(.disabled):not(.ghosted) .layer-tokens { color: #9a8e82; }
+
+/* -- Toggle Switch -- */
+.toggle-switch {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0; width: 0; height: 0; position: absolute;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #332d28;
+  border-radius: 9px;
+  transition: background 0.25s ease;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 14px; width: 14px;
+  left: 2px; bottom: 2px;
+  background: #6a6058;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+.toggle-switch input:checked + .toggle-slider { background: #D77757; }
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(14px);
+  background: #ebe0d2;
+}
+
+/* -- Layer Content (expandable) -- */
+.layer-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 14px;
+}
+.layer-content.expanded {
+  max-height: 300px;
+  padding: 0 14px 12px;
+}
+.layer-code {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #9a8e82;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.layer-code .key { color: #6477e0; }
+.layer-code .str { color: #7ec384; }
+.layer-code .dim { color: #6a6058; }
+.layer-code .hl  { color: #e8b863; }
+.layer-code .act { color: #D77757; }
+
+/* -- Ghost overlay label -- */
+.ghost-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.ghost-label {
+  font-size: 10px;
+  color: #6a6058;
+  background: rgba(28, 24, 22, 0.7);
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px dashed #332d28;
+}
+
+/* -- Connector lines -- */
+.connector {
+  width: 2px;
+  height: 6px;
+  background: #332d28;
+  margin: 0 auto;
+  transition: opacity 0.3s ease;
+}
+.connector.hidden-connector { opacity: 0; height: 0; }
+
+/* -- Footer -- */
+.footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: #6a6058;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h1>Prompt 组装可视化</h1>
+    <p>一条消息发送前，背后拼了多少层？</p>
+  </div>
+
+  <!-- Chapter Tabs -->
+  <div class="chapter-tabs" id="chapterTabs"></div>
+
+  <!-- Token Summary -->
+  <div class="token-summary">
+    <span class="token-summary-label">已用</span>
+    <div class="token-bar-track">
+      <div class="token-bar-fill" id="tokenBarFill"></div>
+    </div>
+    <span class="token-total" id="tokenTotal">0 tokens</span>
+  </div>
+
+  <!-- Layers Stack -->
+  <div class="layers-stack" id="layersStack"></div>
+
+  <!-- Legend -->
+  <div class="footer">
+    <div class="legend-item"><div class="legend-dot" style="background:#7ec384"></div>稳定 / 可缓存</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#6477e0"></div>项目级</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#D77757"></div>动态</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e8b863"></div>易变</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#c084e8"></div>记忆</div>
+  </div>
+
+</div>
+
+<script>
+const CONTEXT_WINDOW = 200000;
+
+// Chapter definitions
+const CHAPTERS = [
+  { id: 'ch01', label: 'Ch01', title: '最小可用: user + read_file' },
+  { id: 'ch02', label: 'Ch02', title: '注册表管理工具' },
+  { id: 'ch03', label: 'Ch03', title: 'read_file 参数升级' },
+  { id: 'ch04', label: 'Ch04', title: '写入三件套' },
+  { id: 'ch05', label: 'Ch05', title: '搜索工具上线' },
+  { id: 'ch06', label: 'Ch06', title: 'Bash 执行器' },
+  { id: 'full', label: '完整版', title: '成熟产品的完整 prompt' }
+];
+
+// Per-chapter layer data
+const CHAPTER_DATA = {
+  ch01: {
+    totalTokens: 170,
+    activeLayers: [
+      {
+        id: 'user', icon: 'USR', name: 'user message', color: 'orange',
+        tokens: 20, badge: 'dynamic', badgeText: '用户输入', isNew: false,
+        desc: '你在终端里打的那句话',
+        content: '<span class="dim">// user message</span>\n<span class="str">"读 README.md 告诉我\n 这个项目是干什么的"</span>'
+      },
+      {
+        id: 'tools', icon: 'TOOL', name: 'tools schema', color: 'green',
+        tokens: 150, badge: 'cache', badgeText: '可缓存', isNew: false,
+        desc: '1 个工具: read_file',
+        content: '<span class="dim">// tools — 只有 1 个</span>\n[{\n  <span class="key">"name"</span>: <span class="str">"read_file"</span>,\n  <span class="key">"description"</span>: <span class="str">"读取文件内容"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"path"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span> }\n  }\n}]'
+      }
+    ]
+  },
+  ch02: {
+    totalTokens: 200,
+    activeLayers: [
+      {
+        id: 'user', icon: 'USR', name: 'user message', color: 'orange',
+        tokens: 20, badge: 'dynamic', badgeText: '用户输入', isNew: false,
+        desc: '你在终端里打的那句话',
+        content: '<span class="dim">// user message</span>\n<span class="str">"读 src/index.ts 看看入口"</span>'
+      },
+      {
+        id: 'tools', icon: 'TOOL', name: 'tools schema', color: 'green',
+        tokens: 180, badge: 'cache', badgeText: '可缓存', isNew: true,
+        desc: '1 个工具: read_file (registry 管理)',
+        content: '<span class="dim">// tools — registry 统一注册</span>\n[{\n  <span class="key">"name"</span>: <span class="str">"read_file"</span>,\n  <span class="key">"description"</span>: <span class="str">"读取本地文件内容,\n  支持文本和二进制"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"path"</span>: {\n      <span class="key">"type"</span>: <span class="str">"string"</span>,\n      <span class="key">"description"</span>: <span class="str">"绝对或相对路径"</span>\n    }\n  }\n}]\n<span class="dim">// 结构变了: ToolRegistry 统一管理</span>'
+      }
+    ]
+  },
+  ch03: {
+    totalTokens: 240,
+    activeLayers: [
+      {
+        id: 'user', icon: 'USR', name: 'user message', color: 'orange',
+        tokens: 20, badge: 'dynamic', badgeText: '用户输入', isNew: false,
+        desc: '你在终端里打的那句话',
+        content: '<span class="dim">// user message</span>\n<span class="str">"看 utils.ts 第 30-50 行"</span>'
+      },
+      {
+        id: 'tools', icon: 'TOOL', name: 'tools schema', color: 'green',
+        tokens: 220, badge: 'cache', badgeText: '可缓存', isNew: true,
+        desc: '1 个工具: read_file + start_line/end_line',
+        content: '<span class="dim">// tools — read_file 参数升级</span>\n[{\n  <span class="key">"name"</span>: <span class="str">"read_file"</span>,\n  <span class="key">"description"</span>: <span class="str">"读取文件全部或部分"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"path"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span> },\n    <span class="hl">"start_line"</span>: { <span class="key">"type"</span>: <span class="str">"integer"</span> },\n    <span class="hl">"end_line"</span>: { <span class="key">"type"</span>: <span class="str">"integer"</span> }\n  }\n}]\n<span class="dim">// 新增 start_line / end_line 精确读取</span>'
+      }
+    ]
+  },
+  ch04: {
+    totalTokens: 420,
+    activeLayers: [
+      {
+        id: 'user', icon: 'USR', name: 'user message', color: 'orange',
+        tokens: 20, badge: 'dynamic', badgeText: '用户输入', isNew: false,
+        desc: '你在终端里打的那句话',
+        content: '<span class="dim">// user message</span>\n<span class="str">"把 config.ts 里的 port\n 从 3000 改成 8080"</span>'
+      },
+      {
+        id: 'tools', icon: 'TOOL', name: 'tools schema', color: 'green',
+        tokens: 400, badge: 'cache', badgeText: '可缓存', isNew: false,
+        desc: '3 个工具: read_file + write_file + edit_file',
+        content: '<span class="dim">// tools — 3 个工具</span>\n[{\n  <span class="key">"name"</span>: <span class="str">"read_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="hl">"write_file"</span>,\n  <span class="key">"description"</span>: <span class="str">"创建或覆盖文件"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"path"</span>: ..., <span class="key">"content"</span>: ...\n  }\n}, {\n  <span class="key">"name"</span>: <span class="hl">"edit_file"</span>,\n  <span class="key">"description"</span>: <span class="str">"精确替换文件片段"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"path"</span>: ...,\n    <span class="key">"old_string"</span>: ...,\n    <span class="key">"new_string"</span>: ...\n  }\n}]',
+        newItems: ['write_file', 'edit_file']
+      }
+    ]
+  },
+  ch05: {
+    totalTokens: 570,
+    activeLayers: [
+      {
+        id: 'user', icon: 'USR', name: 'user message', color: 'orange',
+        tokens: 20, badge: 'dynamic', badgeText: '用户输入', isNew: false,
+        desc: '你在终端里打的那句话',
+        content: '<span class="dim">// user message</span>\n<span class="str">"找到所有用了 deprecated\n API 的文件"</span>'
+      },
+      {
+        id: 'tools', icon: 'TOOL', name: 'tools schema', color: 'green',
+        tokens: 550, badge: 'cache', badgeText: '可缓存', isNew: false,
+        desc: '5 个工具: read + write + edit + glob + grep',
+        content: '<span class="dim">// tools — 5 个工具</span>\n[{\n  <span class="key">"name"</span>: <span class="str">"read_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"write_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"edit_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="hl">"glob"</span>,\n  <span class="key">"description"</span>: <span class="str">"按模式搜索文件名"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"pattern"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span> }\n  }\n}, {\n  <span class="key">"name"</span>: <span class="hl">"grep"</span>,\n  <span class="key">"description"</span>: <span class="str">"按内容搜索文件"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"pattern"</span>: ..., <span class="key">"path"</span>: ...\n  }\n}]',
+        newItems: ['glob', 'grep']
+      }
+    ]
+  },
+  ch06: {
+    totalTokens: 720,
+    activeLayers: [
+      {
+        id: 'user', icon: 'USR', name: 'user message', color: 'orange',
+        tokens: 20, badge: 'dynamic', badgeText: '用户输入', isNew: false,
+        desc: '你在终端里打的那句话',
+        content: '<span class="dim">// user message</span>\n<span class="str">"跑一下测试看哪个挂了"</span>'
+      },
+      {
+        id: 'tools', icon: 'TOOL', name: 'tools schema', color: 'green',
+        tokens: 700, badge: 'cache', badgeText: '可缓存', isNew: false,
+        desc: '6 个工具: read + write + edit + glob + grep + bash',
+        content: '<span class="dim">// tools — 6 个工具</span>\n[{\n  <span class="key">"name"</span>: <span class="str">"read_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"write_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"edit_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"glob"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"grep"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="hl">"bash"</span>,\n  <span class="key">"description"</span>: <span class="str">"执行 shell 命令"</span>,\n  <span class="key">"parameters"</span>: {\n    <span class="key">"command"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span> },\n    <span class="key">"timeout"</span>: { <span class="key">"type"</span>: <span class="str">"integer"</span> },\n    <span class="key">"cwd"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span> }\n  }\n}]',
+        newItems: ['bash']
+      }
+    ]
+  },
+  full: {
+    totalTokens: 4230,
+    activeLayers: [
+      {
+        id: 'system', icon: 'SYS', name: 'system prompt', color: 'green',
+        tokens: 800, badge: 'cache', badgeText: '可缓存', isNew: false,
+        desc: '角色定义、行为规则、输出格式',
+        content: '<span class="dim">// system prompt</span>\n<span class="str">"You are Whale CLI, a terminal coding\n agent. You help users read, write, and\n debug code via tool calls.\n\n Rules:\n - Always read before edit\n - Explain before acting\n - Ask when ambiguous"</span>\n\n<span class="dim">// + 输出格式、安全边界…</span>'
+      },
+      {
+        id: 'tools', icon: 'TOOL', name: 'tools schema', color: 'green',
+        tokens: 2000, badge: 'cache', badgeText: '可缓存', isNew: false,
+        desc: '14 个工具的名称、描述、参数定义',
+        content: '<span class="dim">// tools — 14 个工具</span>\n[{\n  <span class="key">"name"</span>: <span class="str">"read_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"write_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"edit_file"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"glob"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"grep"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"bash"</span>, ...\n}, {\n  <span class="key">"name"</span>: <span class="str">"web_fetch"</span>, ...\n},\n<span class="dim">// + 7 more tools…</span>]'
+      },
+      {
+        id: 'project', icon: 'PRJ', name: 'project context', color: 'blue',
+        tokens: 300, badge: 'cache', badgeText: '可缓存', isNew: false,
+        desc: 'CLAUDE.md — 项目级指令和约定',
+        content: '<span class="dim">// CLAUDE.md</span>\n<span class="str">"本项目用 pnpm，不用 npm\n 测试命令: pnpm test\n 代码风格: 单引号, 2 空格缩进\n TypeScript strict mode"</span>'
+      },
+      {
+        id: 'git', icon: 'GIT', name: 'git status', color: 'orange',
+        tokens: 100, badge: 'dynamic', badgeText: '每次变化', isNew: false,
+        desc: '当前分支、修改文件、提交状态',
+        content: '<span class="dim">// git context</span>\n<span class="key">branch</span>: <span class="act">feat/auth-flow</span>\n<span class="key">modified</span>: <span class="hl">src/auth/logout.ts</span>\n<span class="key">staged</span>: <span class="dim">none</span>'
+      },
+      {
+        id: 'history', icon: 'MSG', name: 'conversation history', color: 'orange',
+        tokens: 500, badge: 'dynamic', badgeText: '每次变化', isNew: false,
+        desc: '之前的对话和工具调用记录',
+        content: '<span class="dim">// conversation history</span>\n[<span class="key">user</span>] <span class="str">"修 cookie 问题"</span>\n[<span class="key">assistant</span>] <span class="str">"我先搜索…"</span>\n[<span class="act">tool:Grep</span>] <span class="dim">3 matches</span>\n[<span class="act">tool:Read</span>] <span class="dim">logout.ts:30-50</span>'
+      },
+      {
+        id: 'results', icon: 'RES', name: 'tool results', color: 'yellow',
+        tokens: 400, badge: 'dynamic', badgeText: '用后即弃', isNew: false,
+        desc: '上一轮工具返回的原始数据',
+        content: '<span class="dim">// tool results</span>\n<span class="act">grep</span>: clearCookie found at\n  <span class="hl">logout.ts:47</span>\n  <span class="hl">session.ts:12</span>'
+      },
+      {
+        id: 'memory', icon: 'MEM', name: 'memory / todo', color: 'purple',
+        tokens: 100, badge: 'dynamic', badgeText: '跨轮保持', isNew: false,
+        desc: 'TODO 列表、session 级记忆',
+        content: '<span class="dim">// memory</span>\n<span class="str">done</span> 定位 cookie 文件\n<span class="act">next</span> 修改 clearCookie\n<span class="dim">todo</span> 跑测试验证'
+      },
+      {
+        id: 'user', icon: 'USR', name: 'user message', color: 'orange',
+        tokens: 30, badge: 'dynamic', badgeText: '用户输入', isNew: false,
+        desc: '当前这一轮用户说的话',
+        content: '<span class="dim">// user message</span>\n<span class="str">"把 logout.ts 第 47 行的\n clearCookie 加上 path 参数"</span>'
+      }
+    ]
+  }
+};
+
+// Ghost layers for ch01-ch06 (layers not yet introduced)
+const GHOST_LAYERS = [
+  { id: 'system', icon: 'SYS', name: 'system prompt', color: 'green', tokens: 800 },
+  { id: 'project', icon: 'PRJ', name: 'project context', color: 'blue', tokens: 300 },
+  { id: 'git', icon: 'GIT', name: 'git status', color: 'orange', tokens: 100 },
+  { id: 'history', icon: 'MSG', name: 'conversation history', color: 'orange', tokens: 500 },
+  { id: 'results', icon: 'RES', name: 'tool results', color: 'yellow', tokens: 400 },
+  { id: 'memory', icon: 'MEM', name: 'memory / todo', color: 'purple', tokens: 100 }
+];
+
+let currentChapter = 'ch01';
+let layerStates = {}; // for full mode toggles
+
+function initTabs() {
+  const container = document.getElementById('chapterTabs');
+  container.innerHTML = CHAPTERS.map(ch =>
+    `<button class="chapter-tab${ch.id === currentChapter ? ' active' : ''}"
+      data-chapter="${ch.id}" title="${ch.title}"
+      onclick="switchChapter('${ch.id}')">${ch.label}</button>`
+  ).join('');
+}
+
+function switchChapter(chId) {
+  currentChapter = chId;
+  document.querySelectorAll('.chapter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.chapter === chId);
+  });
+  // Reset full mode toggle states
+  if (chId === 'full') {
+    CHAPTER_DATA.full.activeLayers.forEach(l => { layerStates[l.id] = true; });
+  }
+  render();
+}
+
+function toggleLayer(id) {
+  layerStates[id] = !layerStates[id];
+  const layerEl = document.querySelector(`.layer[data-id="${id}"]`);
+  if (layerEl) {
+    layerEl.classList.toggle('disabled', !layerStates[id]);
+    const content = layerEl.querySelector('.layer-content');
+    if (content) content.classList.toggle('expanded', layerStates[id]);
+    const toggle = layerEl.querySelector('input[type="checkbox"]');
+    if (toggle) toggle.checked = layerStates[id];
+  }
+  updateTokens();
+}
+
+function getTotalTokens() {
+  const data = CHAPTER_DATA[currentChapter];
+  if (currentChapter === 'full') {
+    return data.activeLayers
+      .filter(l => layerStates[l.id] !== false)
+      .reduce((s, l) => s + l.tokens, 0);
+  }
+  return data.totalTokens;
+}
+
+function updateTokens() {
+  const total = getTotalTokens();
+  const pct = Math.min((total / CONTEXT_WINDOW) * 100, 100);
+  document.getElementById('tokenBarFill').style.width = pct + '%';
+  const el = document.getElementById('tokenTotal');
+  animateNumber(el, total);
+}
+
+let animFrame = null;
+function animateNumber(el, target) {
+  const current = parseInt(el.textContent.replace(/[^0-9]/g, '')) || 0;
+  if (current === target) { el.textContent = target.toLocaleString() + ' tokens'; return; }
+  const diff = target - current;
+  const steps = 12;
+  let step = 0;
+  if (animFrame) cancelAnimationFrame(animFrame);
+  function tick() {
+    step++;
+    const eased = 1 - Math.pow(1 - step / steps, 3);
+    const val = Math.round(current + diff * eased);
+    el.textContent = val.toLocaleString() + ' tokens';
+    if (step < steps) animFrame = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function buildActiveLayerHTML(layer, isFull) {
+  const badgeMap = { cache: 'badge-cache', dynamic: 'badge-dynamic' };
+  let badges = `<span class="badge ${badgeMap[layer.badge] || 'badge-dynamic'}">${layer.badgeText}</span>`;
+  if (layer.isNew) badges += `<span class="badge badge-new">新</span>`;
+  if (layer.newItems) {
+    layer.newItems.forEach(item => {
+      badges += `<span class="badge badge-new">${item} 新</span>`;
+    });
+  }
+
+  const enabled = isFull ? (layerStates[layer.id] !== false) : true;
+  const toggleHTML = isFull ? `
+    <label class="toggle-switch" onclick="event.stopPropagation()">
+      <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleLayer('${layer.id}')">
+      <span class="toggle-slider"></span>
+    </label>` : '';
+
+  const clickHandler = isFull ? `onclick="toggleLayer('${layer.id}')"` : '';
+
+  return `
+    <div class="layer ${!enabled ? 'disabled' : ''}" data-id="${layer.id}" data-color="${layer.color}">
+      <div class="layer-header" ${clickHandler}>
+        <span class="layer-icon">${layer.icon}</span>
+        <div class="layer-info">
+          <div class="layer-name">${layer.name} ${badges}</div>
+          <div class="layer-desc">${layer.desc}</div>
+        </div>
+        <span class="layer-tokens">~${layer.tokens}</span>
+        ${toggleHTML}
+      </div>
+      <div class="layer-content${enabled ? ' expanded' : ''}">
+        <div class="layer-code">${layer.content}</div>
+      </div>
+    </div>`;
+}
+
+function buildGhostLayerHTML(layer) {
+  return `
+    <div class="layer ghosted" data-id="ghost_${layer.id}" data-color="${layer.color}">
+      <div class="ghost-overlay"><span class="ghost-label">后面章节会加</span></div>
+      <div class="layer-header">
+        <span class="layer-icon">${layer.icon}</span>
+        <div class="layer-info">
+          <div class="layer-name">${layer.name} <span class="badge badge-ghost">后续</span></div>
+        </div>
+        <span class="layer-tokens" style="color:#4a4440">~${layer.tokens}</span>
+      </div>
+    </div>`;
+}
+
+function render() {
+  const stack = document.getElementById('layersStack');
+  const data = CHAPTER_DATA[currentChapter];
+  const isFull = currentChapter === 'full';
+  let html = '';
+
+  // Active layers
+  data.activeLayers.forEach((layer, i) => {
+    if (i > 0) html += '<div class="connector"></div>';
+    html += buildActiveLayerHTML(layer, isFull);
+  });
+
+  // Ghost layers (only for ch01-ch06)
+  if (!isFull) {
+    const activeIds = new Set(data.activeLayers.map(l => l.id));
+    const ghosts = GHOST_LAYERS.filter(g => !activeIds.has(g.id));
+    ghosts.forEach(ghost => {
+      html += '<div class="connector"></div>';
+      html += buildGhostLayerHTML(ghost);
+    });
+  }
+
+  stack.innerHTML = html;
+  updateTokens();
+}
+
+// Init
+initTabs();
+CHAPTER_DATA.full.activeLayers.forEach(l => { layerStates[l.id] = true; });
+render();
+</script>
+
+</body>
+</html>

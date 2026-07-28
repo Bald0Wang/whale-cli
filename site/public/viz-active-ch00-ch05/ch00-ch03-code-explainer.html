@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Loop 代码解读</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── Code Panel ── */
+.code-panel {
+  background: #0f0e0c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #332d28;
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #e05252; }
+.dot-y { background: #e8b863; }
+.dot-g { background: #7ec384; }
+
+.code-header span {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #6a6058;
+}
+
+.code-body {
+  padding: 16px 0;
+  overflow-x: auto;
+}
+
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 16px 2px 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 3px solid transparent;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.code-line:hover {
+  background: rgba(215,119,87,0.06);
+}
+
+.code-line.active {
+  background: rgba(215,119,87,0.1);
+  border-left-color: #D77757;
+}
+
+.code-line.blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.code-line.blank:hover {
+  background: transparent;
+}
+
+.line-num {
+  flex: 0 0 44px;
+  text-align: right;
+  padding-right: 16px;
+  color: #6a6058;
+  font-size: 13px;
+  user-select: none;
+  line-height: 24px;
+}
+
+.line-code {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 24px;
+}
+
+/* Syntax colors */
+.kw  { color: #c084e8; }
+.str { color: #e8b863; }
+.bi  { color: #6477e0; }
+.cm  { color: #6a6058; font-style: italic; }
+.fn  { color: #D77757; }
+.op  { color: #ebe0d2; }
+.pr  { color: #ebe0d2; }
+
+/* ── Explanation Panel ── */
+.explain-panel {
+}
+
+.explain-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: #6a6058;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.explain-card {
+  background: #231f1c;
+  border: 1px solid #332d28;
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  pointer-events: none;
+  overflow-y: auto;
+}
+
+.explain-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.card-label {
+  font-size: 12px;
+  color: #D77757;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ebe0d2;
+  line-height: 1.4;
+}
+
+.card-explain {
+  font-size: 13px;
+  color: #ebe0d2;
+  line-height: 1.9;
+  opacity: 0.88;
+}
+
+.card-insight {
+  background: rgba(126,195,132,0.06);
+  border-left: 3px solid #7ec384;
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: #ebe0d2;
+  opacity: 0.85;
+}
+
+.card-chapter {
+  margin-top: auto;
+  font-size: 13px;
+  color: #6477e0;
+  padding-top: 8px;
+  border-top: 1px solid #332d28;
+}
+
+/* ── Responsive ── */
+@media (max-width: 500px) {
+  .container {
+    padding: 8px;
+    gap: 8px;
+  }
+  .explain-panel {
+    min-height: 260px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span>agent_loop.py</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+  <div class="explain-panel" id="explainPanel">
+    <div class="explain-default" id="defaultPrompt">
+      ← 点击左边任意一行代码<br>看它在做什么
+    </div>
+    <div class="explain-card" id="explainCard">
+      <div class="card-label" id="cardLabel"></div>
+      <div class="card-title" id="cardTitle"></div>
+      <div class="card-explain" id="cardExplain"></div>
+      <div class="card-insight" id="cardInsight"></div>
+      <div class="card-chapter" id="cardChapter"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const lines = [
+  { num: 1,  code: '<span class="pr">messages</span> <span class="op">=</span> [{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input}]' },
+  { num: 2,  code: '', blank: true },
+  { num: 3,  code: '<span class="kw">while</span> <span class="bi">True</span>:' },
+  { num: 4,  code: '    <span class="pr">response</span> <span class="op">=</span> llm.<span class="fn">chat</span>(messages, <span class="pr">tools</span><span class="op">=</span>TOOLS)' },
+  { num: 5,  code: '    messages.<span class="fn">append</span>(response)' },
+  { num: 6,  code: '', blank: true },
+  { num: 7,  code: '    <span class="kw">if</span> <span class="kw">not</span> response.tool_calls:' },
+  { num: 8,  code: '        <span class="bi">print</span>(response.content)' },
+  { num: 9,  code: '        <span class="kw">break</span>' },
+  { num: 10, code: '', blank: true },
+  { num: 11, code: '    <span class="kw">for</span> call <span class="kw">in</span> response.tool_calls:' },
+  { num: 12, code: '        <span class="pr">result</span> <span class="op">=</span> <span class="fn">run_tool</span>(call.name, call.args)' },
+  { num: 13, code: '        messages.<span class="fn">append</span>({<span class="str">"role"</span>: <span class="str">"tool"</span>, <span class="str">"content"</span>: result})' },
+];
+
+const explanations = {
+  1: {
+    label: '第 1 行',
+    title: '对话历史从这里开始',
+    explain: '所有对话都存在这个 list 里。LLM API 是无状态的——它不记得你上次说了什么，每次调用都要把完整的历史传过去。就像每次打电话都要从头自报家门。',
+    insight: '这个 list 会越来越长。长到一定程度就要做裁剪，否则 token 成本会炸。第 14 章会讲怎么裁。',
+    chapter: '→ 第 14 章 · Context 裁剪'
+  },
+  3: {
+    label: '第 3 行',
+    title: '循环的心跳',
+    explain: 'agent 的运行节拍。模型可能一拍就给答案，也可能调好几轮工具才完成任务。什么时候停？模型自己决定——不调工具了就停。',
+    insight: '如果模型一直调工具停不下来呢？生产级的实现都会加最大轮数和循环检测。骨架版本先不管，第 13 章会做。',
+    chapter: '→ 第 13 章 · 死循环防护'
+  },
+  4: {
+    label: '第 4 行',
+    title: '把球传给模型',
+    explain: '把对话历史和工具描述一起发给模型。tools 是一组 JSON 描述，每个写了工具的名字、用途、参数。模型看到这些描述，才知道自己有什么工具可用。',
+    insight: '工具描述写得好不好，直接影响模型选工具的准确度。同一个 read_file 工具，换一种写法，模型可能就选不中它了。',
+    chapter: '→ 第 11 章 · 工具设计法则'
+  },
+  5: {
+    label: '第 5 行',
+    title: '记住模型说了什么',
+    explain: '模型的回复追加到历史里。不管回复是文字、工具调用、还是两者混合，都要存进去。少了这一步，模型下一轮就不知道自己上一轮做了什么，会重复同样的操作。',
+    insight: '这也是 token 成本的来源——每轮追加的内容都会在下一轮被重新发送给模型。',
+    chapter: '→ 第 9 章 · Prompt 拼装与缓存'
+  },
+  7: {
+    label: '第 7 行',
+    title: '该停了吗？',
+    explain: '模型这一拍没有要调工具，说明它觉得任务完成了（或者它放弃了）。打印回答，退出循环。',
+    insight: '这个判定其实很粗暴。模型可能没调工具但任务并没完成——它只是不知道该调什么了。后面会加更精细的终止条件。',
+    chapter: '→ 第 13 章 · 死循环防护'
+  },
+  8: {
+    label: '第 8 行',
+    title: '给用户看结果',
+    explain: '模型的最终回答打到终端。在真实产品里这里会做 Markdown 渲染、语法高亮、流式输出，但骨架版本一个 print 就够了。',
+    insight: '第 1 章结尾我们会引入 Rich 库，让输出从纯文本变成带颜色和面板的终端 UI。',
+    chapter: '→ 第 1 章 · 最小 agent loop'
+  },
+  9: {
+    label: '第 9 行',
+    title: '退出循环',
+    explain: '任务完成，跳出 while True。下一次用户输入会开启一个新的循环。',
+    insight: '在有 session 持久化的产品里，退出循环不会丢失状态——整段 messages 会存到磁盘上，下次可以 resume。',
+    chapter: '→ 第 10 章 · 会话持久化'
+  },
+  11: {
+    label: '第 11 行',
+    title: '模型要调工具了',
+    explain: '模型这一拍要调工具，可能一次调好几个——比如同时 read 一个文件、grep 搜一段代码、glob 查文件列表，三个动作一起提出来，因为彼此没有依赖。',
+    insight: '生产级会把这组工具调用并发执行，节省等待时间。骨架版本一个个来就行。',
+    chapter: '→ 第 2 章 · 统一工具接口'
+  },
+  12: {
+    label: '第 12 行',
+    title: '真正干活的地方',
+    explain: '根据工具名字找到对应的函数，传入参数，执行。读文件就去读文件，跑命令就去跑命令。这个函数里现在可能是一堆 if-else，第 2 章会改成 registry 结构。',
+    insight: '工具执行失败了怎么办？不能 raise 让程序崩掉——要把错误信息返回给模型，让它自己决定下一步。这是整个教程最重要的设计原则之一。',
+    chapter: '→ 第 16 章 · 错误即提示'
+  },
+  13: {
+    label: '第 13 行',
+    title: '结果交回给模型',
+    explain: '工具执行完，把结果以 "tool" 角色塞回 messages。下一拍模型就能看到这个结果，决定是继续调工具还是给最终答案。',
+    insight: '模型 → 工具 → 模型 → 工具 → ... → 最终回答。这个循环叫 ReAct（Reason + Act）。你不用记这个名字，但后面会反复提到。',
+    chapter: '→ 第 1 章 · 最小 agent loop'
+  }
+};
+
+// Build code lines
+const codeBody = document.getElementById('codeBody');
+lines.forEach(line => {
+  const el = document.createElement('div');
+  el.className = 'code-line' + (line.blank ? ' blank' : '');
+  el.dataset.num = line.num;
+  el.innerHTML = '<span class="line-num">' + line.num + '</span><span class="line-code">' + line.code + '</span>';
+  if (!line.blank) {
+    el.addEventListener('click', () => selectLine(line.num));
+  }
+  codeBody.appendChild(el);
+});
+
+let activeLine = null;
+const defaultPrompt = document.getElementById('defaultPrompt');
+const explainCard = document.getElementById('explainCard');
+const cardLabel = document.getElementById('cardLabel');
+const cardTitle = document.getElementById('cardTitle');
+const cardExplain = document.getElementById('cardExplain');
+const cardInsight = document.getElementById('cardInsight');
+const cardChapter = document.getElementById('cardChapter');
+
+function selectLine(num) {
+  if (activeLine === num) return;
+
+  // Remove previous active
+  const prev = document.querySelector('.code-line.active');
+  if (prev) prev.classList.remove('active');
+
+  // Set new active
+  const el = document.querySelector('.code-line[data-num="' + num + '"]');
+  if (el) el.classList.add('active');
+
+  activeLine = num;
+  const data = explanations[num];
+  if (!data) return;
+
+  // Hide default prompt
+  defaultPrompt.style.display = 'none';
+
+  // Animate card out then in
+  explainCard.classList.remove('visible');
+
+  // Small delay so the slide-out is perceptible before slide-in
+  requestAnimationFrame(() => {
+    // Reset position for re-entry
+    explainCard.style.transition = 'none';
+    explainCard.style.opacity = '0';
+    explainCard.style.transform = 'translateY(12px)';
+
+    // Force reflow
+    void explainCard.offsetHeight;
+
+    // Restore transition and clear inline overrides so .visible class can take effect
+    explainCard.style.transition = '';
+    explainCard.style.opacity = '';
+    explainCard.style.transform = '';
+    cardLabel.textContent = data.label;
+    cardTitle.textContent = data.title;
+    cardExplain.textContent = data.explain;
+    cardInsight.innerHTML = '💡 ' + data.insight;
+    cardChapter.textContent = data.chapter;
+    explainCard.classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

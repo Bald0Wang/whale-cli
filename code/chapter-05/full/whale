@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""Whale CLI 入口。在目标项目目录下运行：python code/chapter-05/full/whale"""
+
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from ui.shell.main import main
+
+main()

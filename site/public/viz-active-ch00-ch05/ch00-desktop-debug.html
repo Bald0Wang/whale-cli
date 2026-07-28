@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2022：在窗口之间搬运信息的日常</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1f2e;font-family:-apple-system,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:1rem;color:#e2e8f0}
+
+.screen{position:relative;width:100%;max-width:960px;aspect-ratio:16/10;background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:12px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.5);border:1px solid #334155}
+
+/* 字幕 */
+.caption{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(15,23,42,0.85);backdrop-filter:blur(8px);color:#e2e8f0;padding:6px 18px;border-radius:20px;font-size:13px;border:1px solid rgba(255,255,255,0.1);white-space:nowrap;transition:opacity 0.3s;pointer-events:none}
+
+/* 鼠标 */
+.cursor-ptr{position:absolute;z-index:300;pointer-events:none;transition:top 0.5s cubic-bezier(.4,0,.2,1),left 0.5s cubic-bezier(.4,0,.2,1);filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))}
+.cursor-ptr svg{width:20px;height:20px}
+.cursor-ptr.clicking svg{transform:scale(0.85)}
+
+/* 窗口通用 */
+.win{position:absolute;border-radius:8px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.4);border:1px solid #475569;transition:z-index 0s,opacity 0.3s;display:none;flex-direction:column}
+.win.show{display:flex}
+.win-bar{height:32px;display:flex;align-items:center;padding:0 10px;gap:6px;flex-shrink:0}
+.win-bar .dots{display:flex;gap:5px}
+.win-bar .dots i{width:10px;height:10px;border-radius:50%}
+.win-bar .dots i:nth-child(1){background:#ff5f57}.win-bar .dots i:nth-child(2){background:#febc2e}.win-bar .dots i:nth-child(3){background:#28c840}
+.win-bar .title{margin-left:8px;font-size:11px;opacity:0.7}
+.win-body{flex:1;overflow:hidden;position:relative}
+
+/* 终端窗口 */
+#w-term{top:8%;left:3%;width:48%;height:42%;z-index:10}
+#w-term .win-bar{background:#1e1e1e;color:#ccc}
+#w-term .win-body{background:#1e1e1e;font-family:'JetBrains Mono','Cascadia Code',monospace;font-size:12px;color:#d4d4d4;padding:8px 10px;white-space:pre-wrap;overflow-y:auto;line-height:1.6}
+.term-prompt{color:#6a9955}
+.term-error{color:#f14c4c}
+.term-path{color:#569cd6}
+
+/* VS Code 窗口 */
+#w-vscode{top:12%;left:8%;width:50%;height:55%;z-index:20}
+#w-vscode .win-bar{background:#323233;color:#ccc}
+#w-vscode .win-body{background:#1e1e1e;display:flex}
+.vsc-sidebar{width:38px;background:#252526;border-right:1px solid #3c3c3c;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:10px}
+.vsc-sidebar .ico{width:22px;height:22px;opacity:0.5;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:14px}
+.vsc-tabs{height:28px;background:#252526;display:flex;border-bottom:1px solid #3c3c3c}
+.vsc-tab{padding:0 14px;font-size:11px;color:#969696;display:flex;align-items:center;gap:5px;border-right:1px solid #3c3c3c}
+.vsc-tab.active{background:#1e1e1e;color:#e2e8f0;border-top:1px solid #007acc}
+.vsc-editor{flex:1;display:flex;flex-direction:column}
+.vsc-code{flex:1;padding:6px 0;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;color:#d4d4d4;overflow:hidden}
+.vsc-line{display:flex;padding:0 8px}
+.vsc-line .ln{width:32px;text-align:right;color:#5a5a5a;margin-right:12px;user-select:none;flex-shrink:0}
+.vsc-line .code{flex:1;white-space:pre}
+.vsc-line.selected{background:rgba(38,79,120,0.5)}
+.kw{color:#569cd6}.fn{color:#dcdcaa}.str{color:#ce9178}.cm{color:#6a9955}.im{color:#c586c0}.var{color:#9cdcfe}
+
+/* 浏览器窗口 */
+#w-browser{top:15%;right:3%;width:48%;height:65%;z-index:30}
+#w-browser .win-bar{background:#dee1e6;color:#333}
+.browser-addr{margin-left:12px;background:#fff;border-radius:12px;padding:2px 10px;font-size:10px;color:#666;flex:1;max-width:200px;border:1px solid #c4c7cc}
+.browser-body{flex:1;background:#f8f9fa;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.chat-msg{max-width:85%;padding:8px 11px;border-radius:10px;font-size:11px;line-height:1.5;animation:msgIn 0.3s ease-out}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.chat-msg.user{align-self:flex-end;background:#007acc;color:#fff;border-bottom-right-radius:3px}
+.chat-msg.ai{align-self:flex-start;background:#fff;color:#333;border:1px solid #e2e5ea;border-bottom-left-radius:3px}
+.chat-msg .file-badge{display:inline-flex;align-items:center;gap:3px;background:rgba(0,0,0,0.1);padding:2px 6px;border-radius:4px;font-size:9px;margin-bottom:4px}
+.chat-msg.ai .warn{color:#d97706;font-weight:500}
+.chat-input{margin-top:auto;display:flex;gap:6px;padding:6px;background:#fff;border-top:1px solid #e2e5ea}
+.chat-input input{flex:1;border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;font-size:11px;outline:none;font-family:inherit}
+.chat-input button{background:#007acc;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:10px;cursor:pointer}
+
+/* 任务栏 */
+.taskbar{position:absolute;bottom:0;left:0;right:0;height:36px;background:rgba(15,23,42,0.9);backdrop-filter:blur(10px);border-top:1px solid #334155;display:flex;align-items:center;padding:0 12px;z-index:100;gap:8px}
+.tb-app{width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;position:relative;cursor:default}
+.tb-app:hover{background:rgba(255,255,255,0.08)}
+.tb-app.active{background:rgba(255,255,255,0.12)}
+.tb-app .indicator{position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);width:4px;height:2px;border-radius:1px;background:#94a3b8}
+.tb-app.active .indicator{background:#60a5fa;width:14px}
+.tb-spacer{flex:1}
+.tb-clock{font-size:10px;color:#94a3b8}
+
+/* 计数器 */
+.stats{position:absolute;bottom:44px;right:10px;z-index:150;display:flex;gap:6px}
+.stat{background:rgba(15,23,42,0.85);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:3px 8px;font-size:10px;font-family:'JetBrains Mono',monospace;color:#94a3b8}
+.stat .n{font-weight:700;color:#f87171;margin-right:3px}
+
+/* 控制 */
+.controls{margin-top:12px;display:flex;gap:8px}
+.btn{font-size:13px;padding:8px 20px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px}
+.btn:hover{border-color:#60a5fa;color:#60a5fa}
+</style>
+</head>
+<body>
+
+<div class="screen" id="screen">
+  <div class="caption" id="caption"></div>
+
+  <!-- 终端 -->
+  <div class="win" id="w-term">
+    <div class="win-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">Terminal — ~/my-project</span></div>
+    <div class="win-body" id="term-body"></div>
+  </div>
+
+  <!-- VS Code -->
+  <div class="win" id="w-vscode">
+    <div class="win-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">main.py — my-project — VS Code</span></div>
+    <div class="win-body">
+      <div class="vsc-sidebar">
+        <div class="ico">📁</div><div class="ico">🔍</div><div class="ico">⚙</div>
+      </div>
+      <div class="vsc-editor">
+        <div class="vsc-tabs">
+          <div class="vsc-tab active">main.py</div>
+          <div class="vsc-tab">config.py</div>
+        </div>
+        <div class="vsc-code" id="vsc-code"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 浏览器 -->
+  <div class="win" id="w-browser">
+    <div class="win-bar"><div class="dots"><i></i><i></i><i></i></div><span class="browser-addr">chat.openai.com</span></div>
+    <div class="win-body">
+      <div class="browser-body" id="chat-body"></div>
+      <div class="chat-input"><input id="chat-input" readonly placeholder="Send a message..."><button>↑</button></div>
+    </div>
+  </div>
+
+  <!-- 鼠标 -->
+  <div class="cursor-ptr" id="cursor"><svg viewBox="0 0 24 24" fill="white" stroke="black" stroke-width="1"><path d="M5 3l14 7-6 2-4 6z"/></svg></div>
+
+  <!-- 计数器 -->
+  <div class="stats">
+    <div class="stat"><span class="n" id="s-switch">0</span>窗口切换</div>
+    <div class="stat"><span class="n" id="s-copy">0</span>复制粘贴</div>
+    <div class="stat"><span class="n" id="s-find">0</span>找文件</div>
+  </div>
+
+  <!-- 任务栏 -->
+  <div class="taskbar">
+    <div class="tb-app" id="tb-term" title="Terminal">🖥</div>
+    <div class="tb-app" id="tb-vscode" title="VS Code">📝</div>
+    <div class="tb-app" id="tb-browser" title="Chrome">🌐</div>
+    <div class="tb-spacer"></div>
+    <div class="tb-clock">12:45 PM · 2022/12/07</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btn-play">▶ 播放</button>
+  <button class="btn" id="btn-replay" style="display:none">↻ 重播</button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const cursor = $('cursor');
+const caption = $('caption');
+const termBody = $('term-body');
+const vscCode = $('vsc-code');
+const chatBody = $('chat-body');
+const chatInput = $('chat-input');
+
+let counts = { switch: 0, copy: 0, find: 0 };
+function updateStats() {
+  $('s-switch').textContent = counts.switch;
+  $('s-copy').textContent = counts.copy;
+  $('s-find').textContent = counts.find;
+}
+
+const CODE_LINES = [
+  { ln: 1, code: '<span class="im">from</span> <span class="var">config</span> <span class="im">import</span> <span class="var">settings</span>' },
+  { ln: 2, code: '<span class="im">from</span> <span class="var">flask</span> <span class="im">import</span> <span class="fn">Flask</span>' },
+  { ln: 3, code: '<span class="im">import</span> <span class="var">json</span>' },
+  { ln: 4, code: '' },
+  { ln: 5, code: '<span class="var">app</span> = <span class="fn">Flask</span>(<span class="var">__name__</span>)' },
+  { ln: 6, code: '' },
+  { ln: 7, code: '<span class="kw">@</span><span class="var">app</span>.<span class="fn">get</span>(<span class="str">"/"</span>)' },
+  { ln: 8, code: '<span class="kw">def</span> <span class="fn">index</span>():' },
+  { ln: 9, code: '    <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"ok"</span>}' },
+];
+
+function initVSCode() {
+  vscCode.innerHTML = CODE_LINES.map(l =>
+    `<div class="vsc-line" data-ln="${l.ln}"><span class="ln">${l.ln}</span><span class="code">${l.code}</span></div>`
+  ).join('');
+}
+
+function moveCursor(top, left) {
+  cursor.style.top = top; cursor.style.left = left;
+}
+function click() {
+  cursor.classList.add('clicking');
+  setTimeout(() => cursor.classList.remove('clicking'), 150);
+}
+function setCaption(text) { caption.textContent = text; caption.style.opacity = text ? '1' : '0'; }
+
+function showWin(id, zIndex) {
+  const el = $(id);
+  el.classList.add('show');
+  el.style.zIndex = zIndex || 50;
+}
+function focusWin(id) {
+  ['w-term','w-vscode','w-browser'].forEach(w => {
+    const el = $(w);
+    if (el.classList.contains('show')) el.style.zIndex = w === id ? 50 : 10;
+  });
+  ['tb-term','tb-vscode','tb-browser'].forEach(t => $(t).classList.remove('active'));
+  const tbMap = {'w-term':'tb-term','w-vscode':'tb-vscode','w-browser':'tb-browser'};
+  if (tbMap[id]) $(tbMap[id]).classList.add('active');
+}
+
+function addTermLine(html) {
+  termBody.innerHTML += html + '\n';
+  termBody.scrollTop = termBody.scrollHeight;
+}
+function addChatMsg(role, html) {
+  const d = document.createElement('div');
+  d.className = 'chat-msg ' + role;
+  d.innerHTML = html;
+  chatBody.appendChild(d);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+async function typeInChat(text) {
+  chatInput.value = '';
+  for (let i = 0; i < text.length; i++) {
+    chatInput.value += text[i];
+    await sleep(30 + Math.random() * 20);
+  }
+}
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function run() {
+  // 重置
+  counts = { switch:0, copy:0, find:0 }; updateStats();
+  termBody.innerHTML = ''; chatBody.innerHTML = ''; chatInput.value = '';
+  ['w-term','w-vscode','w-browser'].forEach(w => $(w).classList.remove('show'));
+  ['tb-term','tb-vscode','tb-browser'].forEach(t => { $(t).classList.remove('active'); $(t).querySelector('.indicator')?.remove(); });
+  // 给任务栏 app 加 indicator
+  ['tb-term','tb-vscode','tb-browser'].forEach(t => {
+    const ind = document.createElement('div'); ind.className = 'indicator'; $(t).appendChild(ind);
+  });
+  initVSCode();
+
+  $('btn-play').style.display = 'none';
+  $('btn-replay').style.display = 'none';
+
+  // ═══ 场景开始 ═══
+
+  // 1. 打开终端
+  setCaption('在终端里启动项目');
+  await sleep(600);
+  showWin('w-term', 50); focusWin('w-term');
+  moveCursor('30%', '25%');
+  await sleep(800);
+
+  addTermLine('<span class="term-prompt">~/my-project $</span> python main.py');
+  await sleep(600);
+  addTermLine('<span class="term-error">Traceback (most recent call last):</span>');
+  addTermLine('  File "main.py", line 1, in &lt;module&gt;');
+  addTermLine('    from config import settings');
+  addTermLine('<span class="term-error">ModuleNotFoundError: No module named \'config\'</span>');
+  await sleep(1200);
+
+  // 2. 选中报错,复制
+  setCaption('选中报错信息,复制');
+  moveCursor('55%', '15%'); await sleep(400); click();
+  await sleep(300);
+  moveCursor('75%', '42%'); await sleep(400);
+  counts.copy++; updateStats();
+  await sleep(800);
+
+  // 3. 切到浏览器
+  setCaption('切到浏览器,打开 ChatGPT');
+  moveCursor('96%', '22%'); await sleep(400); click();
+  showWin('w-browser', 50); focusWin('w-browser');
+  counts.switch++; updateStats();
+  await sleep(600);
+
+  // 4. 粘贴报错并提问
+  setCaption('把报错粘贴给 ChatGPT');
+  moveCursor('88%', '40%'); await sleep(300); click();
+  await typeInChat('项目启动报错 ModuleNotFoundError,怎么修？');
+  await sleep(300);
+  chatInput.value = '';
+  addChatMsg('user', '<div class="file-badge">📎 traceback</div>项目启动报错 ModuleNotFoundError: No module named \'config\'，怎么修？');
+  counts.copy++; updateStats();
+  await sleep(1000);
+
+  // 5. ChatGPT 要更多信息
+  addChatMsg('ai', '可能是导入路径的问题。<br><br>请提供 <b>main.py 的 import 部分</b>和<b>项目目录结构</b>。');
+  await sleep(1500);
+
+  // 6. 切回 VS Code 找代码
+  setCaption('ChatGPT 要看代码——切回 VS Code 找');
+  moveCursor('96%', '18%'); await sleep(400); click();
+  showWin('w-vscode', 50); focusWin('w-vscode');
+  counts.switch++; counts.find++; updateStats();
+  await sleep(800);
+
+  // 7. 选中代码
+  setCaption('选中 import 部分,复制');
+  moveCursor('38%', '25%'); await sleep(400); click();
+  document.querySelector('.vsc-line[data-ln="1"]').classList.add('selected');
+  document.querySelector('.vsc-line[data-ln="2"]').classList.add('selected');
+  document.querySelector('.vsc-line[data-ln="3"]').classList.add('selected');
+  await sleep(400);
+  counts.copy++; updateStats();
+  await sleep(600);
+
+  // 8. 还要跑 tree 看目录
+  setCaption('还要目录结构——切到终端跑 tree');
+  moveCursor('96%', '14%'); await sleep(400); click();
+  focusWin('w-term');
+  counts.switch++; updateStats();
+  await sleep(500);
+
+  addTermLine('<span class="term-prompt">~/my-project $</span> tree -L 2');
+  await sleep(400);
+  addTermLine('<span class="term-path">.</span>\n├── main.py\n├── app/\n│   ├── config.py\n│   └── routes.py\n└── requirements.txt');
+  counts.copy++; updateStats();
+  await sleep(800);
+
+  // 9. 再切回浏览器粘贴
+  setCaption('复制完了,再切回浏览器粘贴');
+  moveCursor('96%', '22%'); await sleep(400); click();
+  focusWin('w-browser');
+  counts.switch++; updateStats();
+  await sleep(500);
+
+  addChatMsg('user', '<div class="file-badge">📎 main.py + tree 输出</div>import 部分和目录结构如上');
+  counts.copy++; updateStats();
+  await sleep(1000);
+
+  // 10. ChatGPT 给建议
+  addChatMsg('ai', '问题在于 config.py 在 app/ 目录下。<br><br>把 <code>from config import settings</code> 改成 <code>from app.config import settings</code>');
+  await sleep(1500);
+
+  // 11. 切回 VS Code 手动改
+  setCaption('切回 VS Code 手动改代码');
+  moveCursor('96%', '18%'); await sleep(400); click();
+  focusWin('w-vscode');
+  counts.switch++; updateStats();
+  await sleep(600);
+
+  // 模拟修改第1行
+  const line1 = document.querySelector('.vsc-line[data-ln="1"] .code');
+  line1.innerHTML = '<span class="im">from</span> <span class="var">app.config</span> <span class="im">import</span> <span class="var">settings</span>';
+  document.querySelectorAll('.vsc-line.selected').forEach(l => l.classList.remove('selected'));
+  await sleep(800);
+
+  // 12. 切到终端重新跑
+  setCaption('改完了,切到终端重新跑');
+  moveCursor('96%', '14%'); await sleep(400); click();
+  focusWin('w-term');
+  counts.switch++; updateStats();
+  await sleep(500);
+
+  addTermLine('<span class="term-prompt">~/my-project $</span> python main.py');
+  await sleep(500);
+  addTermLine('<span class="term-error">Traceback (most recent call last):</span>');
+  addTermLine('  File "app/config.py", line 5');
+  addTermLine('<span class="term-error">KeyError: \'DATABASE_URL\'</span>');
+  await sleep(1200);
+
+  // 13. 又报错了……又要切回浏览器
+  setCaption('又报错了——又得复制,又得切回去问');
+  moveCursor('80%', '15%'); await sleep(300); click();
+  counts.copy++; updateStats();
+  await sleep(400);
+
+  moveCursor('96%', '22%'); await sleep(400); click();
+  focusWin('w-browser');
+  counts.switch++; updateStats();
+  await sleep(500);
+
+  addChatMsg('user', '<div class="file-badge">📎 new traceback</div>改完以后又报错了: KeyError: \'DATABASE_URL\'');
+  counts.copy++; updateStats();
+  await sleep(1000);
+
+  // 14. ChatGPT 又要更多信息
+  addChatMsg('ai', '请提供 <b>.env</b> 文件和读取 DATABASE_URL 的代码。');
+  setCaption('又要找文件……');
+  counts.find++; updateStats();
+  await sleep(1500);
+
+  // 15. 最后一帧
+  setCaption('来来回回,你一直在替模型搬运信息');
+  await sleep(3000);
+
+  $('btn-replay').style.display = '';
+}
+
+$('btn-play').addEventListener('click', run);
+$('btn-replay').addEventListener('click', run);
+</script>
+</body>
+</html>

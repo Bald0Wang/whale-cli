@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Cost Battle: Place Your Bets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg:#1c1816; --bgp:#231f1c; --bgl:#19150f; --text:#ebe0d2; --dim:#6a6058;
+    --accent:#D77757; --green:#7ec384; --red:#e06464; --yellow:#e8b84a; --div:#3a322c;
+    --mono:'JetBrains Mono','SF Mono','Consolas',monospace;
+  }
+  body { font-family:var(--mono); background:var(--bg); color:var(--text); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+  .phase { display:none; flex-direction:column; flex:1; min-height:0; }
+  .phase.active { display:flex; }
+  /* Phase 1 */
+  .setup { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 32px; gap:28px; }
+  .setup-title { font-size:15px; font-weight:700; color:var(--accent); letter-spacing:.5px; }
+  .task-box { background:var(--bgl); border:1px solid var(--div); border-radius:6px; padding:16px 22px; max-width:520px; width:100%; font-size:13px; line-height:1.7; }
+  .task-box .task-label { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .strategies { display:flex; gap:16px; max-width:520px; width:100%; }
+  .strat-card { flex:1; padding:14px 16px; border-radius:6px; background:var(--bgp); border-left:3px solid; font-size:12px; line-height:1.6; }
+  .strat-card.brute { border-left-color:var(--red); }
+  .strat-card.smart { border-left-color:var(--green); }
+  .strat-card .strat-title { font-weight:700; font-size:13px; margin-bottom:6px; }
+  .strat-card.brute .strat-title { color:var(--red); }
+  .strat-card.smart .strat-title { color:var(--green); }
+  .strat-card .strat-desc { color:var(--dim); }
+  .btn-next, .btn-reveal { font-family:var(--mono); background:var(--accent); color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:600; transition:opacity .15s; }
+  .btn-next { font-size:13px; padding:10px 28px; }
+  .btn-next:hover, .btn-reveal:hover { opacity:.85; }
+  /* Phase 2 */
+  .predict { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 32px; gap:24px; }
+  .predict-title { font-size:15px; font-weight:700; color:var(--accent); }
+  .predict-sub { font-size:12px; color:var(--dim); text-align:center; max-width:400px; }
+  .slider-group { display:flex; flex-direction:column; gap:20px; width:100%; max-width:440px; }
+  .slider-row { display:flex; flex-direction:column; gap:6px; }
+  .slider-label { font-size:12px; display:flex; justify-content:space-between; align-items:baseline; }
+  .side-tag { font-size:10px; font-weight:600; padding:1px 6px; border-radius:3px; }
+  .side-tag.brute { background:rgba(224,100,100,.2); color:var(--red); }
+  .side-tag.smart { background:rgba(126,195,132,.2); color:var(--green); }
+  .slider-val { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .slider-val.brute { color:var(--red); }
+  .slider-val.smart { color:var(--green); }
+  input[type="range"] { -webkit-appearance:none; appearance:none; width:100%; height:6px; background:#2a2420; border-radius:3px; outline:none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:18px; height:18px; border-radius:50%; background:var(--accent); cursor:pointer; border:2px solid var(--bg); box-shadow:0 0 6px rgba(215,119,87,.4); }
+  input[type="range"]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--accent); cursor:pointer; border:2px solid var(--bg); box-shadow:0 0 6px rgba(215,119,87,.4); }
+  .slider-range-labels { display:flex; justify-content:space-between; font-size:10px; color:var(--dim); }
+  .btn-reveal { font-size:15px; font-weight:700; border-radius:6px; padding:12px 40px; box-shadow:0 4px 16px rgba(215,119,87,.3); transition:transform .15s,box-shadow .15s; }
+  .btn-reveal:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(215,119,87,.4); }
+  /* Phase 3 */
+  .arena { display:flex; flex:1; min-height:0; }
+  .panel { flex:1; display:flex; flex-direction:column; padding:12px 14px 10px; min-width:0; }
+  .panel-left { border-right:1px solid var(--div); }
+  .panel-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-shrink:0; }
+  .panel-header .badge { font-size:10px; padding:2px 7px; border-radius:3px; font-weight:600; }
+  .panel-left .badge { background:rgba(224,100,100,.2); color:var(--red); }
+  .panel-right .badge { background:rgba(126,195,132,.2); color:var(--green); }
+  .panel-header h2 { font-size:13px; font-weight:600; }
+  .panel-left h2 { color:var(--red); }
+  .panel-right h2 { color:var(--green); }
+  .stats { display:flex; gap:16px; align-items:flex-end; margin-bottom:8px; flex-shrink:0; }
+  .stat-block { display:flex; flex-direction:column; gap:2px; }
+  .stat-label { font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:.8px; }
+  .stat-value { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .panel-left .stat-value.tokens { color:var(--red); }
+  .panel-right .stat-value.tokens { color:var(--green); }
+  .stat-value.calls { font-size:17px; color:var(--text); }
+  .token-bar-wrap { margin-bottom:8px; flex-shrink:0; }
+  .token-bar { height:6px; background:#2a2420; border-radius:3px; overflow:hidden; }
+  .token-bar-fill { height:100%; width:0%; border-radius:3px; transition:width .5s ease; }
+  .panel-left .token-bar-fill { background:var(--red); }
+  .panel-right .token-bar-fill { background:var(--green); }
+  .log-area { flex:1; min-height:0; background:var(--bgl); border-radius:6px; border:1px solid var(--div); overflow-y:auto; padding:8px 12px; scroll-behavior:smooth; }
+  .log-area::-webkit-scrollbar { width:4px; }
+  .log-area::-webkit-scrollbar-thumb { background:var(--div); border-radius:2px; }
+  .log-entry { margin-bottom:5px; opacity:0; transform:translateY(5px); animation:logIn .3s forwards; line-height:1.5; }
+  @keyframes logIn { to { opacity:1; transform:translateY(0); } }
+  .log-cmd { font-size:11.5px; }
+  .log-cmd .fn { color:#c9a0dc; }
+  .log-cmd .str { color:#a8c97a; }
+  .log-cmd .num { color:var(--yellow); }
+  .log-result { font-size:10.5px; color:var(--dim); padding-left:14px; display:flex; justify-content:space-between; }
+  .log-result .found { color:var(--green); font-weight:600; }
+  .log-result .tok { font-size:10px; padding:0 5px; border-radius:3px; flex-shrink:0; }
+  .panel-left .log-result .tok { background:rgba(224,100,100,.15); color:var(--red); }
+  .panel-right .log-result .tok { background:rgba(126,195,132,.15); color:var(--green); }
+  .log-entry.skip { color:var(--dim); font-style:italic; }
+  .log-entry.skip .log-cmd { font-size:11px; }
+  /* Phase 4 */
+  .verdict { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px 32px; gap:18px; }
+  .verdict-title { font-size:15px; font-weight:700; color:var(--accent); }
+  .verdict-grid { display:grid; grid-template-columns:auto auto auto; gap:6px 20px; font-size:13px; align-items:center; }
+  .vg-label { color:var(--dim); font-size:11px; text-align:right; }
+  .vg-brute { color:var(--red); font-weight:700; text-align:center; }
+  .vg-smart { color:var(--green); font-weight:700; text-align:center; }
+  .vg-head { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; font-weight:600; text-align:center; padding-bottom:4px; }
+  .verdict-ratio { font-size:28px; font-weight:800; color:var(--accent); margin:4px 0; }
+  .verdict-ratio-label { font-size:11px; color:var(--dim); }
+  .verdict-feedback { font-size:13px; padding:10px 20px; background:var(--bgp); border:1px solid var(--div); border-radius:6px; text-align:center; line-height:1.6; max-width:460px; }
+  .verdict-insight { font-size:12px; color:var(--dim); line-height:1.7; text-align:center; max-width:480px; border-top:1px solid var(--div); padding-top:14px; }
+  .verdict-insight strong { color:var(--text); }
+  .btn-restart { font-family:var(--mono); font-size:12px; background:var(--div); color:var(--text); border:1px solid #4a423a; border-radius:4px; padding:7px 18px; cursor:pointer; transition:background .15s; }
+  .btn-restart:hover { background:#4a423a; }
+</style>
+</head>
+<body>
+
+<!-- Phase 1: Setup -->
+<div class="phase active" id="phaseSetup">
+  <div class="setup">
+    <div class="setup-title">Token Cost Battle</div>
+    <div class="task-box">
+      <div class="task-label">Task</div>
+      在 <span style="color:#c9a0dc;font-weight:600">OpenClaw</span>（15,000+ 文件的 TypeScript 项目）中追踪<span style="color:#a8c97a;font-weight:600">消息处理的完整调用链</span>
+    </div>
+    <div class="strategies">
+      <div class="strat-card brute">
+        <div class="strat-title">暴力搜索</div>
+        <div class="strat-desc">逐个读取 src/ 下全部 200 个 .ts 文件</div>
+      </div>
+      <div class="strat-card smart">
+        <div class="strat-title">Find + Grep + Read</div>
+        <div class="strat-desc">先定位目录结构，再 grep 关键函数，精准读取</div>
+      </div>
+    </div>
+    <button class="btn-next" id="btnToPredict">下一步: 预测</button>
+  </div>
+</div>
+
+<!-- Phase 2: Predict -->
+<div class="phase" id="phasePredict">
+  <div class="predict">
+    <div class="predict-title">你的预测</div>
+    <div class="predict-sub">两种策略分别要消耗多少 token? 拖动滑块，然后揭晓答案。</div>
+    <div class="slider-group">
+      <div class="slider-row">
+        <div class="slider-label">
+          <span><span class="side-tag brute">暴力搜索</span> 大概要多少 token?</span>
+          <span class="slider-val brute" id="bruteVal">80,000</span>
+        </div>
+        <input type="range" id="sliderBrute" min="20000" max="200000" step="1000" value="80000">
+        <div class="slider-range-labels"><span>20,000</span><span>200,000</span></div>
+      </div>
+      <div class="slider-row">
+        <div class="slider-label">
+          <span><span class="side-tag smart">Find+Grep</span> 大概要多少 token?</span>
+          <span class="slider-val smart" id="smartVal">30,000</span>
+        </div>
+        <input type="range" id="sliderSmart" min="5000" max="100000" step="1000" value="30000">
+        <div class="slider-range-labels"><span>5,000</span><span>100,000</span></div>
+      </div>
+    </div>
+    <button class="btn-reveal" id="btnReveal">揭晓</button>
+  </div>
+</div>
+
+<!-- Phase 3: Reveal -->
+<div class="phase" id="phaseReveal">
+  <div class="arena">
+    <div class="panel panel-left">
+      <div class="panel-header"><span class="badge">暴力搜索</span><h2>逐文件读取</h2></div>
+      <div class="stats">
+        <div class="stat-block"><span class="stat-label">Tokens</span><span class="stat-value tokens" id="leftTokens">0</span></div>
+        <div class="stat-block"><span class="stat-label">API Calls</span><span class="stat-value calls" id="leftCalls">0</span></div>
+      </div>
+      <div class="token-bar-wrap"><div class="token-bar"><div class="token-bar-fill" id="leftBar"></div></div></div>
+      <div class="log-area" id="leftLog"></div>
+    </div>
+    <div class="panel panel-right">
+      <div class="panel-header"><span class="badge">Find+Grep</span><h2>搜索优先</h2></div>
+      <div class="stats">
+        <div class="stat-block"><span class="stat-label">Tokens</span><span class="stat-value tokens" id="rightTokens">0</span></div>
+        <div class="stat-block"><span class="stat-label">API Calls</span><span class="stat-value calls" id="rightCalls">0</span></div>
+      </div>
+      <div class="token-bar-wrap"><div class="token-bar"><div class="token-bar-fill" id="rightBar"></div></div></div>
+      <div class="log-area" id="rightLog"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Phase 4: Verdict -->
+<div class="phase" id="phaseVerdict">
+  <div class="verdict">
+    <div class="verdict-title">对比结果</div>
+    <div class="verdict-grid">
+      <div class="vg-label"></div>
+      <div class="vg-head" style="color:var(--red)">暴力搜索</div>
+      <div class="vg-head" style="color:var(--green)">Find+Grep</div>
+      <div class="vg-label">你的预测</div>
+      <div class="vg-brute" id="vPredBrute">80,000</div>
+      <div class="vg-smart" id="vPredSmart">30,000</div>
+      <div class="vg-label">实际结果</div>
+      <div class="vg-brute" id="vRealBrute">120,000</div>
+      <div class="vg-smart" id="vRealSmart">40,590</div>
+      <div class="vg-label">API 调用</div>
+      <div class="vg-brute">200+ calls</div>
+      <div class="vg-smart">51 calls</div>
+    </div>
+    <div class="verdict-ratio" id="vRatio">3.0x</div>
+    <div class="verdict-ratio-label">实际 token 差距</div>
+    <div class="verdict-feedback" id="vFeedback"></div>
+    <div class="verdict-insight">
+      这是一次真实的 Claude Code session（OpenClaw 项目，<strong>51 次工具调用，1 分 49 秒</strong>）。<br>
+      agent 用 find + grep 定位了 <strong>6 个关键目录、18 个核心文件</strong>，<br>
+      而不是把 200 个 TypeScript 文件全部读一遍。<br>
+      搜索工具省的不只是 token -- 它让 context 保持干净，让模型能看清调用链的脉络。
+    </div>
+    <button class="btn-restart" id="btnRestart">重新开始</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var AB=120000, AS=40590, SD=200;
+  var LS=[
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/index.ts"</span>)',r:'280 lines',t:600},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/app.ts"</span>)',r:'190 lines',t:450},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/config.ts"</span>)',r:'160 lines',t:380},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/gateway/server.ts"</span>)',r:'220 lines',t:520},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/gateway/routes.ts"</span>)',r:'290 lines',t:680},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/gateway/auth.ts"</span>)',r:'240 lines',t:570},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/gateway/middleware.ts"</span>)',r:'180 lines',t:430},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/services/user.ts"</span>)',r:'310 lines',t:740},
+    {c:'... 读完全部 200 个 .ts 文件',r:'',t:115340,skip:true},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/utils/logger.ts"</span>)',r:'120 lines',t:290},
+    {c:'<span class="fn">read_file</span>(<span class="str">"src/utils/errors.ts"</span>)',r:'140 lines',t:340}
+  ];
+  var RS=[
+    {c:'<span class="fn">find</span> <span class="str">src -type f "*.ts"</span>',r:'<span class="found">project scan</span>',t:1870},
+    {c:'<span class="fn">ls</span> <span class="str">-la src/</span>',r:'directory list',t:160},
+    {c:'<span class="fn">find</span> <span class="str">src/gateway "*.ts"</span>',r:'<span class="found">narrow to module</span>',t:520},
+    {c:'<span class="fn">Read</span> <span class="str">src/index.ts</span>',r:'<span class="found">entry point</span>',t:1240},
+    {c:'<span class="fn">Read</span> <span class="str">src/gateway/server.ts</span>',r:'<span class="found">follow import</span>',t:320},
+    {c:'<span class="fn">Read</span> <span class="str">src/gateway/server.impl</span>',r:'<span class="found">implementation</span>',t:1750},
+    {c:'<span class="fn">grep</span> <span class="str">dispatchInboundMessage</span>',r:'<span class="found">find handler</span>',t:530},
+    {c:'<span class="fn">Read</span> <span class="str">src/auto-reply/dispatch</span>',r:'<span class="found">follow chain</span>',t:930},
+    {c:'<span class="fn">Read</span> <span class="str">src/auto-reply/get-reply</span>',r:'<span class="found">reply logic</span>',t:1490},
+    {c:'<span class="fn">grep</span> <span class="str">broadcastAgentEvent</span>',r:'<span class="found">event system</span>',t:700},
+    {c:'<span class="fn">Read</span> <span class="str">src/infra/agent-events</span>',r:'<span class="found">events</span>',t:680},
+    {c:'<span class="fn">Read</span> <span class="str">src/gateway/server-chat</span>',r:'<span class="found">final piece</span>',t:1520}
+  ];
+
+  var ph={setup:document.getElementById('phaseSetup'),predict:document.getElementById('phasePredict'),reveal:document.getElementById('phaseReveal'),verdict:document.getElementById('phaseVerdict')};
+  var sB=document.getElementById('sliderBrute'),sS=document.getElementById('sliderSmart');
+  var bV=document.getElementById('bruteVal'),sV=document.getElementById('smartVal');
+  var $lt=document.getElementById('leftTokens'),$lc=document.getElementById('leftCalls'),$lb=document.getElementById('leftBar'),$ll=document.getElementById('leftLog');
+  var $rt=document.getElementById('rightTokens'),$rc=document.getElementById('rightCalls'),$rb=document.getElementById('rightBar'),$rl=document.getElementById('rightLog');
+  var uB=80000,uS=30000;
+
+  function showPhase(n){Object.keys(ph).forEach(function(k){ph[k].classList.toggle('active',k===n);});}
+
+  sB.addEventListener('input',function(){uB=+this.value;bV.textContent=uB.toLocaleString();});
+  sS.addEventListener('input',function(){uS=+this.value;sV.textContent=uS.toLocaleString();});
+  document.getElementById('btnToPredict').addEventListener('click',function(){showPhase('predict');});
+  document.getElementById('btnReveal').addEventListener('click',function(){uB=+sB.value;uS=+sS.value;showPhase('reveal');startBattle();});
+
+  var dL=0,dR=0,tL=0,tR=0,af=null;
+  function tickC(){
+    var ch=false;
+    if(dL<tL){dL=Math.min(tL,dL+Math.max(1,Math.ceil((tL-dL)/10)));$lt.textContent=dL.toLocaleString();ch=true;}
+    if(dR<tR){dR=Math.min(tR,dR+Math.max(1,Math.ceil((tR-dR)/10)));$rt.textContent=dR.toLocaleString();ch=true;}
+    af=ch?requestAnimationFrame(tickC):null;
+  }
+  function startCA(){if(!af)af=requestAnimationFrame(tickC);}
+
+  function addLog(el,s){
+    var w=document.createElement('div');w.className='log-entry'+(s.skip?' skip':'');
+    var c=document.createElement('div');c.className='log-cmd';c.innerHTML=s.c;w.appendChild(c);
+    if(s.r||!s.skip){
+      var r=document.createElement('div');r.className='log-result';
+      var rs=document.createElement('span');rs.innerHTML=s.r;r.appendChild(rs);
+      var tk=document.createElement('span');tk.className='tok';tk.textContent='+'+s.t.toLocaleString();r.appendChild(tk);
+      w.appendChild(r);
+    } else {
+      var r=document.createElement('div');r.className='log-result';
+      var tk=document.createElement('span');tk.className='tok';tk.textContent='+'+s.t.toLocaleString();r.appendChild(tk);
+      w.appendChild(r);
+    }
+    el.appendChild(w);el.scrollTop=el.scrollHeight;
+  }
+
+  function startBattle(){
+    var li=0,ri=0,lcv=0,rcv=0;tL=0;tR=0;dL=0;dR=0;
+    $lt.textContent='0';$rt.textContent='0';$lc.textContent='0';$rc.textContent='0';
+    $lb.style.width='0%';$rb.style.width='0%';$ll.innerHTML='';$rl.innerHTML='';
+    var total=Math.max(LS.length,RS.length),step=0;
+    function tick(){
+      if(step>=total){setTimeout(showVerdict,800);return;}
+      if(li<LS.length){var s=LS[li];addLog($ll,s);tL+=s.t;if(s.skip){lcv+=192;}else{lcv++;}$lc.textContent=lcv;$lb.style.width=Math.min(100,tL/AB*100)+'%';li++;startCA();}
+      if(ri<RS.length){var r=RS[ri];addLog($rl,r);tR+=r.t;rcv++;$rc.textContent=rcv;$rb.style.width=Math.min(100,tR/AS*100)+'%';ri++;startCA();}
+      step++;setTimeout(tick,SD);
+    }
+    setTimeout(tick,400);
+  }
+
+  function showVerdict(){
+    document.getElementById('vPredBrute').textContent=uB.toLocaleString();
+    document.getElementById('vPredSmart').textContent=uS.toLocaleString();
+    document.getElementById('vRealBrute').textContent=AB.toLocaleString();
+    document.getElementById('vRealSmart').textContent=AS.toLocaleString();
+    var rr=AB/AS;
+    document.getElementById('vRatio').textContent=rr.toFixed(1)+'x';
+    var ur=uB/Math.max(1,uS),rd=Math.abs(ur-rr);
+    var fb=document.getElementById('vFeedback');
+    var base='你的预测: 暴力 <strong style="color:var(--red)">'+uB.toLocaleString()+'</strong> / Find+Grep <strong style="color:var(--green)">'+uS.toLocaleString()+'</strong><br>实际差距 <strong>'+rr.toFixed(1)+'x</strong>，你预测的比例是 <strong>'+ur.toFixed(1)+'x</strong><br><br>';
+    fb.innerHTML=base+(rd<=1?'你的直觉很准 -- 对两种策略的量级感知基本准确。':'搜索工具让 agent 跳过了 180+ 个无关文件。更重要的是，agent 的 context 始终只包含相关代码 -- 暴力读完 200 个文件后，context 已经被无关内容淹没，模型根本无法有效推理调用链。');
+    showPhase('verdict');
+  }
+
+  document.getElementById('btnRestart').addEventListener('click',function(){
+    if(af){cancelAnimationFrame(af);af=null;}
+    sB.value=80000;sS.value=30000;uB=80000;uS=30000;
+    bV.textContent='80,000';sV.textContent='30,000';
+    showPhase('setup');
+  });
+})();
+</script>
+</body>
+</html>

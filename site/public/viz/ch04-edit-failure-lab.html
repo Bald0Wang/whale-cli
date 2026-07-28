@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edit 失败实验室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #1c1816;
+  color: #ebe0d2;
+  min-height: 100vh;
+  padding: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ebe0d2;
+  margin-bottom: 4px;
+}
+
+.header .subtitle {
+  font-size: 11px;
+  color: #6a6058;
+  font-weight: 300;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 14px;
+  background: #231f1c;
+  border: 1px solid #3a3430;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  color: #6a6058;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  border-color: #D77757;
+  color: #ebe0d2;
+}
+
+.tab.active {
+  background: #D77757;
+  border-color: #D77757;
+  color: #1c1816;
+  font-weight: 600;
+}
+
+/* Main panels */
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 420px;
+}
+
+@media (max-width: 700px) {
+  .panels { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: #0f0e0c;
+  border: 1px solid #3a3430;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 10px 14px;
+  background: #231f1c;
+  border-bottom: 1px solid #3a3430;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6a6058;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-header .badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.badge-file {
+  background: rgba(215,119,87,0.15);
+  color: #D77757;
+}
+
+.badge-trace {
+  background: rgba(100,119,224,0.15);
+  color: #6477e0;
+}
+
+.panel-body {
+  padding: 12px 14px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Code display */
+.code-lines {
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.code-line {
+  display: flex;
+  padding: 1px 4px;
+  border-radius: 3px;
+  transition: background 0.3s;
+}
+
+.code-line.highlight-success {
+  background: rgba(126,195,132,0.15);
+}
+
+.code-line.highlight-error {
+  background: rgba(224,100,100,0.15);
+}
+
+.code-line.highlight-active {
+  background: rgba(215,119,87,0.12);
+}
+
+.line-num {
+  color: #4a4440;
+  width: 24px;
+  text-align: right;
+  margin-right: 12px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-content {
+  white-space: pre;
+  color: #ebe0d2;
+}
+
+.line-content .kw { color: #D77757; }
+.line-content .fn { color: #6477e0; }
+.line-content .str { color: #7ec384; }
+.line-content .comment { color: #6a6058; }
+
+/* Trace items */
+.trace-item {
+  margin-bottom: 12px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+
+.trace-item.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.trace-call {
+  background: #231f1c;
+  border: 1px solid #3a3430;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+
+.trace-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trace-label-call { color: #D77757; }
+.trace-label-result { color: #6a6058; }
+.trace-label-error { color: #e06464; }
+.trace-label-retry { color: #6477e0; }
+.trace-label-success { color: #7ec384; }
+
+.trace-code {
+  font-size: 10px;
+  color: #ebe0d2;
+  background: #0f0e0c;
+  padding: 8px 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.trace-result {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.trace-result-success {
+  background: rgba(126,195,132,0.1);
+  border: 1px solid rgba(126,195,132,0.3);
+  color: #7ec384;
+}
+
+.trace-result-error {
+  background: rgba(224,100,100,0.1);
+  border: 1px solid rgba(224,100,100,0.3);
+  color: #e06464;
+}
+
+.trace-result-info {
+  background: rgba(100,119,224,0.1);
+  border: 1px solid rgba(100,119,224,0.3);
+  color: #6477e0;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.btn {
+  padding: 6px 14px;
+  background: #231f1c;
+  border: 1px solid #3a3430;
+  border-radius: 5px;
+  color: #ebe0d2;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  border-color: #D77757;
+  background: rgba(215,119,87,0.1);
+}
+
+.btn.active {
+  background: #D77757;
+  border-color: #D77757;
+  color: #1c1816;
+}
+
+/* Contrast section */
+.contrast-section {
+  margin-top: 20px;
+  background: #231f1c;
+  border: 1px solid #3a3430;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.contrast-header {
+  padding: 10px 14px;
+  background: #2a2520;
+  border-bottom: 1px solid #3a3430;
+  font-size: 11px;
+  font-weight: 600;
+  color: #D77757;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contrast-header .toggle-icon {
+  transition: transform 0.3s;
+  font-size: 10px;
+  color: #6a6058;
+}
+
+.contrast-header .toggle-icon.open {
+  transform: rotate(90deg);
+}
+
+.contrast-body {
+  display: none;
+  padding: 14px;
+}
+
+.contrast-body.open {
+  display: block;
+}
+
+.contrast-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .contrast-grid { grid-template-columns: 1fr; }
+}
+
+.contrast-card {
+  background: #0f0e0c;
+  border: 1px solid #3a3430;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.contrast-card h4 {
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.contrast-card.bad h4 { color: #e06464; }
+.contrast-card.good h4 { color: #7ec384; }
+
+.contrast-card .attempts {
+  font-size: 10px;
+  color: #6a6058;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #3a3430;
+}
+
+.contrast-card .attempts strong {
+  color: #ebe0d2;
+}
+
+/* Diff display */
+.diff-line-del {
+  background: rgba(224,100,100,0.15);
+  color: #e06464;
+}
+
+.diff-line-add {
+  background: rgba(126,195,132,0.15);
+  color: #7ec384;
+}
+
+/* Step indicator */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3a3430;
+  transition: background 0.3s;
+}
+
+.step-dot.active {
+  background: #D77757;
+}
+
+.step-dot.done {
+  background: #7ec384;
+}
+
+/* File preview in error */
+.file-preview {
+  margin-top: 8px;
+  padding: 8px;
+  background: #1c1816;
+  border-radius: 4px;
+  font-size: 9px;
+  color: #6a6058;
+  border-left: 2px solid #e06464;
+}
+
+.file-preview .preview-label {
+  color: #e06464;
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 9px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Edit 失败实验室</h1>
+    <p class="subtitle">同一个错误，不同的错误信息，不同的恢复结果</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-scenario="0">1. 成功匹配</button>
+    <button class="tab" data-scenario="1">2. old_string 不存在</button>
+    <button class="tab" data-scenario="2">3. 匹配到多处</button>
+    <button class="tab" data-scenario="3">4. 空白不匹配</button>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="badge badge-file">FILE</span>
+        process.py
+      </div>
+      <div class="panel-body">
+        <div class="code-lines" id="code-panel"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="badge badge-trace">TRACE</span>
+        Agent 操作记录
+      </div>
+      <div class="panel-body" id="trace-panel"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="btn-replay">重放</button>
+    <div class="step-indicator" id="step-indicator"></div>
+  </div>
+
+  <div class="contrast-section">
+    <div class="contrast-header" id="contrast-toggle">
+      <span class="toggle-icon" id="toggle-icon">▶</span>
+      对比：错误信息的质量
+    </div>
+    <div class="contrast-body" id="contrast-body">
+      <div class="contrast-grid">
+        <div class="contrast-card bad">
+          <h4>差的错误信息</h4>
+          <div class="trace-code">Error: old_string not found in file.</div>
+          <p style="margin-top:8px;font-size:10px;color:#6a6058;">
+            模型不知道文件里实际有什么内容，只能猜测性重试。
+          </p>
+          <div class="attempts">
+            恢复尝试: <strong style="color:#e06464;">3 次</strong>（盲目重试）
+          </div>
+        </div>
+        <div class="contrast-card good">
+          <h4>好的错误信息（含文件预览）</h4>
+          <div class="trace-code">Error: old_string not found.
+Showing file content:
+  2: validated = validate(data)
+  3: result = transform(validated)
+  4: return result</div>
+          <p style="margin-top:8px;font-size:10px;color:#6a6058;">
+            模型看到实际内容，立即找到正确的 old_string。
+          </p>
+          <div class="attempts">
+            恢复尝试: <strong style="color:#7ec384;">1 次</strong>（精准修正）
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:14px;font-size:11px;color:#D77757;text-align:center;font-weight:500;">
+        错误信息的质量决定了模型能否自我纠正。
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+const FILE_LINES = [
+  { content: 'def process(data):', tokens: [{type:'kw',text:'def'},{type:'',text:' '},{type:'fn',text:'process'},{type:'',text:'(data):'}] },
+  { content: '    validated = validate(data)', tokens: [{type:'',text:'    validated = '},{type:'fn',text:'validate'},{type:'',text:'(data)'}] },
+  { content: '    result = transform(validated)', tokens: [{type:'',text:'    result = '},{type:'fn',text:'transform'},{type:'',text:'(validated)'}] },
+  { content: '    return result', tokens: [{type:'',text:'    '},{type:'kw',text:'return'},{type:'',text:' result'}] },
+  { content: '', tokens: [] },
+  { content: 'def transform(data):', tokens: [{type:'kw',text:'def'},{type:'',text:' '},{type:'fn',text:'transform'},{type:'',text:'(data):'}] },
+  { content: '    result = data.upper()', tokens: [{type:'',text:'    result = data.'},{type:'fn',text:'upper'},{type:'',text:'()'}] },
+  { content: '    return result', tokens: [{type:'',text:'    '},{type:'kw',text:'return'},{type:'',text:' result'}] },
+  { content: '', tokens: [] },
+  { content: 'def validate(data):', tokens: [{type:'kw',text:'def'},{type:'',text:' '},{type:'fn',text:'validate'},{type:'',text:'(data):'}] },
+  { content: '    if not isinstance(data, str):', tokens: [{type:'',text:'    '},{type:'kw',text:'if'},{type:'',text:' '},{type:'kw',text:'not'},{type:'',text:' '},{type:'fn',text:'isinstance'},{type:'',text:'(data, '},{type:'fn',text:'str'},{type:'',text:'):'}] },
+  { content: '        raise TypeError("expected str")', tokens: [{type:'',text:'        '},{type:'kw',text:'raise'},{type:'',text:' '},{type:'fn',text:'TypeError'},{type:'',text:'('},{type:'str',text:'"expected str"'},{type:'',text:')'}] },
+  { content: '    return data.strip()', tokens: [{type:'',text:'    '},{type:'kw',text:'return'},{type:'',text:' data.'},{type:'fn',text:'strip'},{type:'',text:'()'}] },
+];
+
+const SCENARIOS = [
+  // Scenario 1: Success
+  {
+    title: '成功匹配',
+    steps: [
+      {
+        type: 'call',
+        label: 'tool_use',
+        labelClass: 'trace-label-call',
+        code: 'edit_file(\n  old_string="result = transform(validated)",\n  new_string="result = transform(validated, strict=True)"\n)',
+        highlight: { line: 2, type: 'highlight-active' }
+      },
+      {
+        type: 'result',
+        label: 'tool_result',
+        labelClass: 'trace-label-success',
+        resultClass: 'trace-result-success',
+        text: '[OK] Applied. 1 match found, replaced.',
+        highlight: { line: 2, type: 'highlight-success' },
+        replaceLine: { line: 2, tokens: [{type:'',text:'    result = '},{type:'fn',text:'transform'},{type:'',text:'(validated, strict='},{type:'kw',text:'True'},{type:'',text:')'}] }
+      }
+    ]
+  },
+  // Scenario 2: old_string not found
+  {
+    title: 'old_string 不存在',
+    steps: [
+      {
+        type: 'call',
+        label: 'tool_use',
+        labelClass: 'trace-label-call',
+        code: 'edit_file(\n  old_string="result = data * 2",\n  new_string="result = data * 3"\n)',
+        highlight: null
+      },
+      {
+        type: 'result',
+        label: 'tool_result',
+        labelClass: 'trace-label-error',
+        resultClass: 'trace-result-error',
+        text: '[ERROR] old_string not found in file.\n\nFile content (lines 1-8):\n  1: def process(data):\n  2:     validated = validate(data)\n  3:     result = transform(validated)\n  4:     return result\n  5:\n  6: def transform(data):\n  7:     result = data.upper()\n  8:     return result',
+        highlight: null
+      },
+      {
+        type: 'call',
+        label: 'retry',
+        labelClass: 'trace-label-retry',
+        code: '// 模型看到文件预览，发现实际是 data.upper()\n\nedit_file(\n  old_string="result = data.upper()",\n  new_string="result = data * 3"\n)',
+        highlight: { line: 6, type: 'highlight-active' }
+      },
+      {
+        type: 'result',
+        label: 'tool_result',
+        labelClass: 'trace-label-success',
+        resultClass: 'trace-result-success',
+        text: '[OK] Applied. 1 match found, replaced.',
+        highlight: { line: 6, type: 'highlight-success' },
+        replaceLine: { line: 6, tokens: [{type:'',text:'    result = data * 3'}] }
+      }
+    ]
+  },
+  // Scenario 3: Multiple matches
+  {
+    title: '匹配到多处',
+    steps: [
+      {
+        type: 'call',
+        label: 'tool_use',
+        labelClass: 'trace-label-call',
+        code: 'edit_file(\n  old_string="return result",\n  new_string="return result.lower()"\n)',
+        highlight: [
+          { line: 3, type: 'highlight-error' },
+          { line: 7, type: 'highlight-error' }
+        ]
+      },
+      {
+        type: 'result',
+        label: 'tool_result',
+        labelClass: 'trace-label-error',
+        resultClass: 'trace-result-error',
+        text: '[ERROR] old_string "return result" found 2 times.\nPlease provide more surrounding context to make the match unique.\n\nMatches at:\n  Line 4:     return result\n  Line 8:     return result',
+        highlight: [
+          { line: 3, type: 'highlight-error' },
+          { line: 7, type: 'highlight-error' }
+        ]
+      },
+      {
+        type: 'call',
+        label: 'retry',
+        labelClass: 'trace-label-retry',
+        code: '// 模型添加上下文使匹配唯一\n\nedit_file(\n  old_string="    result = data.upper()\\n    return result",\n  new_string="    result = data.upper()\\n    return result.lower()"\n)',
+        highlight: { line: 7, type: 'highlight-active' }
+      },
+      {
+        type: 'result',
+        label: 'tool_result',
+        labelClass: 'trace-label-success',
+        resultClass: 'trace-result-success',
+        text: '[OK] Applied. 1 match found, replaced.',
+        highlight: { line: 7, type: 'highlight-success' },
+        replaceLine: { line: 7, tokens: [{type:'',text:'    '},{type:'kw',text:'return'},{type:'',text:' result.'},{type:'fn',text:'lower'},{type:'',text:'()'}] }
+      }
+    ]
+  },
+  // Scenario 4: Whitespace mismatch
+  {
+    title: '空白不匹配',
+    steps: [
+      {
+        type: 'call',
+        label: 'tool_use',
+        labelClass: 'trace-label-call',
+        code: 'edit_file(\n  old_string="result = transform(validated) ",\n  // 注意: 末尾有一个多余空格 ^\n  new_string="result = transform(validated, strict=True)"\n)',
+        highlight: { line: 2, type: 'highlight-active' }
+      },
+      {
+        type: 'result',
+        label: 'tool_result',
+        labelClass: 'trace-label-error',
+        resultClass: 'trace-result-error',
+        text: '[ERROR] old_string not found (whitespace mismatch detected).\n\nDid you mean:\n  "result = transform(validated)"\n  (without trailing whitespace)\n\nHint: normalize whitespace and retry.',
+        highlight: { line: 2, type: 'highlight-error' }
+      },
+      {
+        type: 'call',
+        label: 'retry',
+        labelClass: 'trace-label-retry',
+        code: '// 产品版: 自动空白规范化\n// whitespace_normalization=true\n\nedit_file(\n  old_string="result = transform(validated)",\n  new_string="result = transform(validated, strict=True)"\n)',
+        highlight: { line: 2, type: 'highlight-active' }
+      },
+      {
+        type: 'result',
+        label: 'tool_result',
+        labelClass: 'trace-label-success',
+        resultClass: 'trace-result-success',
+        text: '[OK] Applied (whitespace normalized). 1 match found, replaced.',
+        highlight: { line: 2, type: 'highlight-success' },
+        replaceLine: { line: 2, tokens: [{type:'',text:'    result = '},{type:'fn',text:'transform'},{type:'',text:'(validated, strict='},{type:'kw',text:'True'},{type:'',text:')'}] }
+      }
+    ]
+  }
+];
+
+let currentScenario = 0;
+let currentStep = -1;
+let animTimeout = null;
+let currentLines = [];
+
+function renderCode(highlights, replaceLine) {
+  const panel = document.getElementById('code-panel');
+  let lines = [...currentLines];
+
+  if (replaceLine) {
+    lines[replaceLine.line] = { ...lines[replaceLine.line], tokens: replaceLine.tokens };
+    currentLines = lines;
+  }
+
+  let highlightMap = {};
+  if (highlights) {
+    if (Array.isArray(highlights)) {
+      highlights.forEach(h => { highlightMap[h.line] = h.type; });
+    } else {
+      highlightMap[highlights.line] = highlights.type;
+    }
+  }
+
+  panel.innerHTML = lines.map((line, i) => {
+    const cls = highlightMap[i] || '';
+    const numStr = String(i + 1);
+    const tokensHtml = line.tokens.map(t => {
+      if (t.type) return `<span class="${t.type}">${escapeHtml(t.text)}</span>`;
+      return escapeHtml(t.text);
+    }).join('');
+    return `<div class="code-line ${cls}"><span class="line-num">${numStr}</span><span class="line-content">${tokensHtml || ' '}</span></div>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderTrace(steps, upTo) {
+  const panel = document.getElementById('trace-panel');
+  panel.innerHTML = '';
+
+  for (let i = 0; i <= upTo && i < steps.length; i++) {
+    const step = steps[i];
+    const item = document.createElement('div');
+    item.className = 'trace-item';
+
+    if (step.type === 'call') {
+      item.innerHTML = `
+        <div class="trace-call">
+          <div class="trace-label ${step.labelClass}">${step.label}</div>
+          <div class="trace-code">${escapeHtml(step.code)}</div>
+        </div>`;
+    } else if (step.type === 'result') {
+      item.innerHTML = `
+        <div class="trace-result ${step.resultClass}">
+          <div class="trace-label ${step.labelClass}">${step.label}</div>
+          <div style="margin-top:4px;white-space:pre-wrap;font-size:10px;">${escapeHtml(step.text)}</div>
+        </div>`;
+    }
+
+    panel.appendChild(item);
+    // Trigger animation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        item.classList.add('visible');
+      });
+    });
+  }
+}
+
+function renderStepIndicator(totalSteps, current) {
+  const indicator = document.getElementById('step-indicator');
+  indicator.innerHTML = '';
+  for (let i = 0; i < totalSteps; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'step-dot';
+    if (i < current) dot.classList.add('done');
+    if (i === current) dot.classList.add('active');
+    indicator.appendChild(dot);
+  }
+}
+
+function resetFile() {
+  currentLines = FILE_LINES.map(l => ({ ...l, tokens: [...l.tokens] }));
+}
+
+function playScenario(index) {
+  if (animTimeout) { clearTimeout(animTimeout); animTimeout = null; }
+  currentScenario = index;
+  currentStep = -1;
+  resetFile();
+  renderCode(null);
+  document.getElementById('trace-panel').innerHTML = '';
+
+  const scenario = SCENARIOS[index];
+  renderStepIndicator(scenario.steps.length, -1);
+
+  // Auto-play steps
+  function nextStep() {
+    currentStep++;
+    if (currentStep >= scenario.steps.length) return;
+
+    const step = scenario.steps[currentStep];
+    renderTrace(scenario.steps, currentStep);
+
+    if (step.replaceLine) {
+      renderCode(step.highlight, step.replaceLine);
+    } else {
+      renderCode(step.highlight);
+    }
+
+    renderStepIndicator(scenario.steps.length, currentStep);
+
+    if (currentStep < scenario.steps.length - 1) {
+      animTimeout = setTimeout(nextStep, 1400);
+    }
+  }
+
+  animTimeout = setTimeout(nextStep, 500);
+}
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    playScenario(parseInt(tab.dataset.scenario));
+  });
+});
+
+// Replay button
+document.getElementById('btn-replay').addEventListener('click', () => {
+  playScenario(currentScenario);
+});
+
+// Contrast toggle
+document.getElementById('contrast-toggle').addEventListener('click', () => {
+  const body = document.getElementById('contrast-body');
+  const icon = document.getElementById('toggle-icon');
+  body.classList.toggle('open');
+  icon.classList.toggle('open');
+});
+
+// Init
+resetFile();
+playScenario(0);
+</script>
+</body>
+</html>

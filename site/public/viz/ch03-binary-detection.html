@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Binary Detection Decision Tree</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #faf9f5;
+  font-family: 'JetBrains Mono', monospace;
+  color: #29261f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+}
+
+.container {
+  width: 100%;
+  max-width: 720px;
+}
+
+h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #a89888;
+  margin-bottom: 20px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.input-section {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.input-section input {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #fbfaf6;
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: #29261f;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-section input:focus {
+  border-color: #d97757;
+}
+
+.input-section input::placeholder {
+  color: #6a5f58;
+}
+
+.input-section button {
+  background: #d97757;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 18px;
+  color: #faf9f5;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.input-section button:hover {
+  opacity: 0.85;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.presets button {
+  background: #2a2522;
+  border: 1px solid #fbfaf6;
+  border-radius: 4px;
+  padding: 5px 10px;
+  color: #b8a898;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.presets button:hover {
+  border-color: #d97757;
+  color: #d97757;
+}
+
+.tree {
+  position: relative;
+  padding: 0 0 16px 0;
+}
+
+.tree-row {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 2px;
+}
+
+.node {
+  background: #ffffff;
+  border: 1.5px solid #fbfaf6;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.node.active {
+  border-color: #d97757;
+  box-shadow: 0 0 12px rgba(215, 119, 87, 0.25);
+}
+
+.node.pass {
+  border-color: #0e7c66;
+  box-shadow: 0 0 8px rgba(126, 195, 132, 0.15);
+}
+
+.node.fail {
+  border-color: #e06464;
+  box-shadow: 0 0 8px rgba(224, 100, 100, 0.15);
+}
+
+.node-label {
+  color: #a89888;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.node-content {
+  color: #29261f;
+  font-weight: 500;
+}
+
+.node.active .node-content {
+  color: #d97757;
+}
+
+.node.pass .node-content {
+  color: #0e7c66;
+}
+
+.node.fail .node-content {
+  color: #e06464;
+}
+
+/* SVG tree layout */
+.tree-svg {
+  width: 100%;
+  height: 380px;
+  display: block;
+}
+
+.tree-svg text {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tree-svg .edge {
+  stroke: #fbfaf6;
+  stroke-width: 1.5;
+  fill: none;
+  transition: stroke 0.3s;
+}
+
+.tree-svg .edge.active {
+  stroke: #d97757;
+}
+
+.tree-svg .edge.pass {
+  stroke: #0e7c66;
+}
+
+.tree-svg .edge.fail {
+  stroke: #e06464;
+}
+
+.tree-svg .node-rect {
+  fill: #ffffff;
+  stroke: #fbfaf6;
+  stroke-width: 1.5;
+  rx: 6;
+  transition: all 0.3s ease;
+}
+
+.tree-svg .node-rect.active {
+  stroke: #d97757;
+  filter: drop-shadow(0 0 6px rgba(215, 119, 87, 0.3));
+}
+
+.tree-svg .node-rect.pass {
+  stroke: #0e7c66;
+  filter: drop-shadow(0 0 6px rgba(126, 195, 132, 0.2));
+}
+
+.tree-svg .node-rect.fail {
+  stroke: #e06464;
+  filter: drop-shadow(0 0 6px rgba(224, 100, 100, 0.2));
+}
+
+.tree-svg .node-text {
+  fill: #29261f;
+  font-size: 11px;
+  font-weight: 500;
+  transition: fill 0.3s;
+}
+
+.tree-svg .node-text.active {
+  fill: #d97757;
+}
+
+.tree-svg .node-text.pass {
+  fill: #0e7c66;
+}
+
+.tree-svg .node-text.fail {
+  fill: #e06464;
+}
+
+.tree-svg .node-sublabel {
+  fill: #6a5f58;
+  font-size: 9.5px;
+  transition: fill 0.3s;
+}
+
+.tree-svg .node-sublabel.active {
+  fill: #d97757;
+}
+
+.tree-svg .node-sublabel.pass {
+  fill: #0e7c66;
+}
+
+.tree-svg .node-sublabel.fail {
+  fill: #e06464;
+}
+
+.tree-svg .edge-label {
+  fill: #6a5f58;
+  font-size: 9px;
+}
+
+.result-card {
+  background: #ffffff;
+  border: 1.5px solid #fbfaf6;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-top: 8px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: all 0.3s ease;
+}
+
+.result-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.result-card.pass {
+  border-color: #0e7c66;
+}
+
+.result-card.fail {
+  border-color: #e06464;
+}
+
+.result-verdict {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.result-verdict.pass {
+  color: #0e7c66;
+}
+
+.result-verdict.fail {
+  color: #e06464;
+}
+
+.result-explanation {
+  font-size: 12px;
+  color: #a89888;
+  line-height: 1.5;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>read_file 二进制检测决策树</h1>
+
+  <div class="input-section">
+    <input type="text" id="filename-input" placeholder="输入文件名，如 photo.png" />
+    <button id="detect-btn" onclick="runDetection()">检测</button>
+  </div>
+
+  <div class="presets">
+    <button onclick="preset('main.py')">main.py</button>
+    <button onclick="preset('photo.png')">photo.png</button>
+    <button onclick="preset('data.bin')">data.bin</button>
+    <button onclick="preset('report.pdf')">report.pdf</button>
+    <button onclick="preset('config.json')">config.json</button>
+    <button onclick="preset('minified.js')">minified.js</button>
+  </div>
+
+  <svg class="tree-svg" viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg">
+    <!-- Edges -->
+    <path id="edge-start" class="edge" d="M 360 38 L 360 58" />
+
+    <!-- Layer 1: Extension check -->
+    <rect id="node-ext" class="node-rect" x="260" y="58" width="200" height="42" />
+    <text id="text-ext" class="node-text" x="360" y="76" text-anchor="middle">Layer 1: 检查扩展名</text>
+    <text id="sub-ext" class="node-sublabel" x="360" y="92" text-anchor="middle">.png .jpg .zip .exe .pdf ...</text>
+
+    <!-- Edge from ext to fail-ext -->
+    <path id="edge-ext-fail" class="edge" d="M 460 80 L 560 80 L 560 120" />
+    <text class="edge-label" x="500" y="72" text-anchor="middle">命中黑名单</text>
+
+    <!-- Edge from ext to magic -->
+    <path id="edge-ext-pass" class="edge" d="M 360 100 L 360 140" />
+    <text class="edge-label" x="330" y="125" text-anchor="end">不在黑名单</text>
+
+    <!-- Fail node: extension -->
+    <rect id="node-ext-fail" class="node-rect" x="490" y="120" width="150" height="36" />
+    <text id="text-ext-fail" class="node-text" x="565" y="143" text-anchor="middle">x 二进制，拦截</text>
+
+    <!-- Layer 2: Magic bytes -->
+    <rect id="node-magic" class="node-rect" x="230" y="140" width="260" height="42" />
+    <text id="text-magic" class="node-text" x="360" y="158" text-anchor="middle">Layer 2: 读文件头 16 字节</text>
+    <text id="sub-magic" class="node-sublabel" x="360" y="174" text-anchor="middle">PNG magic / PDF magic / NUL 字节</text>
+
+    <!-- Edge from magic to fail-magic -->
+    <path id="edge-magic-fail" class="edge" d="M 490 162 L 560 162 L 560 210" />
+    <text class="edge-label" x="530" y="198" text-anchor="middle">命中</text>
+
+    <!-- Edge from magic to utf8 -->
+    <path id="edge-magic-pass" class="edge" d="M 360 182 L 360 230" />
+    <text class="edge-label" x="330" y="212" text-anchor="end">都没命中</text>
+
+    <!-- Fail node: magic -->
+    <rect id="node-magic-fail" class="node-rect" x="490" y="210" width="150" height="36" />
+    <text id="text-magic-fail" class="node-text" x="565" y="233" text-anchor="middle">x 二进制，拦截</text>
+
+    <!-- Layer 3: UTF-8 decode -->
+    <rect id="node-utf8" class="node-rect" x="260" y="230" width="200" height="42" />
+    <text id="text-utf8" class="node-text" x="360" y="248" text-anchor="middle">Layer 3: UTF-8 解码</text>
+    <text id="sub-utf8" class="node-sublabel" x="360" y="264" text-anchor="middle">尝试解码全文内容</text>
+
+    <!-- Edge from utf8 to fail-utf8 -->
+    <path id="edge-utf8-fail" class="edge" d="M 460 252 L 560 252 L 560 300" />
+    <text class="edge-label" x="518" y="288" text-anchor="middle">解码失败</text>
+
+    <!-- Edge from utf8 to pass -->
+    <path id="edge-utf8-pass" class="edge" d="M 360 272 L 360 320" />
+    <text class="edge-label" x="330" y="300" text-anchor="end">解码成功</text>
+
+    <!-- Fail node: utf8 -->
+    <rect id="node-utf8-fail" class="node-rect" x="490" y="300" width="150" height="36" />
+    <text id="text-utf8-fail" class="node-text" x="565" y="323" text-anchor="middle">x 二进制，拦截</text>
+
+    <!-- Pass node -->
+    <rect id="node-pass" class="node-rect" x="285" y="320" width="150" height="36" />
+    <text id="text-pass" class="node-text" x="360" y="343" text-anchor="middle">OK 可以读取</text>
+
+    <!-- Input node at top -->
+    <rect id="node-input" class="node-rect" x="300" y="12" width="120" height="28" />
+    <text id="text-input" class="node-text" x="360" y="31" text-anchor="middle">输入文件</text>
+  </svg>
+
+  <div id="result-card" class="result-card">
+    <div id="result-verdict" class="result-verdict"></div>
+    <div id="result-explanation" class="result-explanation"></div>
+  </div>
+</div>
+
+<script>
+const FILE_DATA = {
+  'main.py': {
+    path: ['ext-pass', 'magic-pass', 'utf8-pass'],
+    verdict: 'pass',
+    verdictText: 'OK 文本文件，可以读取',
+    explanation: '扩展名 .py 不在黑名单 -> 文件头无二进制特征 -> UTF-8 解码成功。read_file 正常返回内容。'
+  },
+  'photo.png': {
+    path: ['ext-fail'],
+    verdict: 'fail',
+    verdictText: 'x 二进制文件，拦截',
+    explanation: '扩展名 .png 命中黑名单，第一层直接拦截。不需要读取文件内容。'
+  },
+  'data.bin': {
+    path: ['ext-pass', 'magic-fail-nul'],
+    verdict: 'fail',
+    verdictText: 'x 二进制文件，拦截',
+    explanation: '扩展名 .bin 不在黑名单，但读取文件头发现包含 NUL (0x00) 字节，判定为二进制。'
+  },
+  'report.pdf': {
+    path: ['ext-fail-pdf'],
+    verdict: 'fail',
+    verdictText: 'x 二进制文件，拦截',
+    explanation: '扩展名 .pdf 命中黑名单，第一层拦截。(注：后续版本中 PDF 被特殊处理放行)'
+  },
+  'config.json': {
+    path: ['ext-pass', 'magic-pass', 'utf8-pass'],
+    verdict: 'pass',
+    verdictText: 'OK 文本文件，可以读取',
+    explanation: '扩展名 .json 不在黑名单 -> 文件头正常 -> UTF-8 解码成功。标准文本文件。'
+  },
+  'minified.js': {
+    path: ['ext-pass', 'magic-pass', 'utf8-pass'],
+    verdict: 'pass',
+    verdictText: 'OK 文本文件，可以读取',
+    explanation: '扩展名 .js 不在黑名单 -> 文件头正常 -> UTF-8 解码成功。(但单行可能超长，读取后可能被截断)'
+  }
+};
+
+const BINARY_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'svg',
+  'zip', 'tar', 'gz', 'rar', '7z', 'exe', 'dll', 'so', 'dylib',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+  'mp3', 'mp4', 'avi', 'mov', 'wav', 'flac',
+  'woff', 'woff2', 'ttf', 'otf', 'eot',
+  'bin', 'dat', 'o', 'class', 'pyc'];
+
+// Actually .bin is not always in blacklist in real CC - for demo we treat it as passing ext check
+const DEMO_BLACKLIST = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp',
+  'zip', 'tar', 'gz', 'rar', '7z', 'exe', 'dll', 'so', 'dylib',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+  'mp3', 'mp4', 'avi', 'mov', 'wav', 'flac',
+  'woff', 'woff2', 'ttf', 'otf', 'eot',
+  'o', 'class', 'pyc'];
+
+function getFileData(filename) {
+  const lower = filename.toLowerCase().trim();
+  if (FILE_DATA[lower]) return FILE_DATA[lower];
+
+  // Infer from extension
+  const ext = lower.split('.').pop();
+  if (DEMO_BLACKLIST.includes(ext)) {
+    return {
+      path: ['ext-fail'],
+      verdict: 'fail',
+      verdictText: 'x 二进制文件，拦截',
+      explanation: `扩展名 .${ext} 命中黑名单，第一层直接拦截。`
+    };
+  }
+  // Default: assume text
+  return {
+    path: ['ext-pass', 'magic-pass', 'utf8-pass'],
+    verdict: 'pass',
+    verdictText: 'OK 文本文件，可以读取',
+    explanation: `扩展名 .${ext} 不在黑名单 -> 文件头无二进制特征 -> UTF-8 解码成功。`
+  };
+}
+
+// All animatable element IDs grouped by step
+const STEPS = {
+  'ext-pass': {
+    nodes: ['node-ext'],
+    texts: ['text-ext', 'sub-ext'],
+    edges: ['edge-ext-pass'],
+    state: 'pass'
+  },
+  'ext-fail': {
+    nodes: ['node-ext', 'node-ext-fail'],
+    texts: ['text-ext', 'sub-ext', 'text-ext-fail'],
+    edges: ['edge-ext-fail'],
+    state: 'fail'
+  },
+  'ext-fail-pdf': {
+    nodes: ['node-ext', 'node-ext-fail'],
+    texts: ['text-ext', 'sub-ext', 'text-ext-fail'],
+    edges: ['edge-ext-fail'],
+    state: 'fail'
+  },
+  'magic-pass': {
+    nodes: ['node-magic'],
+    texts: ['text-magic', 'sub-magic'],
+    edges: ['edge-magic-pass'],
+    state: 'pass'
+  },
+  'magic-fail-nul': {
+    nodes: ['node-magic', 'node-magic-fail'],
+    texts: ['text-magic', 'sub-magic', 'text-magic-fail'],
+    edges: ['edge-magic-fail'],
+    state: 'fail'
+  },
+  'utf8-pass': {
+    nodes: ['node-utf8', 'node-pass'],
+    texts: ['text-utf8', 'sub-utf8', 'text-pass'],
+    edges: ['edge-utf8-pass'],
+    state: 'pass'
+  },
+  'utf8-fail': {
+    nodes: ['node-utf8', 'node-utf8-fail'],
+    texts: ['text-utf8', 'sub-utf8', 'text-utf8-fail'],
+    edges: ['edge-utf8-fail'],
+    state: 'fail'
+  }
+};
+
+let animating = false;
+
+function resetTree() {
+  // Reset all nodes, texts, edges
+  document.querySelectorAll('.node-rect').forEach(el => {
+    el.classList.remove('active', 'pass', 'fail');
+  });
+  document.querySelectorAll('.node-text, .node-sublabel').forEach(el => {
+    el.classList.remove('active', 'pass', 'fail');
+  });
+  document.querySelectorAll('.edge').forEach(el => {
+    el.classList.remove('active', 'pass', 'fail');
+  });
+  const card = document.getElementById('result-card');
+  card.classList.remove('visible', 'pass', 'fail');
+}
+
+function animateStep(stepKey, isFinal) {
+  const step = STEPS[stepKey];
+  if (!step) return;
+
+  // First set active
+  step.nodes.forEach(id => {
+    document.getElementById(id).classList.add('active');
+  });
+  step.texts.forEach(id => {
+    document.getElementById(id).classList.add('active');
+  });
+  step.edges.forEach(id => {
+    document.getElementById(id).classList.add('active');
+  });
+
+  // After a beat, resolve to pass/fail
+  setTimeout(() => {
+    const state = step.state;
+    step.nodes.forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('active');
+      el.classList.add(state);
+    });
+    step.texts.forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('active');
+      el.classList.add(state);
+    });
+    step.edges.forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('active');
+      el.classList.add(state);
+    });
+  }, 200);
+}
+
+function showResult(data) {
+  const card = document.getElementById('result-card');
+  const verdict = document.getElementById('result-verdict');
+  const explanation = document.getElementById('result-explanation');
+
+  verdict.textContent = data.verdictText;
+  verdict.className = 'result-verdict ' + data.verdict;
+  explanation.textContent = data.explanation;
+  card.className = 'result-card visible ' + data.verdict;
+}
+
+function runDetection() {
+  if (animating) return;
+
+  const input = document.getElementById('filename-input');
+  const filename = input.value.trim();
+  if (!filename) return;
+
+  animating = true;
+  resetTree();
+
+  const data = getFileData(filename);
+  const path = data.path;
+
+  // Animate input node
+  document.getElementById('node-input').classList.add('active');
+  document.getElementById('text-input').classList.add('active');
+  document.getElementById('edge-start').classList.add('active');
+
+  setTimeout(() => {
+    document.getElementById('node-input').classList.remove('active');
+    document.getElementById('node-input').classList.add('pass');
+    document.getElementById('text-input').classList.remove('active');
+    document.getElementById('text-input').classList.add('pass');
+    document.getElementById('edge-start').classList.remove('active');
+    document.getElementById('edge-start').classList.add('pass');
+  }, 200);
+
+  // Animate each step in sequence
+  path.forEach((stepKey, i) => {
+    setTimeout(() => {
+      animateStep(stepKey, i === path.length - 1);
+    }, 350 + i * 400);
+  });
+
+  // Show result
+  setTimeout(() => {
+    showResult(data);
+    animating = false;
+  }, 350 + path.length * 400 + 100);
+}
+
+function preset(filename) {
+  document.getElementById('filename-input').value = filename;
+  runDetection();
+}
+
+// Enter key support
+document.getElementById('filename-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    runDetection();
+  }
+});
+</script>
+</body>
+</html>
