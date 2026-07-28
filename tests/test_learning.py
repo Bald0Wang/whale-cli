@@ -7,7 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from whale_cli.learning import KnowledgeMap, LearnerProfileService, LearningPortfolio, LearningStore, ObsidianLearningWiki, ProjectCompanion, ReviewScheduler, RoadmapPlanner
+from whale_cli.learning import DatawhaleKnowledgeTornado, KnowledgeMap, LearnerProfileService, LearningPortfolio, LearningStore, ObsidianLearningWiki, ProjectCompanion, ReviewScheduler, RoadmapPlanner
+from whale_cli.subagents import DatawhaleKnowledgeBase
 from whale_cli.soul.approval import Approval
 from whale_cli.soul.soul import Soul
 from whale_cli.soul import soul as soul_module
@@ -46,6 +47,51 @@ def test_knowledge_map_exposes_reverse_links_without_duplicate_edges(tmp_path):
 
     assert len(graph.node(python["id"])["links_to"]) == 1
     assert graph.node(agent["id"])["linked_from"] == [{"source": python["id"], "target": agent["id"], "relation": "prerequisite"}]
+
+
+def test_datawhale_knowledge_tornado_indexes_every_document_and_keeps_source_metadata(tmp_path):
+    corpus = tmp_path / "datawhale.jsonl"
+    records = [
+        {"id": "learn:rag", "source_type": "learn_chapter", "title": "RAG 开发入门", "url": "https://example.test/rag", "text": "RAG 检索增强生成与向量检索实践。", "tokens": ["rag", "检索", "向量"], "tags": ["RAG", "智能体"], "metadata": {"courseId": "llm-101", "courseTitle": "大模型应用", "sectionPath": ["检索增强"]}},
+        {"id": "learn:python", "source_type": "learn_section", "title": "Python 数据处理", "url": "https://example.test/python", "text": "使用 Pandas 清洗和分析数据。", "tokens": ["python", "pandas"], "tags": ["Python", "数据分析"], "metadata": {"courseTitle": "Python 入门"}},
+        {"id": "github:cv", "source_type": "github_repo", "title": "Vision Project", "url": "https://example.test/cv", "text": "A computer vision project.", "tokens": ["vision"], "tags": ["计算机视觉"], "metadata": {"stars": 10}},
+    ]
+    corpus.write_text("\n".join(json.dumps(item, ensure_ascii=False) for item in records) + "\n", encoding="utf-8")
+    tornado = DatawhaleKnowledgeTornado(DatawhaleKnowledgeBase(corpus))
+
+    page = tornado.snapshot(query="RAG")
+    cluster = tornado.snapshot(cluster_id="llm-agent")
+    course = tornado.snapshot(cluster_id="llm-agent", course_id="course:llm-101")
+    detail = tornado.document("learn:rag")
+
+    assert page["summary"]["document_count"] == 3
+    assert sum(cluster["document_count"] for cluster in page["clusters"]) == 3
+    assert page["documents"][0]["id"] == "learn:rag"
+    assert page["documents"][0]["course"] == "大模型应用"
+    assert cluster["navigation"]["level"] == "cluster"
+    assert any(node["id"] == "course:llm-101" for node in cluster["graph"]["nodes"])
+    assert course["navigation"]["level"] == "course"
+    assert course["pagination"]["total"] == 1
+    assert detail["document"]["section_path"] == ["检索增强"]
+    assert (tmp_path / "datawhale_knowledge_tornado.json").is_file()
+
+
+def test_datawhale_knowledge_tornado_rebuilds_after_corpus_changes(tmp_path):
+    corpus = tmp_path / "datawhale.jsonl"
+    first = {"id": "first", "source_type": "learn_chapter", "title": "Python 基础", "url": "", "text": "Python 入门。", "tokens": ["python"], "tags": ["Python"], "metadata": {}}
+    second = {"id": "second", "source_type": "learn_chapter", "title": "RAG 实战", "url": "", "text": "RAG 实战。", "tokens": ["rag"], "tags": ["RAG"], "metadata": {}}
+    corpus.write_text(json.dumps(first, ensure_ascii=False) + "\n", encoding="utf-8")
+    knowledge_base = DatawhaleKnowledgeBase(corpus)
+    tornado = DatawhaleKnowledgeTornado(knowledge_base)
+    before = tornado.snapshot()
+    corpus.write_text("\n".join(json.dumps(item, ensure_ascii=False) for item in [first, second]) + "\n", encoding="utf-8")
+    knowledge_base.documents.cache_clear()
+    knowledge_base._index.cache_clear()
+    after = tornado.snapshot()
+
+    assert before["summary"]["document_count"] == 1
+    assert after["summary"]["document_count"] == 2
+    assert after["summary"]["document_count"] != before["summary"]["document_count"]
 
 
 def test_roadmap_only_unlocks_concepts_with_ready_prerequisites(tmp_path):

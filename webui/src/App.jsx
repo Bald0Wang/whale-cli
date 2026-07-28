@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import * as THREE from 'three'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Background, Controls, Handle, MarkerType, MiniMap, Position, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
@@ -24,6 +26,7 @@ import {
   Menu,
   MessageSquareText,
   Network,
+  Orbit,
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
@@ -48,12 +51,13 @@ const starterPrompts = [
   { title: '规划 Datawhale 路线', detail: '按基础、目标和时间匹配本地项目知识库。', prompt: '请调用 Agent 工具，agent_type 使用 datawhale_learning。我的基础是 Python 初学者，每周可投入 6 小时，目标是学习 Agent 并完成一个可演示的小项目。请给出 Datawhale 项目建议和四周学习路线。' },
   { title: '开始陪学计划', detail: '先保存学习档案，再建立知识地图和本周任务。', prompt: '请开始一个学习陪伴流程：先用 LearnerProfile 记录我的基础是 Python 初学者、目标是四周完成 Agent 小项目、每周 6 小时；再建立 Python 基础和 Agent Loop 的前置关系，最后用 LearningRoadmap 生成本周第一步。' },
   { title: '生成 Obsidian 学习 Wiki', detail: '把知识地图同步成可在 Obsidian 打开的双向链接笔记。', prompt: '请先检查 LearningWikiStatus；如果学习 Wiki 尚未生成，就基于当前 KnowledgeMap 初始化并同步到 learning-wiki。请告诉我如何在 Obsidian 中打开它。' },
+  { title: '探索知识龙卷', detail: '从完整 Datawhale 本地语料中筛选课程、章节与项目资料。', prompt: '请调用 DatawhaleTornado(action: "browse", query: "RAG")，根据返回的真实资料链接推荐一个适合初学者的学习起点；不要编造前置关系或掌握度。' },
 ]
 
 const demoMessages = [{ role: 'assistant', content: '我会先观察项目，再决定是否调用工具。需要写入或执行命令时，Safe 模式会停在审批节点。' }]
 
 const tutorialFilenames = [
-  '00-为什么要做这个CLI.md', '01-5分钟体验-能帮你做什么.md', '02-REPL与会话-把聊天框做成系统.md', '03-最小LLMClient-先打通对话.md', '04-AgentLoopv0-从聊天到会做事的循环.md', '05-Toolsv0-最小工具箱.md', '06-Toolsv1-写文件与跑命令.md', '07-TodoList-把计划变成可追踪任务.md', '08-Skills-把套路沉淀成能力包.md', '09-SessionNote与上下文压缩-稳态系统.md', '10-Part1结尾-Demo清单.md', '11-Agents与系统提示词-把配置从代码里拿出来.md', '12-Hooks-把自动化护栏挂在循环外.md', '13-Subagents-把复杂任务交给干净上下文.md', '14-BackgroundTasks-让慢任务后台跑.md', '15-Skills进阶-按来源分层发现.md', '16-MCP与插件-把外部能力接进工具池.md', '17-AGENTS与项目上下文-让仓库规则自动生效.md', '18-进阶收束-WhaleCLI扩展路线.md', '19-四种Loop模式-让Agent按条件持续工作.md', '20-附件与文件输入-让多格式资料进入任务.md', '21-Datawhale学习规划Subagent-用知识库做垂直路线.md', '22-学习者档案-先知道要帮谁.md', '23-双链知识图谱-把学过的东西连起来.md', '24-动态学习路线-下一步只做一件事.md', '25-间隔复习-让学过的内容留下来.md', '26-项目陪学-从推荐到本地练习.md', '27-学习档案与社区反馈-把进步留下来.md', '28-学习项目空间-让数据持续隔离.md',
+  '00-为什么要做这个CLI.md', '01-5分钟体验-能帮你做什么.md', '02-REPL与会话-把聊天框做成系统.md', '03-最小LLMClient-先打通对话.md', '04-AgentLoopv0-从聊天到会做事的循环.md', '05-Toolsv0-最小工具箱.md', '06-Toolsv1-写文件与跑命令.md', '07-TodoList-把计划变成可追踪任务.md', '08-Skills-把套路沉淀成能力包.md', '09-SessionNote与上下文压缩-稳态系统.md', '10-Part1结尾-Demo清单.md', '11-Agents与系统提示词-把配置从代码里拿出来.md', '12-Hooks-把自动化护栏挂在循环外.md', '13-Subagents-把复杂任务交给干净上下文.md', '14-BackgroundTasks-让慢任务后台跑.md', '15-Skills进阶-按来源分层发现.md', '16-MCP与插件-把外部能力接进工具池.md', '17-AGENTS与项目上下文-让仓库规则自动生效.md', '18-进阶收束-WhaleCLI扩展路线.md', '19-四种Loop模式-让Agent按条件持续工作.md', '20-附件与文件输入-让多格式资料进入任务.md', '21-Datawhale学习规划Subagent-用知识库做垂直路线.md', '22-学习者档案-先知道要帮谁.md', '23-双链知识图谱-把学过的东西连起来.md', '24-动态学习路线-下一步只做一件事.md', '25-间隔复习-让学过的内容留下来.md', '26-项目陪学-从推荐到本地练习.md', '27-学习档案与社区反馈-把进步留下来.md', '28-学习项目空间-让数据持续隔离.md', '29-知识龙卷-把Datawhale内容做成学习产品.md',
 ]
 
 const tutorialAssetPath = (filename) => `/project-assets/docs/新手入门/${encodeURI(filename)}`
@@ -66,7 +70,7 @@ const workspaceManifest = {
   'docs/新手入门': tutorialFilenames.map((name) => [name, 'file']),
   src: [['whale_cli', 'directory']],
   'src/whale_cli': [['soul', 'directory'], ['llm', 'directory'], ['storage', 'directory'], ['learning', 'directory'], ['tools', 'directory'], ['mcp', 'directory'], ['loops', 'directory'], ['security', 'directory'], ['hooks', 'directory'], ['context', 'directory'], ['background', 'directory'], ['subagents', 'directory'], ['ui', 'directory'], ['__init__.py', 'file']],
-  'src/whale_cli/learning': [['store.py', 'file'], ['profile.py', 'file'], ['knowledge.py', 'file'], ['roadmap.py', 'file'], ['review.py', 'file'], ['projects.py', 'file'], ['portfolio.py', 'file'], ['wiki.py', 'file'], ['__init__.py', 'file']],
+  'src/whale_cli/learning': [['store.py', 'file'], ['profile.py', 'file'], ['knowledge.py', 'file'], ['tornado.py', 'file'], ['roadmap.py', 'file'], ['review.py', 'file'], ['projects.py', 'file'], ['portfolio.py', 'file'], ['wiki.py', 'file'], ['__init__.py', 'file']],
   'src/whale_cli/soul': [['soul.py', 'file'], ['toolset.py', 'file'], ['approval.py', 'file'], ['compaction.py', 'file'], ['todo_store.py', 'file']],
   'src/whale_cli/llm': [['client.py', 'file'], ['__init__.py', 'file']],
   'src/whale_cli/storage': [['session_store.py', 'file'], ['__init__.py', 'file']],
@@ -172,6 +176,7 @@ function Sidebar({ open, collapsed, activeView, activeSessionId, sessions, proje
         <button title="运行架构" className={activeView === 'architecture' ? 'is-active' : ''} onClick={() => onViewChange('architecture')}><Network size={20} /><span>运行架构</span></button>
         <button title="学习地图" className={activeView === 'learning' ? 'is-active' : ''} onClick={() => onViewChange('learning')}><CircleHelp size={20} /><span>学习地图</span></button>
         <button title="学习图谱" className={activeView === 'wiki' ? 'is-active' : ''} onClick={() => onViewChange('wiki')}><GitFork size={20} /><span>学习图谱</span></button>
+        <button title="知识龙卷" className={activeView === 'tornado' ? 'is-active' : ''} onClick={() => onViewChange('tornado')}><Orbit size={20} /><span>知识龙卷</span></button>
         <button title="学习路线" className={activeView === 'roadmaps' ? 'is-active' : ''} onClick={() => onViewChange('roadmaps')}><Map size={20} /><span>学习路线</span></button>
         <button title="间隔复习" className={activeView === 'reviews' ? 'is-active' : ''} onClick={() => onViewChange('reviews')}><Repeat2 size={20} /><span>间隔复习</span></button>
         <button title="学习档案" className={activeView === 'portfolio' ? 'is-active' : ''} onClick={() => onViewChange('portfolio')}><FileText size={20} /><span>学习档案</span></button>
@@ -405,6 +410,377 @@ function LearningWikiView({ onDecompose }) {
   </section>
 }
 
+function TornadoGraphNode({ data, selected }) {
+  return <div className={`tornado-node tornado-${data.kind} ${selected ? 'is-selected' : ''}`}>
+    {data.kind !== 'root' && <Handle type="target" position={Position.Left} className="tornado-handle" />}
+    <span>{data.eyebrow}</span><strong>{data.title}</strong>{data.description && <p>{data.description}</p>}
+    {data.kind === 'topic' && <small>{data.type} · {data.evidence_count} 条验证</small>}
+    {data.kind !== 'root' && <Handle type="source" position={Position.Right} className="tornado-handle" />}
+  </div>
+}
+
+const tornadoNodeTypes = { tornado: TornadoGraphNode }
+
+function tornadoFlow(tornado) {
+  if (!tornado) return { nodes: [], edges: [] }
+  const topics = tornado.topics || []
+  const dependencies = tornado.dependencies || []
+  const depthById = {}
+  const visiting = new Set()
+  const depth = (topicId) => {
+    if (depthById[topicId] !== undefined) return depthById[topicId]
+    if (visiting.has(topicId)) return 0
+    visiting.add(topicId)
+    const prerequisites = dependencies.filter((edge) => edge.topic_id === topicId).map((edge) => edge.prerequisite_id)
+    depthById[topicId] = prerequisites.length ? Math.max(...prerequisites.map((id) => depth(id))) + 1 : 0
+    visiting.delete(topicId)
+    return depthById[topicId]
+  }
+  topics.forEach((topic) => depth(topic.id))
+  const columns = Object.values(depthById).reduce((accumulator, value) => Math.max(accumulator, value), 0) + 1
+  const byDepth = Array.from({ length: columns }, () => [])
+  topics.forEach((topic) => byDepth[depthById[topic.id]].push(topic))
+  const nodes = [
+    { id: 'tornado-root', type: 'tornado', position: { x: 30, y: 260 }, data: { kind: 'root', eyebrow: '学习目标', title: tornado.title, description: tornado.overview } },
+    { id: 'tornado-domain', type: 'tornado', position: { x: 275, y: 260 }, data: { kind: 'domain', eyebrow: '领域簇', title: tornado.domain || '学习领域', description: `${topics.length} 个可验证微主题` } },
+  ]
+  byDepth.forEach((column, level) => column.forEach((topic, index) => nodes.push({
+    id: topic.id,
+    type: 'tornado',
+    position: { x: 550 + level * 278, y: 80 + index * 205 },
+    data: { kind: 'topic', eyebrow: level === 0 ? '可先学' : `第 ${level + 1} 层`, title: topic.name, description: topic.description, type: topic.type, evidence_count: (topic.evidence || []).length, topic },
+  })))
+  const rootEdges = [
+    { id: 'root-domain', source: 'tornado-root', target: 'tornado-domain', type: 'smoothstep', style: { stroke: '#6b8fba', strokeWidth: 2.2 }, markerEnd: { type: MarkerType.ArrowClosed } },
+    ...byDepth[0].map((topic) => ({ id: `domain-${topic.id}`, source: 'tornado-domain', target: topic.id, type: 'smoothstep', style: { stroke: '#a6b8cb', strokeWidth: 1.3, strokeDasharray: '5 4' }, markerEnd: { type: MarkerType.ArrowClosed } })),
+  ]
+  const dependencyEdges = dependencies.map((edge) => ({
+    id: `${edge.prerequisite_id}-${edge.topic_id}`,
+    source: edge.prerequisite_id,
+    target: edge.topic_id,
+    type: 'smoothstep',
+    label: edge.strength === 'hard' ? '必须先会' : '建议先学',
+    animated: edge.strength === 'hard',
+    style: { stroke: edge.strength === 'hard' ? '#d3833f' : '#7193b1', strokeWidth: edge.strength === 'hard' ? 2.25 : 1.35, strokeDasharray: edge.strength === 'soft' ? '6 5' : undefined },
+    markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+    labelStyle: { fill: edge.strength === 'hard' ? '#a25b25' : '#5f748d', fontSize: 10, fontWeight: 700 },
+    labelBgStyle: { fill: '#fbfcfe', fillOpacity: .94 }, labelBgPadding: [4, 3],
+  }))
+  return { nodes, edges: [...rootEdges, ...dependencyEdges] }
+}
+
+function LegacyDatawhaleTornadoView() {
+  const [payload, setPayload] = useState({ summary: {}, clusters: [], documents: [], pagination: {}, graph: { nodes: [], edges: [] } })
+  const [clusterId, setClusterId] = useState('')
+  const [sourceType, setSourceType] = useState('')
+  const [query, setQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [detail, setDetail] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) { setLoading(true); setError('') }
+    try {
+      const params = new URLSearchParams({ page: String(page) })
+      if (clusterId) params.set('cluster', clusterId)
+      if (sourceType) params.set('source_type', sourceType)
+      if (appliedQuery) params.set('q', appliedQuery)
+      const response = await fetch(`/api/datawhale-tornado?${params}`)
+      const next = await response.json()
+      if (!response.ok) throw new Error(next.error || '无法读取 Datawhale 知识龙卷')
+      setPayload(next)
+    } catch (reason) { if (!silent) setError(reason.message) } finally { if (!silent) setLoading(false) }
+  }
+  useEffect(() => { load() }, [clusterId, sourceType, appliedQuery, page])
+  const selectCluster = (id) => { setClusterId(id); setPage(1); setDetail(null) }
+  const openDocument = async (id) => { try { const response = await fetch(`/api/datawhale-tornado/document?id=${encodeURIComponent(id)}`); const next = await response.json(); if (!response.ok) throw new Error(next.error || '无法读取资料详情'); setDetail(next) } catch (reason) { setError(reason.message) } }
+  const graph = useMemo(() => {
+    const clusters = payload.clusters || []
+    const nodes = [{ id: 'datawhale', position: { x: 350, y: 145 }, data: { label: `Datawhale\n${payload.summary?.document_count || 0} 条资料` }, className: 'tornado-product-root' }]
+    const edges = []
+    clusters.forEach((cluster, index) => { const angle = (Math.PI * 2 * index) / Math.max(clusters.length, 1) - Math.PI / 2; const x = 350 + Math.cos(angle) * 250; const y = 150 + Math.sin(angle) * 110; nodes.push({ id: cluster.id, position: { x, y }, data: { label: `${cluster.name}\n${cluster.document_count} 条` }, className: `tornado-product-node ${cluster.id === clusterId ? 'is-selected' : ''}` }); edges.push({ id: `datawhale-${cluster.id}`, source: 'datawhale', target: cluster.id, type: 'smoothstep', label: '主题归类', style: { stroke: '#d96e2b', strokeWidth: 1.7 }, labelStyle: { fill: '#9a5129', fontSize: 10 } }) })
+    return { nodes, edges }
+  }, [payload, clusterId])
+  const detailDocument = detail?.document
+  const sourceLabel = (type) => ({ learn_chapter: '课程章节', learn_section: '课程小节', learn_course: '课程首页', github_repo: 'GitHub 项目' }[type] || type)
+  return <section className="content-page tornado-product-page"><header className="tornado-head"><div><span className="panel-kicker">DATAWHALE KNOWLEDGE TORNADO</span><h1>一打开，就能浏览完整的 Datawhale 学习内容。</h1><p>内容由当前项目导入的 BM25 语料自动构建。图中只表达原始资料的主题归类与课程层级；学习掌握度仍属于复习和学习档案。</p></div><div className="tornado-actions"><button className="refresh-workspace" onClick={() => load()}>刷新内容</button></div></header>{loading ? <div className="tutorial-loading"><Orbit size={19} />正在整理本地 Datawhale 资料...</div> : error ? <div className="wiki-empty">{error}</div> : !payload.ready ? <div className="wiki-empty"><Orbit size={30} /><strong>这个学习项目还没有 Datawhale 语料</strong><p>前往“运行架构”中的本地项目语料区域，导入 JSONL 或同步最新 BM25 运行结果后，这里会自动建立知识龙卷。</p></div> : <><section className="tornado-product-metrics"><div><strong>{payload.summary?.document_count || 0}</strong><span>全部资料</span></div><div><strong>{payload.summary?.cluster_count || 0}</strong><span>学习领域</span></div><div><strong>{Object.values(payload.summary?.source_counts || {}).reduce((sum, count) => sum + (count ? 1 : 0), 0)}</strong><span>来源类型</span></div><p>最近构建：{payload.generated_at ? new Date(payload.generated_at).toLocaleString('zh-CN') : '等待语料导入'}</p></section><section className="tornado-product-map"><header><div><strong>内容领域总览</strong><span>选择领域后，在下方查看它包含的真实课程、章节和项目。</span></div><button className="secondary" onClick={() => selectCluster('')}>查看全部</button></header><ReactFlow nodes={graph.nodes} edges={graph.edges} onNodeClick={(_, node) => node.id !== 'datawhale' && selectCluster(node.id)} fitView fitViewOptions={{ padding: .24, maxZoom: 1.05 }} minZoom={.45} maxZoom={1.25} nodesConnectable={false} nodesDraggable={false} proOptions={{ hideAttribution: true }}><Background color="#ece3dc" gap={21} size={1} /><Controls showInteractive={false} /></ReactFlow></section><div className="tornado-product-layout"><aside className="tornado-clusters"><header><strong>按领域浏览</strong><span>{payload.pagination?.total || 0} 条匹配</span></header><button className={!clusterId ? 'is-selected' : ''} onClick={() => selectCluster('')}><span>全部内容</span><small>{payload.summary?.document_count || 0}</small></button>{payload.clusters.map((cluster) => <button key={cluster.id} className={cluster.id === clusterId ? 'is-selected' : ''} onClick={() => selectCluster(cluster.id)}><span>{cluster.name}</span><small>{cluster.document_count}</small></button>)}</aside><section className="tornado-catalogue"><form className="tornado-filter" onSubmit={(event) => { event.preventDefault(); setAppliedQuery(query.trim()); setPage(1) }}><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索课程、章节、标签或项目" /><select value={sourceType} onChange={(event) => { setSourceType(event.target.value); setPage(1) }}><option value="">所有来源</option>{payload.source_types.map((type) => <option key={type} value={type}>{sourceLabel(type)}</option>)}</select><button type="submit">搜索</button></form><div className="tornado-document-list">{payload.documents.map((item) => <article key={item.id} className={detailDocument?.id === item.id ? 'is-selected' : ''}><button onClick={() => openDocument(item.id)}><span className="tornado-source">{sourceLabel(item.source_type)}</span><h3>{item.title}</h3><p>{item.course && <strong>{item.course} · </strong>}{item.excerpt}</p><footer>{item.tags.slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}</footer></button></article>)}{!payload.documents.length && <div className="tornado-empty-state"><Search size={25} /><p>没有匹配内容，换一个关键词或筛选条件试试。</p></div>}</div><footer className="tornado-pagination"><span>第 {payload.pagination?.page || 1}/{payload.pagination?.total_pages || 1} 页，共 {payload.pagination?.total || 0} 条</span><button className="secondary" disabled={(payload.pagination?.page || 1) <= 1} onClick={() => setPage((current) => current - 1)}>上一页</button><button className="secondary" disabled={(payload.pagination?.page || 1) >= (payload.pagination?.total_pages || 1)} onClick={() => setPage((current) => current + 1)}>下一页</button></footer></section><aside className="tornado-detail">{detailDocument ? <><span className="panel-kicker">{sourceLabel(detailDocument.source_type)}</span><h2>{detailDocument.title}</h2><p>{detailDocument.excerpt}</p><section><h3>内容定位</h3><dl><div><dt>领域</dt><dd>{payload.clusters.find((cluster) => cluster.id === detailDocument.cluster_id)?.name || '社区与其他资源'}</dd></div>{detailDocument.course && <div><dt>课程</dt><dd>{detailDocument.course}</dd></div>}{detailDocument.section_path?.length ? <div><dt>章节路径</dt><dd>{detailDocument.section_path.join(' / ')}</dd></div> : null}</dl></section><section><h3>关联标签</h3><div className="tornado-tags">{detailDocument.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section><section><h3>原始资料</h3>{detailDocument.url ? <a className="tornado-open-source" href={detailDocument.url} target="_blank" rel="noreferrer"><BookOpen size={16} />在 Datawhale / GitHub 打开</a> : <p className="tornado-empty">语料没有提供可打开链接。</p>}</section><section><h3>同领域资料</h3><div className="tornado-evidence">{detail.related?.map((item) => <button key={item.id} onClick={() => openDocument(item.id)}><Search size={15} /><span>{item.title}</span></button>) || <p className="tornado-empty">暂无同标签资料。</p>}</div></section></> : <div className="tornado-empty-state"><Orbit size={28} /><p>选择一条资料，查看它属于哪个领域、课程位置、标签和原始链接。</p></div>}</aside></div></>}</section>
+}
+
+function MapDatawhaleTornadoView() {
+  const [payload, setPayload] = useState({ summary: {}, clusters: [], documents: [], pagination: {}, graph: { nodes: [], edges: [] }, navigation: {} })
+  const [clusterId, setClusterId] = useState('')
+  const [courseId, setCourseId] = useState('')
+  const [sourceType, setSourceType] = useState('')
+  const [query, setQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [detail, setDetail] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const load = async () => {
+    setLoading(true); setError('')
+    try {
+      const params = new URLSearchParams({ page: String(page) })
+      if (clusterId) params.set('cluster', clusterId)
+      if (courseId) params.set('course', courseId)
+      if (sourceType) params.set('source_type', sourceType)
+      if (appliedQuery) params.set('q', appliedQuery)
+      const response = await fetch(`/api/datawhale-tornado?${params}`)
+      const next = await response.json()
+      if (!response.ok) throw new Error(next.error || '无法读取 Datawhale 知识龙卷')
+      setPayload(next)
+    } catch (reason) { setError(reason.message) } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [clusterId, courseId, sourceType, appliedQuery, page])
+  const sourceLabel = (type) => ({ learn_chapter: '课程章节', learn_section: '课程小节', learn_course: '课程首页', github_repo: 'GitHub 项目' }[type] || type)
+  const resetPage = () => setPage(1)
+  const enterCluster = (id) => { setClusterId(id); setCourseId(''); setDetail(null); resetPage() }
+  const enterCourse = (id) => { setCourseId(id); setDetail(null); resetPage() }
+  const goBack = () => { if (courseId) { setCourseId(''); setDetail(null); resetPage() } else if (clusterId) { setClusterId(''); setDetail(null); resetPage() } }
+  const openDocument = async (id) => { try { const response = await fetch(`/api/datawhale-tornado/document?id=${encodeURIComponent(id)}`); const next = await response.json(); if (!response.ok) throw new Error(next.error || '无法读取资料详情'); setDetail(next) } catch (reason) { setError(reason.message) } }
+  const graph = useMemo(() => {
+    const entries = payload.graph?.nodes || []
+    const root = entries.find((entry) => entry.kind === 'root')
+    const children = entries.filter((entry) => entry.kind !== 'root')
+    const rootId = root?.id || 'root'
+    const nodes = root ? [{ id: rootId, position: { x: 460, y: 250 }, data: { ...root }, className: 'tornado-atlas-root' }] : []
+    children.forEach((entry, index) => {
+      const columns = children.length > 18 ? 7 : 5
+      const row = Math.floor(index / columns)
+      const column = index % columns
+      const width = Math.max(1, Math.min(columns, children.length))
+      nodes.push({ id: entry.id, position: { x: 100 + column * 180 + (row % 2 ? 48 : 0), y: 56 + row * 128 }, data: { ...entry }, className: `tornado-atlas-node tone-${index % 6} ${entry.id === clusterId || entry.id === courseId ? 'is-selected' : ''}` })
+    })
+    const edges = (payload.graph?.edges || []).map((edge) => ({ ...edge, type: 'smoothstep', style: { stroke: '#8b9cb0', strokeWidth: 1.25, strokeDasharray: '4 4' }, labelStyle: { fill: '#718096', fontSize: 10 }, labelBgStyle: { fill: '#fbfcfe', fillOpacity: .9 } }))
+    return { nodes, edges, rootId }
+  }, [payload.graph, clusterId, courseId])
+  const onGraphNode = (_, node) => {
+    if (node.data.kind === 'cluster') enterCluster(node.id)
+    if (node.data.kind === 'course') enterCourse(node.id)
+    if (node.data.kind === 'resource') openDocument(node.id)
+  }
+  const detailDocument = detail?.document
+  const navigation = payload.navigation || {}
+  return <section className="tornado-atlas"><header className="tornado-atlas-head"><div><span className="panel-kicker">DATAWHALE KNOWLEDGE TORNADO</span><h1>把全部资料，变成可探索的学习地图。</h1><p>点击一个领域，再进入课程或项目，最后打开真实章节与来源。关系只来自 Datawhale 的领域、课程和资料层级。</p></div><div className="tornado-atlas-stats"><span><strong>{payload.summary?.document_count || 0}</strong> 资料</span><span><strong>{payload.summary?.cluster_count || 0}</strong> 领域</span><button className="secondary" onClick={() => load()}>刷新</button></div></header>{loading ? <div className="tutorial-loading"><Orbit size={19} />正在读取 Datawhale 学习地图...</div> : error ? <div className="wiki-empty">{error}</div> : !payload.ready ? <div className="wiki-empty"><Orbit size={30} /><strong>这个学习项目还没有 Datawhale 语料</strong><p>请在“运行架构”的本地项目语料区导入 JSONL 或同步最新 BM25 运行结果。</p></div> : <section className="tornado-atlas-shell"><article className="tornado-atlas-canvas"><div className="tornado-atlas-nav">{navigation.level !== 'overview' && <button className="tornado-atlas-back" onClick={goBack}><ArrowLeft size={16} />返回</button>}<div><span>{navigation.level === 'overview' ? '全部内容' : navigation.level === 'cluster' ? '领域' : '课程 / 项目'}</span><strong>{navigation.title}</strong><small>{navigation.description}</small></div></div><form className="tornado-atlas-search" onSubmit={(event) => { event.preventDefault(); setAppliedQuery(query.trim()); resetPage() }}><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索课程、章节、标签或项目" /><select value={sourceType} onChange={(event) => { setSourceType(event.target.value); resetPage() }}><option value="">全部来源</option>{payload.source_types.map((type) => <option key={type} value={type}>{sourceLabel(type)}</option>)}</select><button type="submit">搜索</button></form><div className="tornado-atlas-subjects"><span>领域 · 点击切换</span><div>{payload.clusters.map((cluster) => <button key={cluster.id} className={cluster.id === clusterId ? 'is-active' : ''} onClick={() => enterCluster(cluster.id)}>{cluster.name}<small>{cluster.document_count}</small></button>)}</div></div><ReactFlow nodes={graph.nodes} edges={graph.edges} onNodeClick={onGraphNode} fitView fitViewOptions={{ padding: .22, maxZoom: 1.1 }} minZoom={.3} maxZoom={1.35} nodesConnectable={false} nodesDraggable={false} proOptions={{ hideAttribution: true }}><Background color="#dae2e9" gap={24} size={1} /><Controls showInteractive={false} /><MiniMap nodeColor={(node) => node.data?.kind === 'root' ? '#365f83' : '#87a7bd'} maskColor="rgba(246,248,250,.74)" /></ReactFlow><p className="tornado-atlas-help">拖拽移动 · 滚动缩放 · 点击节点进入下一层</p></article><aside className="tornado-atlas-inspector">{detailDocument ? <><header><span className="panel-kicker">{sourceLabel(detailDocument.source_type)}</span><button className="icon-button" aria-label="关闭资料详情" onClick={() => setDetail(null)}><X size={17} /></button></header><h2>{detailDocument.title}</h2><p>{detailDocument.excerpt}</p><dl><div><dt>当前领域</dt><dd>{payload.clusters.find((cluster) => cluster.id === detailDocument.cluster_id)?.name || '社区与其他资源'}</dd></div>{detailDocument.course && <div><dt>所属课程</dt><dd>{detailDocument.course}</dd></div>}{detailDocument.section_path?.length ? <div><dt>章节路径</dt><dd>{detailDocument.section_path.join(' / ')}</dd></div> : null}</dl><section><h3>标签</h3><div className="tornado-tags">{detailDocument.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section>{detailDocument.url && <a className="tornado-open-source" href={detailDocument.url} target="_blank" rel="noreferrer"><BookOpen size={16} />打开原始资料</a>}<section><h3>同领域资料</h3><div className="tornado-evidence">{detail.related?.map((item) => <button key={item.id} onClick={() => openDocument(item.id)}><Search size={15} /><span>{item.title}</span></button>)}</div></section></> : <><span className="panel-kicker">EXPLORE</span><h2>{navigation.title}</h2><p>{navigation.description}</p><section><h3>{navigation.level === 'overview' ? '从领域开始' : navigation.level === 'cluster' ? '选择一门课程或一个项目' : '打开一条资料'}</h3><p className="tornado-empty">每次点击都只展开一层，避免把数千条资料堆在同一张图里。</p></section><section className="tornado-atlas-results"><header><h3>当前筛选</h3><small>{payload.pagination?.total || 0} 条</small></header>{payload.documents.slice(0, 10).map((item) => <button key={item.id} onClick={() => openDocument(item.id)}><span>{sourceLabel(item.source_type)}</span><strong>{item.title}</strong><small>{item.course || item.tags.slice(0, 3).join(' · ')}</small></button>)}{!payload.documents.length && <p className="tornado-empty">没有匹配资料，试试其他关键词或来源。</p>}<footer><button className="secondary" disabled={(payload.pagination?.page || 1) <= 1} onClick={() => setPage((current) => current - 1)}>上一页</button><span>{payload.pagination?.page || 1}/{payload.pagination?.total_pages || 1}</span><button className="secondary" disabled={(payload.pagination?.page || 1) >= (payload.pagination?.total_pages || 1)} onClick={() => setPage((current) => current + 1)}>下一页</button></footer></section></>}</aside></section>}</section>
+}
+
+const tornadoPalette = ['#d76845', '#2b9a8b', '#d7a23f', '#7a68b7', '#ad6070', '#3a89ad']
+
+function Tornado3DScene({ graph, onNodeSelect }) {
+  const hostRef = useRef(null)
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return undefined
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color('#f8fafc')
+    scene.fog = new THREE.Fog('#f8fafc', 13, 28)
+    const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 100)
+    camera.position.set(0, 3.2, 15.5)
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    host.replaceChildren(renderer.domElement)
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = .075
+    controls.enablePan = false
+    controls.minDistance = 6
+    controls.maxDistance = 25
+    controls.target.set(0, 0, 0)
+    scene.add(new THREE.HemisphereLight('#ffffff', '#94a5b5', 2.5))
+    const keyLight = new THREE.DirectionalLight('#ffffff', 2.4)
+    keyLight.position.set(5, 8, 7)
+    scene.add(keyLight)
+    const nodes = graph.nodes || []
+    // The API returns plain nodes, while the retired ReactFlow view wrapped them in `data`.
+    // Support both shapes so the 3D renderer is independent from the old view implementation.
+    const nodeInfo = (node) => node?.data || node || {}
+    const root = nodes.find((node) => nodeInfo(node).kind === 'root')
+    const children = nodes.filter((node) => nodeInfo(node).kind !== 'root')
+    // `Map` is also a Lucide icon imported above; use the browser's collection explicitly.
+    const positions = new globalThis.Map()
+    if (root) positions.set(root.id, new THREE.Vector3(0, 0, 0))
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+    children.forEach((node, index) => {
+      const t = (index + .5) / Math.max(children.length, 1)
+      const y = 1 - 2 * t
+      const radius = Math.sqrt(Math.max(0, 1 - y * y)) * (5.3 + (index % 3) * .65)
+      positions.set(node.id, new THREE.Vector3(Math.cos(index * goldenAngle) * radius, y * 4.8, Math.sin(index * goldenAngle) * radius))
+    })
+    const makeLabel = (node, color, isRoot) => {
+      const info = nodeInfo(node)
+      const label = `${info.label || '未命名节点'}${info.count ? `  ${info.count}` : ''}`
+      const canvas = document.createElement('canvas')
+      canvas.width = 720
+      canvas.height = 110
+      const context = canvas.getContext('2d')
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      context.font = `${isRoot ? 700 : 600} ${isRoot ? 40 : 31}px system-ui, -apple-system, sans-serif`
+      context.textAlign = 'center'
+      context.textBaseline = 'middle'
+      context.lineWidth = 10
+      context.strokeStyle = 'rgba(248,250,252,.94)'
+      context.strokeText(label, canvas.width / 2, canvas.height / 2)
+      context.fillStyle = color
+      context.fillText(label, canvas.width / 2, canvas.height / 2)
+      const texture = new THREE.CanvasTexture(canvas)
+      texture.colorSpace = THREE.SRGBColorSpace
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })
+      const sprite = new THREE.Sprite(material)
+      sprite.scale.set(isRoot ? 4.8 : 3.35, isRoot ? .74 : .51, 1)
+      sprite.position.set(0, isRoot ? .92 : .47, 0)
+      return sprite
+    }
+    const interactive = []
+    nodes.forEach((node, index) => {
+      const isRoot = nodeInfo(node).kind === 'root'
+      const color = isRoot ? '#9b3728' : tornadoPalette[index % tornadoPalette.length]
+      const group = new THREE.Group()
+      group.position.copy(positions.get(node.id) || new THREE.Vector3())
+      const geometry = new THREE.SphereGeometry(isRoot ? .56 : .25, 28, 28)
+      const material = new THREE.MeshStandardMaterial({ color, roughness: .35, metalness: .04, emissive: color, emissiveIntensity: isRoot ? .12 : .055 })
+      const mesh = new THREE.Mesh(geometry, material)
+      mesh.userData.node = node
+      group.add(mesh)
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(isRoot ? .78 : .36, isRoot ? .025 : .015, 10, 36), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .48 }))
+      ring.rotation.x = Math.PI / 2
+      group.add(ring)
+      group.add(makeLabel(node, isRoot ? '#8d3527' : '#40576c', isRoot))
+      scene.add(group)
+      interactive.push(mesh)
+    })
+    ;(graph.edges || []).forEach((edge) => {
+      const start = positions.get(edge.source)
+      const end = positions.get(edge.target)
+      if (!start || !end) return
+      const geometry = new THREE.BufferGeometry().setFromPoints([start, end])
+      const material = new THREE.LineDashedMaterial({ color: '#8197aa', dashSize: .16, gapSize: .1, transparent: true, opacity: .62 })
+      const line = new THREE.Line(geometry, material)
+      line.computeLineDistances()
+      scene.add(line)
+    })
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+    let down = null
+    const pointerDown = (event) => { down = { x: event.clientX, y: event.clientY } }
+    const pointerUp = (event) => {
+      if (!down || Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) return
+      const bounds = renderer.domElement.getBoundingClientRect()
+      pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1
+      pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1
+      raycaster.setFromCamera(pointer, camera)
+      const hit = raycaster.intersectObjects(interactive, false)[0]
+      if (hit?.object.userData.node) onNodeSelect(hit.object.userData.node)
+    }
+    renderer.domElement.addEventListener('pointerdown', pointerDown)
+    renderer.domElement.addEventListener('pointerup', pointerUp)
+    const resize = () => {
+      const { width, height } = host.getBoundingClientRect()
+      renderer.setSize(Math.max(width, 1), Math.max(height, 1), false)
+      camera.aspect = Math.max(width, 1) / Math.max(height, 1)
+      camera.updateProjectionMatrix()
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(host)
+    resize()
+    let frame = 0
+    const render = () => { controls.update(); renderer.render(scene, camera); frame = requestAnimationFrame(render) }
+    render()
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      renderer.domElement.removeEventListener('pointerdown', pointerDown)
+      renderer.domElement.removeEventListener('pointerup', pointerUp)
+      controls.dispose()
+      scene.traverse((object) => {
+        object.geometry?.dispose?.()
+        if (Array.isArray(object.material)) object.material.forEach((material) => { material.map?.dispose?.(); material.dispose?.() })
+        else if (object.material) { object.material.map?.dispose?.(); object.material.dispose?.() }
+      })
+      renderer.dispose()
+    }
+  }, [graph, onNodeSelect])
+  return <div ref={hostRef} className="tornado-3d-canvas" aria-label="可交互的三维 Datawhale 知识地图" />
+}
+
+function DatawhaleTornadoView() {
+  const [payload, setPayload] = useState({ summary: {}, clusters: [], documents: [], pagination: {}, graph: { nodes: [], edges: [] }, navigation: {} })
+  const [clusterId, setClusterId] = useState('')
+  const [courseId, setCourseId] = useState('')
+  const [sourceType, setSourceType] = useState('')
+  const [query, setQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [detail, setDetail] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const load = async () => {
+    setLoading(true); setError('')
+    try {
+      const params = new URLSearchParams({ page: String(page) })
+      if (clusterId) params.set('cluster', clusterId)
+      if (courseId) params.set('course', courseId)
+      if (sourceType) params.set('source_type', sourceType)
+      if (appliedQuery) params.set('q', appliedQuery)
+      const response = await fetch(`/api/datawhale-tornado?${params}`)
+      const next = await response.json()
+      if (!response.ok) throw new Error(next.error || '无法读取 Datawhale 知识龙卷')
+      setPayload(next)
+    } catch (reason) { setError(reason.message) } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [clusterId, courseId, sourceType, appliedQuery, page])
+  const sourceLabel = (type) => ({ learn_chapter: '课程章节', learn_section: '课程小节', learn_course: '课程首页', github_repo: 'GitHub 项目' }[type] || type)
+  const resetPage = () => setPage(1)
+  const enterCluster = (id) => { setClusterId(id); setCourseId(''); setDetail(null); resetPage() }
+  const enterCourse = (id) => { setCourseId(id); setDetail(null); resetPage() }
+  const goBack = () => { if (courseId) { setCourseId(''); setDetail(null); resetPage() } else if (clusterId) { setClusterId(''); setDetail(null); resetPage() } }
+  const openDocument = async (id) => { try { const response = await fetch(`/api/datawhale-tornado/document?id=${encodeURIComponent(id)}`); const next = await response.json(); if (!response.ok) throw new Error(next.error || '无法读取资料详情'); setDetail(next) } catch (reason) { setError(reason.message) } }
+  const onNodeSelect = (node) => {
+    const info = node?.data || node || {}
+    if (info.kind === 'cluster') enterCluster(node.id)
+    if (info.kind === 'course') enterCourse(node.id)
+    if (info.kind === 'resource') openDocument(node.id)
+  }
+  const detailDocument = detail?.document
+  const navigation = payload.navigation || {}
+  return <section className="tornado-3d-page">
+    <header className="tornado-3d-head">
+      <div><span className="panel-kicker">DATAWHALE KNOWLEDGE TORNADO</span><h1>把全部资料，放进一张可旋转的三维知识地图。</h1><p>领域、课程、项目和章节位于同一个空间；点选节点逐层深入，右侧只保留当前资料的真实上下文。</p></div>
+      <div className="tornado-atlas-stats"><span><strong>{payload.summary?.document_count || 0}</strong> 资料</span><span><strong>{payload.summary?.cluster_count || 0}</strong> 领域</span><button className="secondary" onClick={load}>刷新</button></div>
+    </header>
+    {loading ? <div className="tutorial-loading"><Orbit size={19} />正在生成三维知识空间...</div> : error ? <div className="wiki-empty">{error}</div> : !payload.ready ? <div className="wiki-empty"><Orbit size={30} /><strong>这个学习项目还没有 Datawhale 语料</strong><p>请在“运行架构”的本地项目语料区导入 JSONL 或同步最新 BM25 运行结果。</p></div> : <section className="tornado-3d-shell">
+      <article className="tornado-3d-stage">
+        <div className="tornado-atlas-nav">
+          {navigation.level !== 'overview' && <button className="tornado-atlas-back" onClick={goBack}><ArrowLeft size={16} />返回</button>}
+          <div><span>{navigation.level === 'overview' ? '全部内容' : navigation.level === 'cluster' ? '领域' : '课程 / 项目'}</span><strong>{navigation.title}</strong><small>{navigation.description}</small></div>
+        </div>
+        <form className="tornado-atlas-search" onSubmit={(event) => { event.preventDefault(); setAppliedQuery(query.trim()); resetPage() }}>
+          <Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索课程、章节、标签或项目" />
+          <select value={sourceType} onChange={(event) => { setSourceType(event.target.value); resetPage() }}><option value="">全部来源</option>{payload.source_types.map((type) => <option key={type} value={type}>{sourceLabel(type)}</option>)}</select><button type="submit">搜索</button>
+        </form>
+        <div className="tornado-atlas-subjects"><span>领域</span><div>{payload.clusters.map((cluster) => <button key={cluster.id} className={cluster.id === clusterId ? 'is-active' : ''} onClick={() => enterCluster(cluster.id)}>{cluster.name}<small>{cluster.document_count}</small></button>)}</div></div>
+        <Tornado3DScene graph={payload.graph} onNodeSelect={onNodeSelect} />
+        <p className="tornado-3d-help">拖拽旋转 · 滚轮缩放 · 点击节点进入下一层</p>
+      </article>
+      <aside className="tornado-atlas-inspector">
+        {detailDocument ? <>
+          <header><span className="panel-kicker">{sourceLabel(detailDocument.source_type)}</span><button className="icon-button" aria-label="关闭资料详情" onClick={() => setDetail(null)}><X size={17} /></button></header>
+          <h2>{detailDocument.title}</h2><p>{detailDocument.excerpt}</p>
+          <dl><div><dt>当前领域</dt><dd>{payload.clusters.find((cluster) => cluster.id === detailDocument.cluster_id)?.name || '社区与其他资源'}</dd></div>{detailDocument.course && <div><dt>所属课程</dt><dd>{detailDocument.course}</dd></div>}{detailDocument.section_path?.length ? <div><dt>章节路径</dt><dd>{detailDocument.section_path.join(' / ')}</dd></div> : null}</dl>
+          <section><h3>标签</h3><div className="tornado-tags">{detailDocument.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section>
+          {detailDocument.url && <a className="tornado-open-source" href={detailDocument.url} target="_blank" rel="noreferrer"><BookOpen size={16} />打开原始资料</a>}
+          <section><h3>同领域资料</h3><div className="tornado-evidence">{detail.related?.map((item) => <button key={item.id} onClick={() => openDocument(item.id)}><Search size={15} /><span>{item.title}</span></button>)}</div></section>
+        </> : <>
+          <span className="panel-kicker">EXPLORE</span><h2>{navigation.title}</h2><p>{navigation.description}</p>
+          <section><h3>{navigation.level === 'overview' ? '从领域开始' : navigation.level === 'cluster' ? '选择课程或项目' : '打开一条资料'}</h3><p className="tornado-empty">这张图只展开当前层级；每个节点都能继续进入下一层真实资料。</p></section>
+          <section className="tornado-atlas-results"><header><h3>当前筛选</h3><small>{payload.pagination?.total || 0} 条</small></header>{payload.documents.slice(0, 10).map((item) => <button key={item.id} onClick={() => openDocument(item.id)}><span>{sourceLabel(item.source_type)}</span><strong>{item.title}</strong><small>{item.course || item.tags.slice(0, 3).join(' · ')}</small></button>)}{!payload.documents.length && <p className="tornado-empty">没有匹配资料，试试其他关键词或来源。</p>}<footer><button className="secondary" disabled={(payload.pagination?.page || 1) <= 1} onClick={() => setPage((current) => current - 1)}>上一页</button><span>{payload.pagination?.page || 1}/{payload.pagination?.total_pages || 1}</span><button className="secondary" disabled={(payload.pagination?.page || 1) >= (payload.pagination?.total_pages || 1)} onClick={() => setPage((current) => current + 1)}>下一页</button></footer></section>
+        </>}
+      </aside>
+    </section>}
+  </section>
+}
+
 function LearningRoadmapView({ onPlan }) {
   const [routes, setRoutes] = useState([])
   const [currentRoute, setCurrentRoute] = useState({ route_id: '', items: [] })
@@ -580,7 +956,7 @@ export default function App() {
   const setCommandOpen = (next) => { setRawCommandOpen(next); if (!next && settingsOpen) setSettingsOpen(false) }
   const pollingRef = useRef(null)
   const isRunning = ['queued', 'running'].includes(run?.status)
-  const title = useMemo(() => ({ chat: '我的 whale', architecture: '运行架构', learning: '学习地图', wiki: '学习图谱', roadmaps: '学习路线', reviews: '间隔复习', portfolio: '学习档案', workspace: '项目文件', overview: '项目概览' }[activeView]), [activeView])
+  const title = useMemo(() => ({ chat: '我的 whale', architecture: '运行架构', learning: '学习地图', wiki: '学习图谱', tornado: '知识龙卷', roadmaps: '学习路线', reviews: '间隔复习', portfolio: '学习档案', workspace: '项目文件', overview: '项目概览' }[activeView]), [activeView])
   const activeProject = useMemo(() => projects.find((project) => project.id === activeProjectId) || overview.learning_project || null, [activeProjectId, overview.learning_project, projects])
 
   const refreshSessions = async () => { const data = await fetch('/api/sessions').then((response) => response.json()); setSessions(data.sessions || []); return data.sessions || [] }
@@ -612,5 +988,5 @@ export default function App() {
   const openTutorialLink = (href) => { const filename = normalizeLogicalPath(decodeURIComponent(href.split('#')[0])).split('/').pop(); const tutorial = tutorials.find((item) => item.filename === filename); if (tutorial) loadTutorial(tutorial.id) }
   const changeView = (view) => { setActiveView(view); if (view === 'learning') setActiveTutorial(null); setSidebarOpen(false) }
 
-  return <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><Sidebar open={sidebarOpen} collapsed={sidebarCollapsed} activeView={activeView} activeSessionId={activeSessionId} sessions={sessions} project={activeProject} onProjectsOpen={() => setProjectsOpen(true)} onViewChange={changeView} onNewSession={newSession} onSelectSession={loadSession} onClose={() => setSidebarOpen(false)} onToggle={() => setSidebarCollapsed((current) => !current)} /><main className="workspace"><header className="topbar"><div className="topbar-left"><IconButton label="打开侧栏" className="mobile-menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></IconButton><span className="topbar-label">{title}</span></div><div className="top-actions"><span className="model-pill">{overview.model}</span><IconButton label="切换学习项目" onClick={() => setProjectsOpen(true)}><FolderKanban size={19} /></IconButton><IconButton label="指令面板" onClick={() => setCommandOpen(true)}><Command size={19} /></IconButton><IconButton label="API 与模型设置" onClick={() => setSettingsOpen(true)}><Settings2 size={19} /></IconButton><IconButton label="查看工作区" onClick={() => changeView('workspace')}><FolderGit2 size={19} /></IconButton><IconButton label="项目概览" onClick={() => changeView('overview')}><LayoutPanelLeft size={19} /></IconButton></div></header>{activeView === 'chat' && <ChatView key={activeProjectId} mode={mode} setMode={setMode} run={run} messages={messages} value={value} setValue={setValue} onSend={startRun} onDecision={decideApproval} onCommandOpen={() => setCommandOpen(true)} tools={overview.tools} attachments={attachments} onFiles={uploadFiles} onRemoveAttachment={removeAttachment} uploadError={uploadError} isUploading={isUploading} isRunning={isRunning} />}{activeView === 'architecture' && <ArchitectureView />}{activeView === 'learning' && <LearningView tutorials={tutorials} activeTutorial={activeTutorial} loading={tutorialLoading} onOpenTutorial={loadTutorial} onBackToMap={() => setActiveTutorial(null)} onTutorialLink={openTutorialLink} />}{activeView === 'wiki' && <LearningWikiView key={activeProjectId} onDecompose={decomposeWikiTopic} />}{activeView === 'roadmaps' && <LearningRoadmapView key={activeProjectId} onPlan={planRoadmap} />}{activeView === 'reviews' && <LearningReviewView key={activeProjectId} onAsk={startReview} />}{activeView === 'portfolio' && <LearningPortfolioView key={activeProjectId} onAsk={() => { setActiveView('chat'); setValue('请调用 LearningPortfolio(action: "report") 读取我的本地学习档案；然后根据已有项目、关联知识、产出物和下一步，告诉我最值得补充的一条学习证据。不要替我编造完成情况。') }} />}{activeView === 'workspace' && <WorkspaceView />}{activeView === 'overview' && <ProjectOverview key={activeProjectId} overview={overview} sessions={sessions} tutorials={tutorials} onOpenWorkspace={() => changeView('workspace')} onOpenSettings={() => setSettingsOpen(true)} />}</main>{projectsOpen && <ProjectDialog projects={projects} activeProjectId={activeProjectId} onClose={() => setProjectsOpen(false)} onSelect={selectProject} onCreate={createProject} />}{settingsOpen && <SettingsDialog settings={settings} onClose={() => setCommandOpen(false)} onSave={saveSettings} />}{commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} onAction={applyCommand} />}</div>
+  return <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}><Sidebar open={sidebarOpen} collapsed={sidebarCollapsed} activeView={activeView} activeSessionId={activeSessionId} sessions={sessions} project={activeProject} onProjectsOpen={() => setProjectsOpen(true)} onViewChange={changeView} onNewSession={newSession} onSelectSession={loadSession} onClose={() => setSidebarOpen(false)} onToggle={() => setSidebarCollapsed((current) => !current)} /><main className="workspace"><header className="topbar"><div className="topbar-left"><IconButton label="打开侧栏" className="mobile-menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></IconButton><span className="topbar-label">{title}</span></div><div className="top-actions"><span className="model-pill">{overview.model}</span><IconButton label="切换学习项目" onClick={() => setProjectsOpen(true)}><FolderKanban size={19} /></IconButton><IconButton label="指令面板" onClick={() => setCommandOpen(true)}><Command size={19} /></IconButton><IconButton label="API 与模型设置" onClick={() => setSettingsOpen(true)}><Settings2 size={19} /></IconButton><IconButton label="查看工作区" onClick={() => changeView('workspace')}><FolderGit2 size={19} /></IconButton><IconButton label="项目概览" onClick={() => changeView('overview')}><LayoutPanelLeft size={19} /></IconButton></div></header>{activeView === 'chat' && <ChatView key={activeProjectId} mode={mode} setMode={setMode} run={run} messages={messages} value={value} setValue={setValue} onSend={startRun} onDecision={decideApproval} onCommandOpen={() => setCommandOpen(true)} tools={overview.tools} attachments={attachments} onFiles={uploadFiles} onRemoveAttachment={removeAttachment} uploadError={uploadError} isUploading={isUploading} isRunning={isRunning} />}{activeView === 'architecture' && <ArchitectureView />}{activeView === 'learning' && <LearningView tutorials={tutorials} activeTutorial={activeTutorial} loading={tutorialLoading} onOpenTutorial={loadTutorial} onBackToMap={() => setActiveTutorial(null)} onTutorialLink={openTutorialLink} />}{activeView === 'wiki' && <LearningWikiView key={activeProjectId} onDecompose={decomposeWikiTopic} />}{activeView === 'tornado' && <DatawhaleTornadoView key={activeProjectId} />}{activeView === 'roadmaps' && <LearningRoadmapView key={activeProjectId} onPlan={planRoadmap} />}{activeView === 'reviews' && <LearningReviewView key={activeProjectId} onAsk={startReview} />}{activeView === 'portfolio' && <LearningPortfolioView key={activeProjectId} onAsk={() => { setActiveView('chat'); setValue('请调用 LearningPortfolio(action: "report") 读取我的本地学习档案；然后根据已有项目、关联知识、产出物和下一步，告诉我最值得补充的一条学习证据。不要替我编造完成情况。') }} />}{activeView === 'workspace' && <WorkspaceView />}{activeView === 'overview' && <ProjectOverview key={activeProjectId} overview={overview} sessions={sessions} tutorials={tutorials} onOpenWorkspace={() => changeView('workspace')} onOpenSettings={() => setSettingsOpen(true)} />}</main>{projectsOpen && <ProjectDialog projects={projects} activeProjectId={activeProjectId} onClose={() => setProjectsOpen(false)} onSelect={selectProject} onCreate={createProject} />}{settingsOpen && <SettingsDialog settings={settings} onClose={() => setCommandOpen(false)} onSave={saveSettings} />}{commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} onAction={applyCommand} />}</div>
 }

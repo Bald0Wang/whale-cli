@@ -19,6 +19,7 @@ def _empty_state() -> dict[str, Any]:
         "evidence": [],
         "wiki": {},
         "wiki_outlines": {},
+        "tornadoes": {},
     }
 
 

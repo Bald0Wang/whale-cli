@@ -97,7 +97,7 @@ def test_tutorial_catalog_exposes_only_numbered_learning_files():
     assert len(catalog) >= 29
     assert [item["order"] for item in catalog] == list(range(len(catalog)))
     assert catalog[0]["filename"] == "00-为什么要做这个CLI.md"
-    assert catalog[-1]["filename"] == "28-学习项目空间-让数据持续隔离.md"
+    assert catalog[-1]["filename"] == "29-知识龙卷-把Datawhale内容做成学习产品.md"
     assert first is not None
     assert first["content"].startswith("# 00.")
     assert first["previous_id"] is None
@@ -112,6 +112,7 @@ def test_overview_lists_vertical_learning_tools():
 
     assert "LearnerProfile" in overview["tools"]
     assert "KnowledgeMap" in overview["tools"]
+    assert "DatawhaleTornado" in overview["tools"]
     assert "LearningPortfolio" in overview["tools"]
     assert "LearningWiki" in overview["tools"]
 

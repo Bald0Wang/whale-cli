@@ -38,3 +38,6 @@ hello.txt
 # Generated release assets (created by scripts/build_web.sh)
 src/whale_cli/web/static/
 src/whale_cli/web/tutorials/
+
+# Local recovery snapshots created before publishing.
+.whale-cli-backups/

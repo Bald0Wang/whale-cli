@@ -1,6 +1,7 @@
 from .learning_tools import (
     CloneLearningProjectTool,
     KnowledgeMapTool,
+    DatawhaleTornadoTool,
     LearnerProfileTool,
     LearningPortfolioTool,
     LearningProjectPlanTool,
@@ -15,6 +16,7 @@ from .learning_tools import (
 __all__ = [
     "CloneLearningProjectTool",
     "KnowledgeMapTool",
+    "DatawhaleTornadoTool",
     "LearnerProfileTool",
     "LearningPortfolioTool",
     "LearningProjectPlanTool",

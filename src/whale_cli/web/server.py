@@ -34,7 +34,7 @@ from xml.etree import ElementTree
 
 from whale_cli import __version__
 from whale_cli.hooks import HookEngine  # noqa: E402
-from whale_cli.learning import LearnerProfileService, LearningPortfolio, LearningStore, ObsidianLearningWiki, ReviewScheduler, RoadmapPlanner  # noqa: E402
+from whale_cli.learning import DatawhaleKnowledgeTornado, LearnerProfileService, LearningPortfolio, LearningStore, ObsidianLearningWiki, ReviewScheduler, RoadmapPlanner  # noqa: E402
 from whale_cli.llm.client import LLMClient, default_base_url_for_model, is_step_explore_model  # noqa: E402
 from whale_cli.runtime import resolve_runtime_paths  # noqa: E402
 from whale_cli.soul.approval import Approval  # noqa: E402
@@ -771,6 +771,21 @@ def _learning_wiki_page_payload(node_id: str) -> dict[str, Any]:
     return ObsidianLearningWiki(LearningStore(learning_root), learning_root).render_node_page(node_id)
 
 
+def _datawhale_tornado() -> DatawhaleKnowledgeTornado:
+    """Return the active project's source-grounded Datawhale catalogue."""
+    return DatawhaleKnowledgeTornado(DatawhaleKnowledgeBase(_current_project_scope().knowledge_base.path))
+
+
+def _knowledge_tornado_payload(query: dict[str, list[str]]) -> dict[str, Any]:
+    return _datawhale_tornado().snapshot(
+        cluster_id=query.get("cluster", [""])[0],
+        course_id=query.get("course", [""])[0],
+        query=query.get("q", [""])[0],
+        source_type=query.get("source_type", [""])[0],
+        page=int(query.get("page", ["1"])[0] or 1),
+    )
+
+
 def _learning_portfolio_payload() -> dict[str, Any]:
     return LearningPortfolio(LearningStore(_learning_root())).snapshot()
 
@@ -1139,7 +1154,7 @@ def _overview_payload() -> dict[str, Any]:
         "model": settings["model"],
         "tools": [
             "ReadFile", "Glob", "Grep", "WriteFile", "Edit", "Bash", "SearchWeb", "FetchURL",
-            "TodoWrite", "GetDate", "Agent", "LearnerProfile", "KnowledgeMap", "LearningRoadmap",
+            "TodoWrite", "GetDate", "Agent", "LearnerProfile", "KnowledgeMap", "DatawhaleTornado", "LearningRoadmap",
             "LearningReview", "LearningProjectPlan", "CloneLearningProject", "LearningPortfolio", "LearningWikiStatus", "LearningWiki", "OpenLearningWiki", "SyncToObsidianVault",
             "BackgroundStart", "BackgroundList", "BackgroundOutput",
         ],
@@ -1230,6 +1245,18 @@ class WebUIHandler(SimpleHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, _learning_wiki_page_payload(query.get("id", [""])[0]))
             except (OSError, ValueError) as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        if path in {"/api/knowledge-tornado", "/api/datawhale-tornado"}:
+            try:
+                self._send_json(HTTPStatus.OK, _knowledge_tornado_payload(query))
+            except (OSError, ValueError) as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        if path == "/api/datawhale-tornado/document":
+            try:
+                self._send_json(HTTPStatus.OK, _datawhale_tornado().document(query.get("id", [""])[0]))
+            except (OSError, ValueError) as exc:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
             return
         if path == "/api/learning-portfolio":
             self._send_json(HTTPStatus.OK, _learning_portfolio_payload())

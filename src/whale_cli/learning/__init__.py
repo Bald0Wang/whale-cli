@@ -7,6 +7,7 @@ from .projects import ProjectCompanion
 from .review import ReviewScheduler
 from .roadmap import RoadmapPlanner
 from .store import LearningStore
+from .tornado import DatawhaleKnowledgeTornado
 from .wiki import ObsidianLearningWiki
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "LearnerProfileService",
     "LearningPortfolio",
     "LearningStore",
+    "DatawhaleKnowledgeTornado",
     "ObsidianLearningWiki",
     "ProjectCompanion",
     "ReviewScheduler",

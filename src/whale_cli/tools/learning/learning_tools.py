@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ...learning import KnowledgeMap, LearnerProfileService, LearningPortfolio, ObsidianLearningWiki, ProjectCompanion, ReviewScheduler, RoadmapPlanner
+from ...learning import DatawhaleKnowledgeTornado, KnowledgeMap, LearnerProfileService, LearningPortfolio, ObsidianLearningWiki, ProjectCompanion, ReviewScheduler, RoadmapPlanner
+from ...subagents import DatawhaleKnowledgeBase
 from ...learning.store import LearningStore
 from ..base import Tool, ok
 
@@ -23,6 +24,7 @@ class _LearningTool(Tool):
         self.projects = ProjectCompanion(self.store, workspace or Path.cwd())
         self.portfolio = LearningPortfolio(self.store)
         self.wiki = ObsidianLearningWiki(self.store, workspace or Path.cwd())
+        self.tornado = DatawhaleKnowledgeTornado(DatawhaleKnowledgeBase(Path(workspace or Path.cwd()) / ".whale_cli" / "datawhale_bm25_documents.jsonl"))
 
 
 class LearnerProfileTool(_LearningTool):
@@ -60,6 +62,23 @@ class KnowledgeMapTool(_LearningTool):
         if action == "show":
             return _result(self.map.node(concept_id) if concept_id else self.map.overview())
         raise ValueError("action must be add_node, link, or show")
+
+
+class DatawhaleTornadoTool(_LearningTool):
+    name = "DatawhaleTornado"
+    description = "Read the productized Datawhale knowledge tornado: all locally imported resources grouped by source-grounded domain, course, and tags. It never creates learner plans or mastery claims."
+    schema = {"type": "function", "function": {"name": name, "description": description, "parameters": {"type": "object", "properties": {
+        "action": {"type": "string", "enum": ["summary", "browse", "document"]},
+        "cluster_id": {"type": "string"}, "course_id": {"type": "string"}, "query": {"type": "string"}, "source_type": {"type": "string"},
+        "page": {"type": "integer", "minimum": 1}, "document_id": {"type": "string"},
+    }, "required": ["action"]}}}
+
+    def __call__(self, *, action: str, cluster_id: str = "", course_id: str = "", query: str = "", source_type: str = "", page: int = 1, document_id: str = "") -> dict:
+        if action in {"summary", "browse"}:
+            return ok(json.dumps(self.tornado.snapshot(cluster_id=cluster_id, course_id=course_id, query=query, source_type=source_type, page=page), ensure_ascii=False, indent=2))
+        if action == "document":
+            return ok(json.dumps(self.tornado.document(document_id), ensure_ascii=False, indent=2))
+        raise ValueError("action must be summary, browse, or document")
 
 
 class LearningRoadmapTool(_LearningTool):

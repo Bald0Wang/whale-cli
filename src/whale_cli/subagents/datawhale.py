@@ -17,12 +17,15 @@ PROJECT_DATAWHALE_KB_PATH = Path(__file__).resolve().parents[3] / ".whale_cli" /
 
 @dataclass(frozen=True)
 class DatawhaleDocument:
+    id: str
     title: str
     url: str
     text: str
     tags: tuple[str, ...]
     tokens: tuple[str, ...]
     stars: int
+    source_type: str
+    metadata: dict[str, Any]
 
 
 def default_datawhale_kb_path() -> Path:
@@ -65,12 +68,15 @@ class DatawhaleKnowledgeBase:
                     metadata = raw.get("metadata") or {}
                     records.append(
                         DatawhaleDocument(
+                            id=str(raw.get("id") or ""),
                             title=str(raw.get("title") or "Untitled Datawhale project"),
                             url=str(raw.get("url") or ""),
                             text=str(raw.get("text") or ""),
                             tags=tuple(str(tag) for tag in raw.get("tags") or []),
                             tokens=tuple(str(token).lower() for token in raw.get("tokens") or []),
                             stars=int(metadata.get("stars") or 0),
+                            source_type=str(raw.get("source_type") or "unknown"),
+                            metadata=metadata if isinstance(metadata, dict) else {},
                         )
                     )
                 except (TypeError, ValueError, json.JSONDecodeError):

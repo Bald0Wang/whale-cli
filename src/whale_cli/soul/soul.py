@@ -36,6 +36,7 @@ from ..tools.file.edit_tool import EditTool
 from ..tools.learning import (
     CloneLearningProjectTool,
     KnowledgeMapTool,
+    DatawhaleTornadoTool,
     LearnerProfileTool,
     LearningPortfolioTool,
     LearningProjectPlanTool,
@@ -80,7 +81,7 @@ def _default_tools(
         AgentTool(llm=llm, approval=approval, learning_workspace=learning_workspace),
         # Vertical learning experience. Its data root may be separated from the
         # agent's file workspace so WebUI project spaces remain isolated.
-        LearnerProfileTool(learning_workspace), KnowledgeMapTool(learning_workspace), LearningRoadmapTool(learning_workspace), LearningReviewTool(learning_workspace),
+        LearnerProfileTool(learning_workspace), KnowledgeMapTool(learning_workspace), DatawhaleTornadoTool(learning_workspace), LearningRoadmapTool(learning_workspace), LearningReviewTool(learning_workspace),
         LearningProjectPlanTool(learning_workspace), CloneLearningProjectTool(learning_workspace), LearningPortfolioTool(learning_workspace), LearningWikiStatusTool(learning_workspace), LearningWikiTool(learning_workspace), OpenLearningWikiTool(learning_workspace), SyncToObsidianVaultTool(learning_workspace),
         # slow commands
         BackgroundStartTool(background), BackgroundListTool(background), BackgroundOutputTool(background),
