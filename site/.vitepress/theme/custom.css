@@ -310,6 +310,48 @@ html.is-home .VPDoc .container { max-width: none !important; }
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28);
 }
 
+/* 真机终端截图。SVG 自带窗口边框、圆角和左上角三个圆点，
+   再套一层 .chapter-figure 的边框和浅色底就重了。 */
+.term-shot img {
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+}
+
+.dark .term-shot img {
+  border: none;
+  background: transparent;
+}
+
+/* 终端图要比正文栏宽。VitePress 正文栏最宽 688px，一张 92 列的终端压进去，
+   每列只剩 7.5px，等效字号 12px——比正文还小，代码细节看不清，而且屏幕
+   再宽也不会变。撑到 900px 后每列 9.8px，等效字号约 16px，和正文齐平。
+   只在够宽的屏幕上挣脱，窄屏还是老实待在栏内。 */
+@media (min-width: 1440px) {
+  .term-shot {
+    width: 900px;
+    max-width: none;
+    margin-left: calc((100% - 900px) / 2);
+  }
+}
+
+/* 图注挂一条溯源：哪个 commit、什么模型、原始字节流在哪。
+   截图本身没法验证，字节流可以。 */
+.term-shot figcaption {
+  text-align: left;
+  margin-top: 0.65rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid color-mix(in srgb, var(--vp-c-brand-1) 45%, transparent);
+  font-size: 0.8rem;
+}
+
+.term-shot figcaption code {
+  font-size: 0.94em;
+  background: color-mix(in srgb, var(--vp-c-text-1) 6%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
 @media (max-width: 640px) {
   .chapter-figure {
     margin: 1.5rem -0.25rem 1.8rem;
