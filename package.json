@@ -1,0 +1,16 @@
+{
+  "name": "whale-cli-docs",
+  "private": true,
+  "scripts": {
+    "dev": "vitepress dev site",
+    "build": "vitepress build site",
+    "preview": "vitepress preview site"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  },
+  "dependencies": {
+    "mermaid": "^11.16.0",
+    "vitepress-plugin-mermaid": "^2.0.17"
+  }
+}

@@ -3,7 +3,6 @@ import './custom.css'
 import Viz from './Viz.vue'
 import OsCommandTabs from './OsCommandTabs.vue'
 import WhaleInsight from './WhaleInsight.vue'
-import { onMounted } from 'vue'
 
 export default {
   extends: DefaultTheme,
@@ -21,11 +20,4 @@ export default {
       update()
     }
   },
-  setup() {
-    if (typeof window !== 'undefined') {
-      onMounted(() => {
-        }
-      })
-    }
-  }
 }

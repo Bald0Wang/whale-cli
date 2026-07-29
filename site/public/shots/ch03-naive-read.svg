@@ -1,0 +1,237 @@
+<svg class="rich-terminal" viewBox="0 0 1147 1123.6" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    
+    @font-face {
+        font-family: "Sarasa Term SC", "Sarasa Mono SC", "Maple Mono NF CN", "Noto Sans Mono CJK SC", "Menlo", "Consolas", monospace;
+        src: local("FiraCode-Bold"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+        font-style: bold;
+        font-weight: 700;
+    }
+
+    .terminal-3976843804-matrix {
+        font-family: Fira Code, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .terminal-3976843804-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .terminal-3976843804-r1 { fill: #98c379;font-weight: bold }
+.terminal-3976843804-r2 { fill: #dedede }
+.terminal-3976843804-r3 { fill: #98c379 }
+.terminal-3976843804-r4 { fill: #dedede;font-weight: bold }
+.terminal-3976843804-r5 { fill: #56b6c2 }
+.terminal-3976843804-r6 { fill: #8f9091 }
+.terminal-3976843804-r7 { fill: #815290 }
+.terminal-3976843804-r8 { fill: #8f9091;font-weight: bold }
+.terminal-3976843804-r9 { fill: #657f54 }
+.terminal-3976843804-r10 { fill: #815290;font-weight: bold }
+.terminal-3976843804-r11 { fill: #937e55 }
+.terminal-3976843804-r12 { fill: #3e7880;font-weight: bold }
+.terminal-3976843804-r13 { fill: #56b6c2;font-weight: bold }
+.terminal-3976843804-r14 { fill: #c678dd }
+.terminal-3976843804-r15 { fill: #c678dd;font-weight: bold }
+    </style>
+
+    <defs>
+    <clipPath id="terminal-3976843804-clip-terminal">
+      <rect x="0" y="0" width="1121.3999999999999" height="1072.6" />
+    </clipPath>
+    <clipPath id="terminal-3976843804-line-0">
+    <rect x="0" y="1.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-1">
+    <rect x="0" y="25.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-2">
+    <rect x="0" y="50.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-3">
+    <rect x="0" y="74.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-4">
+    <rect x="0" y="99.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-5">
+    <rect x="0" y="123.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-6">
+    <rect x="0" y="147.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-7">
+    <rect x="0" y="172.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-8">
+    <rect x="0" y="196.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-9">
+    <rect x="0" y="221.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-10">
+    <rect x="0" y="245.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-11">
+    <rect x="0" y="269.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-12">
+    <rect x="0" y="294.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-13">
+    <rect x="0" y="318.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-14">
+    <rect x="0" y="343.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-15">
+    <rect x="0" y="367.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-16">
+    <rect x="0" y="391.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-17">
+    <rect x="0" y="416.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-18">
+    <rect x="0" y="440.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-19">
+    <rect x="0" y="465.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-20">
+    <rect x="0" y="489.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-21">
+    <rect x="0" y="513.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-22">
+    <rect x="0" y="538.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-23">
+    <rect x="0" y="562.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-24">
+    <rect x="0" y="587.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-25">
+    <rect x="0" y="611.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-26">
+    <rect x="0" y="635.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-27">
+    <rect x="0" y="660.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-28">
+    <rect x="0" y="684.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-29">
+    <rect x="0" y="709.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-30">
+    <rect x="0" y="733.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-31">
+    <rect x="0" y="757.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-32">
+    <rect x="0" y="782.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-33">
+    <rect x="0" y="806.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-34">
+    <rect x="0" y="831.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-35">
+    <rect x="0" y="855.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-36">
+    <rect x="0" y="879.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-37">
+    <rect x="0" y="904.3" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-38">
+    <rect x="0" y="928.7" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-39">
+    <rect x="0" y="953.1" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-40">
+    <rect x="0" y="977.5" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-41">
+    <rect x="0" y="1001.9" width="1122.4" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-3976843804-line-42">
+    <rect x="0" y="1026.3" width="1122.4" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#1a1b1e" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1139" height="1121.6" rx="8"/><text class="terminal-3976843804-title" fill="#dedede" text-anchor="middle" x="569" y="27">whale-cli&#160;—&#160;第&#160;1&#160;章那版&#160;Read，整个文件糊成一片</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#terminal-3976843804-clip-terminal)">
+    
+    <g class="terminal-3976843804-matrix">
+    <text class="terminal-3976843804-r1" x="0" y="20" textLength="12.2" clip-path="url(#terminal-3976843804-line-0)">$</text><text class="terminal-3976843804-r2" x="12.2" y="20" textLength="841.8" clip-path="url(#terminal-3976843804-line-0)">&#160;python&#160;../code/chapter-02/main.py&#160;&quot;看看&#160;src/globals.ts&#160;里写了什么。&quot;</text><text class="terminal-3976843804-r2" x="1122.4" y="20" textLength="0.0" clip-path="url(#terminal-3976843804-line-0)">
+</text><text class="terminal-3976843804-r3" x="0" y="44.4" textLength="24.4" clip-path="url(#terminal-3976843804-line-1)">⏺&#160;</text><text class="terminal-3976843804-r1" x="24.4" y="44.4" textLength="109.8" clip-path="url(#terminal-3976843804-line-1)">read_file</text><text class="terminal-3976843804-r4" x="134.2" y="44.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-1)">(</text><text class="terminal-3976843804-r5" x="146.4" y="44.4" textLength="48.8" clip-path="url(#terminal-3976843804-line-1)">path</text><text class="terminal-3976843804-r5" x="195.2" y="44.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-1)">=</text><text class="terminal-3976843804-r5" x="207.4" y="44.4" textLength="48.8" clip-path="url(#terminal-3976843804-line-1)">&quot;src</text><text class="terminal-3976843804-r5" x="256.2" y="44.4" textLength="146.4" clip-path="url(#terminal-3976843804-line-1)">/globals.ts&quot;</text><text class="terminal-3976843804-r4" x="402.6" y="44.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-1)">)</text><text class="terminal-3976843804-r2" x="1122.4" y="44.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-1)">
+</text><text class="terminal-3976843804-r6" x="0" y="68.8" textLength="48.8" clip-path="url(#terminal-3976843804-line-2)">&#160;&#160;⎿&#160;</text><text class="terminal-3976843804-r7" x="48.8" y="68.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-2)">/</text><text class="terminal-3976843804-r7" x="61" y="68.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-2)">/</text><text class="terminal-3976843804-r6" x="73.2" y="68.8" textLength="756.4" clip-path="url(#terminal-3976843804-line-2)">&#160;Re-exports&#160;global&#160;CLI&#160;flag&#160;state&#160;used&#160;across&#160;command&#160;modules.</text><text class="terminal-3976843804-r2" x="1122.4" y="68.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-2)">
+</text><text class="terminal-3976843804-r6" x="0" y="93.2" textLength="134.2" clip-path="url(#terminal-3976843804-line-3)">&#160;&#160;&#160;&#160;export&#160;</text><text class="terminal-3976843804-r8" x="134.2" y="93.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-3)">{</text><text class="terminal-3976843804-r6" x="146.4" y="93.2" textLength="463.6" clip-path="url(#terminal-3976843804-line-3)">&#160;isVerbose,&#160;isYes,&#160;setVerbose,&#160;setYes&#160;</text><text class="terminal-3976843804-r8" x="610" y="93.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-3)">}</text><text class="terminal-3976843804-r6" x="622.2" y="93.2" textLength="73.2" clip-path="url(#terminal-3976843804-line-3)">&#160;from&#160;</text><text class="terminal-3976843804-r9" x="695.4" y="93.2" textLength="231.8" clip-path="url(#terminal-3976843804-line-3)">&quot;./global-state.js&quot;</text><text class="terminal-3976843804-r6" x="927.2" y="93.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-3)">;</text><text class="terminal-3976843804-r2" x="1122.4" y="93.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-3)">
+</text><text class="terminal-3976843804-r6" x="0" y="117.6" textLength="134.2" clip-path="url(#terminal-3976843804-line-4)">&#160;&#160;&#160;&#160;import&#160;</text><text class="terminal-3976843804-r8" x="134.2" y="117.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-4)">{</text><text class="terminal-3976843804-r6" x="146.4" y="117.6" textLength="85.4" clip-path="url(#terminal-3976843804-line-4)">&#160;theme&#160;</text><text class="terminal-3976843804-r8" x="231.8" y="117.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-4)">}</text><text class="terminal-3976843804-r6" x="244" y="117.6" textLength="73.2" clip-path="url(#terminal-3976843804-line-4)">&#160;from&#160;</text><text class="terminal-3976843804-r9" x="317.2" y="117.6" textLength="488.0" clip-path="url(#terminal-3976843804-line-4)">&quot;../packages/terminal-core/src/theme.js&quot;</text><text class="terminal-3976843804-r6" x="805.2" y="117.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-4)">;</text><text class="terminal-3976843804-r2" x="1122.4" y="117.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-4)">
+</text><text class="terminal-3976843804-r6" x="0" y="142" textLength="134.2" clip-path="url(#terminal-3976843804-line-5)">&#160;&#160;&#160;&#160;import&#160;</text><text class="terminal-3976843804-r8" x="134.2" y="142" textLength="12.2" clip-path="url(#terminal-3976843804-line-5)">{</text><text class="terminal-3976843804-r6" x="146.4" y="142" textLength="134.2" clip-path="url(#terminal-3976843804-line-5)">&#160;isVerbose&#160;</text><text class="terminal-3976843804-r8" x="280.6" y="142" textLength="12.2" clip-path="url(#terminal-3976843804-line-5)">}</text><text class="terminal-3976843804-r6" x="292.8" y="142" textLength="73.2" clip-path="url(#terminal-3976843804-line-5)">&#160;from&#160;</text><text class="terminal-3976843804-r9" x="366" y="142" textLength="231.8" clip-path="url(#terminal-3976843804-line-5)">&quot;./global-state.js&quot;</text><text class="terminal-3976843804-r6" x="597.8" y="142" textLength="12.2" clip-path="url(#terminal-3976843804-line-5)">;</text><text class="terminal-3976843804-r2" x="1122.4" y="142" textLength="0.0" clip-path="url(#terminal-3976843804-line-5)">
+</text><text class="terminal-3976843804-r6" x="0" y="166.4" textLength="134.2" clip-path="url(#terminal-3976843804-line-6)">&#160;&#160;&#160;&#160;import&#160;</text><text class="terminal-3976843804-r8" x="134.2" y="166.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-6)">{</text><text class="terminal-3976843804-r6" x="146.4" y="166.4" textLength="414.8" clip-path="url(#terminal-3976843804-line-6)">&#160;getLogger,&#160;isFileLogLevelEnabled&#160;</text><text class="terminal-3976843804-r8" x="561.2" y="166.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-6)">}</text><text class="terminal-3976843804-r6" x="573.4" y="166.4" textLength="73.2" clip-path="url(#terminal-3976843804-line-6)">&#160;from&#160;</text><text class="terminal-3976843804-r9" x="646.6" y="166.4" textLength="256.2" clip-path="url(#terminal-3976843804-line-6)">&quot;./logging/logger.js&quot;</text><text class="terminal-3976843804-r6" x="902.8" y="166.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-6)">;</text><text class="terminal-3976843804-r2" x="1122.4" y="166.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-6)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="190.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-7)">
+</text><text class="terminal-3976843804-r6" x="0" y="215.2" textLength="244.0" clip-path="url(#terminal-3976843804-line-8)">&#160;&#160;&#160;&#160;export&#160;function&#160;</text><text class="terminal-3976843804-r10" x="244" y="215.2" textLength="195.2" clip-path="url(#terminal-3976843804-line-8)">shouldLogVerbose</text><text class="terminal-3976843804-r8" x="439.2" y="215.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-8)">(</text><text class="terminal-3976843804-r8" x="451.4" y="215.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-8)">)</text><text class="terminal-3976843804-r8" x="475.8" y="215.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-8)">{</text><text class="terminal-3976843804-r2" x="1122.4" y="215.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-8)">
+</text><text class="terminal-3976843804-r6" x="0" y="239.6" textLength="158.6" clip-path="url(#terminal-3976843804-line-9)">&#160;&#160;&#160;&#160;&#160;&#160;return&#160;</text><text class="terminal-3976843804-r10" x="158.6" y="239.6" textLength="109.8" clip-path="url(#terminal-3976843804-line-9)">isVerbose</text><text class="terminal-3976843804-r8" x="268.4" y="239.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-9)">(</text><text class="terminal-3976843804-r8" x="280.6" y="239.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-9)">)</text><text class="terminal-3976843804-r6" x="292.8" y="239.6" textLength="48.8" clip-path="url(#terminal-3976843804-line-9)">&#160;||&#160;</text><text class="terminal-3976843804-r10" x="341.6" y="239.6" textLength="256.2" clip-path="url(#terminal-3976843804-line-9)">isFileLogLevelEnabled</text><text class="terminal-3976843804-r8" x="597.8" y="239.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-9)">(</text><text class="terminal-3976843804-r9" x="610" y="239.6" textLength="85.4" clip-path="url(#terminal-3976843804-line-9)">&quot;debug&quot;</text><text class="terminal-3976843804-r8" x="695.4" y="239.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-9)">)</text><text class="terminal-3976843804-r6" x="707.6" y="239.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-9)">;</text><text class="terminal-3976843804-r2" x="1122.4" y="239.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-9)">
+</text><text class="terminal-3976843804-r8" x="48.8" y="264" textLength="12.2" clip-path="url(#terminal-3976843804-line-10)">}</text><text class="terminal-3976843804-r2" x="1122.4" y="264" textLength="0.0" clip-path="url(#terminal-3976843804-line-10)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="288.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-11)">
+</text><text class="terminal-3976843804-r6" x="0" y="312.8" textLength="244.0" clip-path="url(#terminal-3976843804-line-12)">&#160;&#160;&#160;&#160;export&#160;function&#160;</text><text class="terminal-3976843804-r10" x="244" y="312.8" textLength="122.0" clip-path="url(#terminal-3976843804-line-12)">logVerbose</text><text class="terminal-3976843804-r8" x="366" y="312.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-12)">(</text><text class="terminal-3976843804-r6" x="378.2" y="312.8" textLength="183.0" clip-path="url(#terminal-3976843804-line-12)">message:&#160;string</text><text class="terminal-3976843804-r8" x="561.2" y="312.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-12)">)</text><text class="terminal-3976843804-r8" x="585.6" y="312.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-12)">{</text><text class="terminal-3976843804-r2" x="1122.4" y="312.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-12)">
+</text><text class="terminal-3976843804-r6" x="0" y="337.2" textLength="109.8" clip-path="url(#terminal-3976843804-line-13)">&#160;&#160;&#160;&#160;&#160;&#160;if&#160;</text><text class="terminal-3976843804-r8" x="109.8" y="337.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-13)">(</text><text class="terminal-3976843804-r6" x="122" y="337.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-13)">!</text><text class="terminal-3976843804-r10" x="134.2" y="337.2" textLength="195.2" clip-path="url(#terminal-3976843804-line-13)">shouldLogVerbose</text><text class="terminal-3976843804-r8" x="329.4" y="337.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-13)">(</text><text class="terminal-3976843804-r8" x="341.6" y="337.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-13)">)</text><text class="terminal-3976843804-r8" x="353.8" y="337.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-13)">)</text><text class="terminal-3976843804-r8" x="378.2" y="337.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-13)">{</text><text class="terminal-3976843804-r2" x="1122.4" y="337.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-13)">
+</text><text class="terminal-3976843804-r6" x="0" y="361.6" textLength="183.0" clip-path="url(#terminal-3976843804-line-14)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;return;</text><text class="terminal-3976843804-r2" x="1122.4" y="361.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-14)">
+</text><text class="terminal-3976843804-r8" x="73.2" y="386" textLength="12.2" clip-path="url(#terminal-3976843804-line-15)">}</text><text class="terminal-3976843804-r2" x="1122.4" y="386" textLength="0.0" clip-path="url(#terminal-3976843804-line-15)">
+</text><text class="terminal-3976843804-r6" x="0" y="410.4" textLength="122.0" clip-path="url(#terminal-3976843804-line-16)">&#160;&#160;&#160;&#160;&#160;&#160;try&#160;</text><text class="terminal-3976843804-r8" x="122" y="410.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-16)">{</text><text class="terminal-3976843804-r2" x="1122.4" y="410.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-16)">
+</text><text class="terminal-3976843804-r11" x="48.8" y="434.8" textLength="36.6" clip-path="url(#terminal-3976843804-line-17)">...</text><text class="terminal-3976843804-r8" x="97.6" y="434.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-17)">(</text><text class="terminal-3976843804-r12" x="109.8" y="434.8" textLength="24.4" clip-path="url(#terminal-3976843804-line-17)">23</text><text class="terminal-3976843804-r6" x="134.2" y="434.8" textLength="134.2" clip-path="url(#terminal-3976843804-line-17)">&#160;more&#160;lines</text><text class="terminal-3976843804-r8" x="268.4" y="434.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-17)">)</text><text class="terminal-3976843804-r2" x="1122.4" y="434.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-17)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="459.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-18)">
+</text><text class="terminal-3976843804-r2" x="0" y="483.6" textLength="378.2" clip-path="url(#terminal-3976843804-line-19)">`src/globals.ts`&#160;文件内容如下：</text><text class="terminal-3976843804-r2" x="1122.4" y="483.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-19)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="508" textLength="0.0" clip-path="url(#terminal-3976843804-line-20)">
+</text><text class="terminal-3976843804-r13" x="0" y="532.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-21)">1</text><text class="terminal-3976843804-r2" x="12.2" y="532.4" textLength="353.8" clip-path="url(#terminal-3976843804-line-21)">.&#160;**重新导出全局状态**：从&#160;`.</text><text class="terminal-3976843804-r14" x="366" y="532.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-21)">/</text><text class="terminal-3976843804-r14" x="378.2" y="532.4" textLength="183.0" clip-path="url(#terminal-3976843804-line-21)">global-state.js</text><text class="terminal-3976843804-r2" x="561.2" y="532.4" textLength="158.6" clip-path="url(#terminal-3976843804-line-21)">`&#160;重新导出了&#160;</text><text class="terminal-3976843804-r2" x="1122.4" y="532.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-21)">
+</text><text class="terminal-3976843804-r2" x="0" y="556.8" textLength="780.8" clip-path="url(#terminal-3976843804-line-22)">`isVerbose`、`isYes`、`setVerbose`、`setYes`&#160;四个&#160;CLI&#160;标志状态。</text><text class="terminal-3976843804-r2" x="1122.4" y="556.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-22)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="581.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-23)">
+</text><text class="terminal-3976843804-r13" x="0" y="605.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-24)">2</text><text class="terminal-3976843804-r2" x="12.2" y="605.6" textLength="195.2" clip-path="url(#terminal-3976843804-line-24)">.&#160;**导入依赖**：</text><text class="terminal-3976843804-r2" x="1122.4" y="605.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-24)">
+</text><text class="terminal-3976843804-r2" x="0" y="630" textLength="256.2" clip-path="url(#terminal-3976843804-line-25)">&#160;&#160;&#160;-&#160;`theme`&#160;来自&#160;`..</text><text class="terminal-3976843804-r14" x="256.2" y="630" textLength="341.6" clip-path="url(#terminal-3976843804-line-25)">/packages/terminal-core/src/</text><text class="terminal-3976843804-r14" x="597.8" y="630" textLength="97.6" clip-path="url(#terminal-3976843804-line-25)">theme.js</text><text class="terminal-3976843804-r2" x="695.4" y="630" textLength="12.2" clip-path="url(#terminal-3976843804-line-25)">`</text><text class="terminal-3976843804-r2" x="1122.4" y="630" textLength="0.0" clip-path="url(#terminal-3976843804-line-25)">
+</text><text class="terminal-3976843804-r2" x="0" y="654.4" textLength="292.8" clip-path="url(#terminal-3976843804-line-26)">&#160;&#160;&#160;-&#160;`isVerbose`&#160;来自&#160;`.</text><text class="terminal-3976843804-r14" x="292.8" y="654.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-26)">/</text><text class="terminal-3976843804-r14" x="305" y="654.4" textLength="183.0" clip-path="url(#terminal-3976843804-line-26)">global-state.js</text><text class="terminal-3976843804-r2" x="488" y="654.4" textLength="12.2" clip-path="url(#terminal-3976843804-line-26)">`</text><text class="terminal-3976843804-r2" x="1122.4" y="654.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-26)">
+</text><text class="terminal-3976843804-r2" x="0" y="678.8" textLength="622.2" clip-path="url(#terminal-3976843804-line-27)">&#160;&#160;&#160;-&#160;`getLogger`&#160;和&#160;`isFileLogLevelEnabled`&#160;来自&#160;`.</text><text class="terminal-3976843804-r14" x="622.2" y="678.8" textLength="109.8" clip-path="url(#terminal-3976843804-line-27)">/logging/</text><text class="terminal-3976843804-r14" x="732" y="678.8" textLength="109.8" clip-path="url(#terminal-3976843804-line-27)">logger.js</text><text class="terminal-3976843804-r2" x="841.8" y="678.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-27)">`</text><text class="terminal-3976843804-r2" x="1122.4" y="678.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-27)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="703.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-28)">
+</text><text class="terminal-3976843804-r13" x="0" y="727.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-29)">3</text><text class="terminal-3976843804-r2" x="12.2" y="727.6" textLength="195.2" clip-path="url(#terminal-3976843804-line-29)">.&#160;**核心函数**：</text><text class="terminal-3976843804-r2" x="1122.4" y="727.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-29)">
+</text><text class="terminal-3976843804-r2" x="0" y="752" textLength="97.6" clip-path="url(#terminal-3976843804-line-30)">&#160;&#160;&#160;-&#160;**`</text><text class="terminal-3976843804-r15" x="97.6" y="752" textLength="195.2" clip-path="url(#terminal-3976843804-line-30)">shouldLogVerbose</text><text class="terminal-3976843804-r4" x="292.8" y="752" textLength="12.2" clip-path="url(#terminal-3976843804-line-30)">(</text><text class="terminal-3976843804-r4" x="305" y="752" textLength="12.2" clip-path="url(#terminal-3976843804-line-30)">)</text><text class="terminal-3976843804-r2" x="317.2" y="752" textLength="439.2" clip-path="url(#terminal-3976843804-line-30)">`**&#160;—&#160;判断是否应该输出详细日志：当&#160;`</text><text class="terminal-3976843804-r15" x="756.4" y="752" textLength="109.8" clip-path="url(#terminal-3976843804-line-30)">isVerbose</text><text class="terminal-3976843804-r4" x="866.2" y="752" textLength="12.2" clip-path="url(#terminal-3976843804-line-30)">(</text><text class="terminal-3976843804-r4" x="878.4" y="752" textLength="12.2" clip-path="url(#terminal-3976843804-line-30)">)</text><text class="terminal-3976843804-r2" x="890.6" y="752" textLength="122.0" clip-path="url(#terminal-3976843804-line-30)">`&#160;为&#160;true&#160;</text><text class="terminal-3976843804-r2" x="1122.4" y="752" textLength="0.0" clip-path="url(#terminal-3976843804-line-30)">
+</text><text class="terminal-3976843804-r2" x="0" y="776.4" textLength="268.4" clip-path="url(#terminal-3976843804-line-31)">或文件日志级别启用了&#160;`</text><text class="terminal-3976843804-r3" x="268.4" y="776.4" textLength="85.4" clip-path="url(#terminal-3976843804-line-31)">&quot;debug&quot;</text><text class="terminal-3976843804-r2" x="353.8" y="776.4" textLength="183.0" clip-path="url(#terminal-3976843804-line-31)">`&#160;时返回&#160;true。</text><text class="terminal-3976843804-r2" x="1122.4" y="776.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-31)">
+</text><text class="terminal-3976843804-r2" x="0" y="800.8" textLength="97.6" clip-path="url(#terminal-3976843804-line-32)">&#160;&#160;&#160;-&#160;**`</text><text class="terminal-3976843804-r15" x="97.6" y="800.8" textLength="122.0" clip-path="url(#terminal-3976843804-line-32)">logVerbose</text><text class="terminal-3976843804-r4" x="219.6" y="800.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-32)">(</text><text class="terminal-3976843804-r2" x="231.8" y="800.8" textLength="85.4" clip-path="url(#terminal-3976843804-line-32)">message</text><text class="terminal-3976843804-r4" x="317.2" y="800.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-32)">)</text><text class="terminal-3976843804-r2" x="329.4" y="800.8" textLength="597.8" clip-path="url(#terminal-3976843804-line-32)">`**&#160;—&#160;输出详细日志：先尝试通过&#160;logger&#160;记录&#160;debug&#160;</text><text class="terminal-3976843804-r2" x="1122.4" y="800.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-32)">
+</text><text class="terminal-3976843804-r2" x="0" y="825.2" textLength="366.0" clip-path="url(#terminal-3976843804-line-33)">级别的日志（忽略失败），如果&#160;`</text><text class="terminal-3976843804-r15" x="366" y="825.2" textLength="109.8" clip-path="url(#terminal-3976843804-line-33)">isVerbose</text><text class="terminal-3976843804-r4" x="475.8" y="825.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-33)">(</text><text class="terminal-3976843804-r4" x="488" y="825.2" textLength="12.2" clip-path="url(#terminal-3976843804-line-33)">)</text><text class="terminal-3976843804-r2" x="500.2" y="825.2" textLength="585.6" clip-path="url(#terminal-3976843804-line-33)">`&#160;为&#160;true，还会在控制台打印灰色（muted）的消息。</text><text class="terminal-3976843804-r2" x="1122.4" y="825.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-33)">
+</text><text class="terminal-3976843804-r2" x="0" y="849.6" textLength="97.6" clip-path="url(#terminal-3976843804-line-34)">&#160;&#160;&#160;-&#160;**`</text><text class="terminal-3976843804-r15" x="97.6" y="849.6" textLength="207.4" clip-path="url(#terminal-3976843804-line-34)">logVerboseConsole</text><text class="terminal-3976843804-r4" x="305" y="849.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-34)">(</text><text class="terminal-3976843804-r2" x="317.2" y="849.6" textLength="85.4" clip-path="url(#terminal-3976843804-line-34)">message</text><text class="terminal-3976843804-r4" x="402.6" y="849.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-34)">)</text><text class="terminal-3976843804-r2" x="414.8" y="849.6" textLength="146.4" clip-path="url(#terminal-3976843804-line-34)">`**&#160;—&#160;仅在&#160;`</text><text class="terminal-3976843804-r15" x="561.2" y="849.6" textLength="109.8" clip-path="url(#terminal-3976843804-line-34)">isVerbose</text><text class="terminal-3976843804-r4" x="671" y="849.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-34)">(</text><text class="terminal-3976843804-r4" x="683.2" y="849.6" textLength="12.2" clip-path="url(#terminal-3976843804-line-34)">)</text><text class="terminal-3976843804-r2" x="695.4" y="849.6" textLength="122.0" clip-path="url(#terminal-3976843804-line-34)">`&#160;为&#160;true&#160;</text><text class="terminal-3976843804-r2" x="1122.4" y="849.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-34)">
+</text><text class="terminal-3976843804-r2" x="0" y="874" textLength="585.6" clip-path="url(#terminal-3976843804-line-35)">时直接在控制台打印灰色消息，不经过&#160;logger&#160;系统。</text><text class="terminal-3976843804-r2" x="1122.4" y="874" textLength="0.0" clip-path="url(#terminal-3976843804-line-35)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="898.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-36)">
+</text><text class="terminal-3976843804-r13" x="0" y="922.8" textLength="12.2" clip-path="url(#terminal-3976843804-line-37)">4</text><text class="terminal-3976843804-r2" x="12.2" y="922.8" textLength="695.4" clip-path="url(#terminal-3976843804-line-37)">.&#160;**导出的主题格式化函数**（将&#160;theme&#160;中的方法重新暴露）：</text><text class="terminal-3976843804-r2" x="1122.4" y="922.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-37)">
+</text><text class="terminal-3976843804-r2" x="0" y="947.2" textLength="549.0" clip-path="url(#terminal-3976843804-line-38)">&#160;&#160;&#160;-&#160;`success`&#160;→&#160;`theme.success`（成功/绿色）</text><text class="terminal-3976843804-r2" x="1122.4" y="947.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-38)">
+</text><text class="terminal-3976843804-r2" x="0" y="971.6" textLength="475.8" clip-path="url(#terminal-3976843804-line-39)">&#160;&#160;&#160;-&#160;`warn`&#160;→&#160;`theme.warn`（警告/黄色）</text><text class="terminal-3976843804-r2" x="1122.4" y="971.6" textLength="0.0" clip-path="url(#terminal-3976843804-line-39)">
+</text><text class="terminal-3976843804-r2" x="0" y="996" textLength="475.8" clip-path="url(#terminal-3976843804-line-40)">&#160;&#160;&#160;-&#160;`info`&#160;→&#160;`theme.info`（信息/蓝色）</text><text class="terminal-3976843804-r2" x="1122.4" y="996" textLength="0.0" clip-path="url(#terminal-3976843804-line-40)">
+</text><text class="terminal-3976843804-r2" x="0" y="1020.4" textLength="512.4" clip-path="url(#terminal-3976843804-line-41)">&#160;&#160;&#160;-&#160;`danger`&#160;→&#160;`theme.error`（危险/红色）</text><text class="terminal-3976843804-r2" x="1122.4" y="1020.4" textLength="0.0" clip-path="url(#terminal-3976843804-line-41)">
+</text><text class="terminal-3976843804-r2" x="1122.4" y="1044.8" textLength="0.0" clip-path="url(#terminal-3976843804-line-42)">
+</text><text class="terminal-3976843804-r2" x="0" y="1069.2" textLength="1000.4" clip-path="url(#terminal-3976843804-line-43)">总体来说，这个文件主要负责**详细日志输出控制**和**终端主题颜色格式化**的便捷导出。</text><text class="terminal-3976843804-r2" x="1122.4" y="1069.2" textLength="0.0" clip-path="url(#terminal-3976843804-line-43)">
+</text>
+    </g>
+    </g>
+</svg>
