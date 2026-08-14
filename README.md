@@ -1,3 +1,5 @@
+
+
 <p align="center">
   <img src="webui/public/whale-cli-logo.png" width="240" alt="Whale CLI logo" />
 </p>
@@ -176,7 +178,7 @@ whale-cli
 
 ```bash
 npm ci --prefix webui
-make web
+npm run build --prefix webui
 whale-doctor --web
 whale-web
 ```
